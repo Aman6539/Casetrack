@@ -328,6 +328,9 @@ label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;
         <div class="step-label">STEP 1 &mdash; OPEN eCOURTS</div>
         <button class="btn btn-outline" style="width:100%;padding:10px;font-size:14px" id="sync-open-btn" onclick="openECourts()">Open eCourts Services</button>
         <div id="sync-hint" style="font-size:12px;color:#7b93ad;margin-top:8px;line-height:1.5"></div>
+      <div style="margin-top:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:7px;padding:10px 12px;font-size:12px;color:#92400e;line-height:1.6">
+        <strong>If eCourts shows 404:</strong> Go to <strong>services.ecourts.gov.in</strong> manually &rarr; click <em>Case Status</em> &rarr; select <em>CNR Number</em> &rarr; enter the CNR shown above.
+      </div>
       </div>
       <div class="step-box">
         <div class="step-label">STEP 2 &mdash; ENTER DATE FROM eCOURTS</div>
@@ -393,6 +396,61 @@ label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;
 </div>
 
 <div id="print-area"></div>
+
+
+<!-- ECOURTS EMAIL IMPORT MODAL -->
+<div class="overlay" id="modal-ecimport">
+  <div class="modal wide">
+    <div class="modal-body">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="modal-title" style="margin-bottom:0">&#128229; eCourts Email Import</div>
+        <button onclick="closeModal('modal-ecimport')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
+      </div>
+
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#4b6280">
+        <strong style="color:#1a56db">How eCourts email works:</strong> eCourts sends you an email with your case list as a <strong>.txt file attachment</strong> containing JSON data. This tool reads that file and imports all cases automatically.
+      </div>
+
+      <!-- Method 1: File Upload -->
+      <div style="background:#f8fafc;border:2px solid #1a56db;border-radius:10px;padding:16px;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;color:#1a56db;margin-bottom:10px;letter-spacing:.4px">METHOD 1 &mdash; UPLOAD THE .TXT OR .PDF FILE FROM EMAIL</div>
+        <label class="btn btn-blue" style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;width:100%;justify-content:center;padding:12px">
+          &#128193; Select eCourts File (.txt or .pdf)
+          <input type="file" accept=".txt,.pdf,.json" style="display:none" onchange="importECourtsFile(event)"/>
+        </label>
+        <div style="font-size:12px;color:#7b93ad;margin-top:8px;line-height:1.5">Accepts: <strong>.txt</strong> (eCourts email attachment) &bull; <strong>.pdf</strong> (eCourts PDF export) &bull; <strong>.json</strong> (LexTrack backup)</div>
+      </div>
+
+      <!-- Method 2: Paste text -->
+      <div style="background:#f8fafc;border:1px solid #dbeafe;border-radius:10px;padding:16px;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;color:#1a56db;margin-bottom:10px;letter-spacing:.4px">METHOD 2 &mdash; PASTE THE TEXT FROM EMAIL</div>
+        <div style="font-size:12px;color:#4b6280;margin-bottom:8px">Open the .txt attachment in your email, select all text (Ctrl+A), copy, and paste below:</div>
+        <textarea id="ec-paste-area" rows="5" placeholder='Paste eCourts data here... (starts with [{&quot;cino&quot;:&quot;PBPTA...&quot;}])' style="font-family:monospace;font-size:12px;margin-bottom:10px"></textarea>
+        <button class="btn btn-blue" style="width:100%;padding:10px" onclick="importECourtsPaste()">Import Pasted Data</button>
+      </div>
+
+      <!-- Status area -->
+      <div id="ec-status" style="display:none;border-radius:8px;padding:12px 14px;font-size:13px;margin-bottom:14px"></div>
+
+      <!-- Instructions -->
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px 16px;margin-bottom:14px">
+        <div style="font-weight:700;color:#16a34a;font-size:13px;margin-bottom:8px">How to get the eCourts email file:</div>
+        <div style="font-size:12.5px;color:#4b6280;line-height:1.7">
+          1. Login to <strong>services.ecourts.gov.in</strong><br>
+          2. Go to <strong>Advocate &rarr; My Cases</strong><br>
+          3. Click <strong>Send to Email</strong> button<br>
+          4. Check your email inbox<br>
+          5. Download the <strong>.txt attachment</strong> from that email<br>
+          6. Upload it here using Method 1 above
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('modal-ecimport')">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 // ============================================================
@@ -884,7 +942,7 @@ function openSync(id){
     +'<span style="font-size:12px;color:#4b6280">'+esc(c.caseNo||'')+(c.court?' | '+esc(c.court):'')+'</span>'
     +(cnr?'<br><span style="font-size:12px;color:#1a56db;font-weight:600">CNR: '+esc(cnr)+'</span>'
          :'<br><span style="font-size:12px;color:#d97706">No CNR saved. Edit case to add CNR.</span>');
-  document.getElementById('sync-open-btn').textContent=cnr?'Open eCourts - CNR: '+cnr:'Open eCourts Services';
+  document.getElementById('sync-open-btn').textContent=cnr?'Open eCourts → CNR: '+cnr:'Open eCourts Services';
   document.getElementById('sync-hint').textContent=cnr
     ?'eCourts will open with your CNR pre-filled. Note the next hearing date.'
     :'Search your case by number or party name on eCourts, then note the next date.';
@@ -892,7 +950,16 @@ function openSync(id){
 }
 function openECourts(){
   var c=cases.find(function(x){return x.id===syncingId;});
-  window.open((c&&c.cnr)?'https://services.ecourts.gov.in/ecourtindia_v6/?p=casestatus/searchByCNRNumber&CNR_NO='+encodeURIComponent(c.cnr):'https://services.ecourts.gov.in/ecourtindia_v6/?p=casestatus/index','_blank');
+  var cnr=(c&&c.cnr)?c.cnr.trim():'';
+  // Three working eCourts URLs to try
+  var urls=[
+    cnr?'https://hcservices.ecourts.gov.in/hcservices/main.php?11#':null,
+    cnr?'https://services.ecourts.gov.in/ecourtindia_v6/?p=casestatus/index&searchby=2&cino='+encodeURIComponent(cnr):null,
+    'https://services.ecourts.gov.in/ecourtindia_v6/'
+  ].filter(Boolean);
+  // Open primary working URL
+  window.open(urls[1]||urls[0],'_blank');
+  if(cnr) showToast('Opened eCourts for CNR: '+cnr,'ok');
 }
 function applySync(){
   var nd=document.getElementById('sync-date').value;
@@ -956,6 +1023,156 @@ function buildPDF(dv,list){
   document.getElementById('pdf-preview').innerHTML=html;
   document.getElementById('print-area').innerHTML=html;
 }
+
+// ============================================================
+// ECOURTS EMAIL IMPORT
+// ============================================================
+function parseECourtsData(rawText){
+  // Remove newlines that split values
+  var text = rawText.replace(/\n/g,'').replace(/\r/g,'').trim();
+  
+  // Try direct JSON parse first (clean JSON)
+  try{
+    var d = JSON.parse(text);
+    if(Array.isArray(d)) return d.map(function(item){
+      if(typeof item === 'string') try{ return JSON.parse(item); }catch(e){ return null; }
+      return item;
+    }).filter(Boolean);
+  }catch(e){}
+
+  // Strip outer quote layers
+  if(text.startsWith('"') && text.endsWith('"')){
+    text = text.slice(1,-1).replace(/\\"/g,'"').replace(/\\\\/g,'\\');
+    try{
+      var d2 = JSON.parse(text);
+      if(Array.isArray(d2)) return d2.map(function(item){
+        if(typeof item==='string') try{ return JSON.parse(item); }catch(e){ return null; }
+        return item;
+      }).filter(Boolean);
+    }catch(e){}
+  }
+
+  // Regex extraction fallback - works on any escaping level
+  function getAll(re,str){ var r=[],m; re.lastIndex=0; while((m=re.exec(str))!==null) r.push(m[1].trim()); return r; }
+  var cinos   = getAll(/\\*"cino\\*"\\*:\\*"([A-Z0-9]+)\\*"/g, text);
+  var pets    = getAll(/\\*"petparty_name\\*"\\*:\\*"([^"\\]+?)\\*"/g, text);
+  var res     = getAll(/\\*"resparty_name\\*"\\*:\\*"([^"\\]+?)\\*"/g, text);
+  var dates   = getAll(/\\*"date_next_list\\*"\\*:\\*"(\d{4}-\d{4,8})\\*"/g, text);
+  var purps   = getAll(/\\*"purpose_name\\*"\\*:\\*"([^"\\]+?)\\*"/g, text);
+  var courts  = getAll(/\\*"court_no_desg_name\\*"\\*:\\*"([^"\\]+?)\\*"/g, text);
+  var cnos    = getAll(/\\*"case_no\\*"\\*:\\*"(\d{10,})\\*"/g, text);
+
+  if(!cinos.length) return [];
+
+  var n = Math.min(cinos.length, pets.length, res.length, dates.length);
+  var today = new Date().toISOString().split('T')[0];
+  var out = [];
+  for(var i=0;i<n;i++){
+    var nd = dates[i];
+    var dm = nd.match(/^(\d{4})-(\d{2})(\d{2})$/);
+    if(dm) nd = dm[1]+'-'+dm[2]+'-'+dm[3];
+    
+    // fix run-together names
+    var pet = pets[i].replace(/([a-z])([A-Z])/g,'$1 $2').replace(/\s+/g,' ').trim();
+    var resp = res[i].replace(/([a-z])([A-Z])/g,'$1 $2').replace(/\s+/g,' ').trim();
+    var court = (courts[i]||'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/\s+/g,' ').trim();
+    var courtMapped = court;
+    if(/Sub Divisional|JMFC/i.test(court)) courtMapped='JMFC Rajpura';
+    else if(/Civil Judge.*Jr/i.test(court)) courtMapped='Civil Judge (Jr. Div.) Rajpura';
+    else if(/Civil Judge.*Sr/i.test(court)) courtMapped='Civil Judge (Sr. Div.) Rajpura';
+    else if(/Sessions/i.test(court)) courtMapped='Sessions Court Patiala';
+    else if(/High Court/i.test(court)) courtMapped='Punjab & Haryana High Court';
+    else if(/ACJM/i.test(court)) courtMapped='ACJM Rajpura';
+    else if(/Magistrate/i.test(court)) courtMapped='JMFC Rajpura';
+
+    out.push({
+      id: cinos[i]+'_'+i,
+      cnr: cinos[i],
+      caseNo: cnos[i]||'',
+      title: pet+' vs. '+resp,
+      client: pet,
+      opposite: resp,
+      court: courtMapped,
+      caseType: 'Criminal Case',
+      nextDate: nd,
+      stage: purps[i]||'',
+      status: nd>=today?'Active':'Adjourned',
+      sections:'',
+      remarks:'Imported from eCourts. Court: '+court,
+      createdAt: today,
+      lastSynced: null
+    });
+  }
+  return out;
+}
+
+function applyECourtsImport(imported){
+  if(!imported||!imported.length){
+    ecStatus('Could not find any cases in this file. Make sure it is the correct eCourts export file.','error');
+    return;
+  }
+  var added=0, updated=0;
+  imported.forEach(function(ic){
+    var idx=cases.findIndex(function(c){ return ic.cnr&&c.cnr===ic.cnr; });
+    if(idx>=0){
+      cases[idx].nextDate=ic.nextDate;
+      cases[idx].stage=ic.stage;
+      cases[idx].status=ic.status;
+      cases[idx].lastSynced=new Date().toISOString();
+      updated++;
+    } else {
+      cases.push(ic);
+      added++;
+    }
+  });
+  save(); renderAll();
+  ecStatus(imported.length+' cases processed: '+added+' new added, '+updated+' dates updated.','ok');
+  showToast('eCourts import done: '+added+' added, '+updated+' updated.');
+}
+
+function ecStatus(msg,type){
+  var el=document.getElementById('ec-status');
+  el.style.display='block';
+  el.style.background=type==='ok'?'#f0fdf4':'#fef2f2';
+  el.style.color=type==='ok'?'#16a34a':'#dc2626';
+  el.style.border='1px solid '+(type==='ok'?'#bbf7d0':'#fecaca');
+  el.textContent=(type==='ok'?'\u2713 ':' \u2715 ')+msg;
+}
+
+function importECourtsFile(e){
+  var file=e.target.files[0]; if(!file)return;
+  ecStatus('Reading file...','ok');
+  var reader=new FileReader();
+  
+  if(file.name.toLowerCase().endsWith('.pdf')){
+    reader.onload=function(ev){
+      var bytes=new Uint8Array(ev.target.result);
+      var raw='';
+      for(var i=0;i<bytes.length;i++){
+        if(bytes[i]>=32||bytes[i]===10||bytes[i]===13) raw+=String.fromCharCode(bytes[i]);
+      }
+      var imported=parseECourtsData(raw);
+      applyECourtsImport(imported);
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    // .txt or .json
+    reader.onload=function(ev){
+      var imported=parseECourtsData(ev.target.result);
+      applyECourtsImport(imported);
+    };
+    reader.readAsText(file);
+  }
+  e.target.value='';
+}
+
+function importECourtsPaste(){
+  var text=document.getElementById('ec-paste-area').value.trim();
+  if(!text){ ecStatus('Please paste the eCourts data first.','error'); return; }
+  var imported=parseECourtsData(text);
+  applyECourtsImport(imported);
+}
+
 </script>
 </body>
 </html>
