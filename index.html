@@ -75,17 +75,15 @@ label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;
 .match-dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
 .step-box{background:#f8fafc;border:1px solid #dbeafe;border-radius:8px;padding:13px 15px;margin-bottom:12px}
 .step-label{font-size:11px;font-weight:700;color:#1a56db;letter-spacing:.5px;margin-bottom:8px}
-#print-area table{width:100%;border-collapse:collapse;font-size:11.5px}
-#print-area th{background:#eff6ff;border:1px solid #bfdbfe;padding:7px 8px;text-align:left;font-size:11px;font-weight:700}
-#print-area th:first-child{text-align:center;width:36px}
+#print-area{font-family:'Times New Roman',serif;color:#000}
+#print-area table{width:100%;border-collapse:collapse;font-size:12px}
+#print-area th{background:#eff6ff;border:1px solid #bfdbfe;padding:7px 8px;font-weight:700}
 #print-area td{border:1px solid #dbeafe;padding:6px 8px;vertical-align:top}
-#print-area td:first-child{text-align:center;font-weight:600}
-#print-area tr:nth-child(even){background:#f8fbff}
-.print-hdr{text-align:center;border-bottom:2.5px solid #1a56db;padding-bottom:12px;margin-bottom:16px}
+#print-area tr:nth-child(even) td{background:#f8fbff}
+.print-hdr{text-align:center;border-bottom:2.5px solid #1a56db;padding-bottom:12px;margin-bottom:14px}
 .print-hdr h1{font-size:20px;font-weight:800;margin:4px 0;letter-spacing:.5px}
 .print-hdr .court-lbl{font-size:11px;font-weight:700;color:#1a56db;letter-spacing:1.2px;text-transform:uppercase}
-.next-date-cell{font-weight:700;color:#1a56db;white-space:nowrap}
-.print-foot{margin-top:24px;display:flex;justify-content:space-between;font-size:12px;color:#555;align-items:flex-end}
+.print-foot{margin-top:22px;display:flex;justify-content:space-between;font-size:12px;color:#555;align-items:flex-end}
 .sig-line{border-top:1px solid #333;padding-top:4px;font-weight:700;margin-top:28px;text-align:right}
 </style>
 </head>
@@ -101,6 +99,8 @@ label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;
   </div>
   <div class="tab-group">
     <button class="tab active" id="tab-all" onclick="switchView('all')">All Cases</button>
+    <button class="tab" id="tab-today" onclick="switchView('today')">Today</button>
+    <button class="tab" id="tab-week" onclick="switchView('week')">This Week</button>
     <button class="tab" id="tab-month" onclick="switchView('month')">This Month</button>
   </div>
   <button class="btn btn-outline" onclick="openModal('modal-listdate')">&#128203; Daily List</button>
@@ -113,11 +113,12 @@ label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;
 
 <!-- BODY -->
 <div class="body">
-  <div class="stats">
-    <div class="stat"><div class="stat-num" id="s-total" style="color:#1a56db">0</div><div class="stat-lbl">Total Cases</div></div>
-    <div class="stat"><div class="stat-num" id="s-active" style="color:#16a34a">0</div><div class="stat-lbl">Active</div></div>
-    <div class="stat"><div class="stat-num" id="s-month" style="color:#0891b2">0</div><div class="stat-lbl">This Month</div></div>
-    <div class="stat"><div class="stat-num" id="s-today" style="color:#d97706">0</div><div class="stat-lbl">Today</div></div>
+  <div class="stats" style="grid-template-columns:repeat(5,1fr)">
+    <div class="stat" style="cursor:pointer" onclick="switchView('all')"><div class="stat-num" id="s-total" style="color:#1a56db">0</div><div class="stat-lbl">Total Cases</div></div>
+    <div class="stat" style="cursor:pointer" onclick="switchView('today');"><div class="stat-num" id="s-today" style="color:#d97706">0</div><div class="stat-lbl">Today</div></div>
+    <div class="stat" style="cursor:pointer" onclick="switchView('week')"><div class="stat-num" id="s-week" style="color:#7c3aed">0</div><div class="stat-lbl">This Week</div></div>
+    <div class="stat" style="cursor:pointer" onclick="switchView('month')"><div class="stat-num" id="s-month" style="color:#0891b2">0</div><div class="stat-lbl">This Month</div></div>
+    <div class="stat" style="cursor:pointer" onclick="switchView('all')"><div class="stat-num" id="s-active" style="color:#16a34a">0</div><div class="stat-lbl">Active</div></div>
   </div>
 
   <div class="info-banner">
@@ -791,24 +792,54 @@ function ecApplyAll(){
 function renderAll(){ renderStats(); renderTable(); }
 
 function renderStats(){
-  var today=todayStr(); var now=new Date(); var y=now.getFullYear(); var m=now.getMonth();
+  var today=todayStr();
+  var now=new Date();
+  var y=now.getFullYear();
+  var m=now.getMonth();
+  // Week range
+  var dayOfWeek=now.getDay();
+  var diffToMon=dayOfWeek===0?-6:1-dayOfWeek;
+  var weekStart=new Date(now); weekStart.setDate(now.getDate()+diffToMon); weekStart.setHours(0,0,0,0);
+  var weekEnd=new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6);
+  var weekStartStr=weekStart.toISOString().split('T')[0];
+  var weekEndStr=weekEnd.toISOString().split('T')[0];
+
   document.getElementById('s-total').textContent=cases.length;
   document.getElementById('s-active').textContent=cases.filter(function(c){return c.status==='Active';}).length;
+  document.getElementById('s-today').textContent=cases.filter(function(c){return c.nextDate===today;}).length;
+  document.getElementById('s-week').textContent=cases.filter(function(c){
+    return c.nextDate&&c.nextDate>=weekStartStr&&c.nextDate<=weekEndStr;
+  }).length;
   document.getElementById('s-month').textContent=cases.filter(function(c){
     if(!c.nextDate)return false;
     var d=new Date(c.nextDate); return d.getFullYear()===y&&d.getMonth()===m;
   }).length;
-  document.getElementById('s-today').textContent=cases.filter(function(c){return c.nextDate===today;}).length;
 }
 
 function getDisplayed(){
-  var today=todayStr(); var now=new Date(); var y=now.getFullYear(); var mo=now.getMonth();
+  var today=todayStr();
+  var now=new Date();
+  var y=now.getFullYear();
+  var mo=now.getMonth();
+  // Week: Monday to Sunday of current week
+  var dayOfWeek=now.getDay(); // 0=Sun
+  var diffToMon=dayOfWeek===0?-6:1-dayOfWeek;
+  var weekStart=new Date(now); weekStart.setDate(now.getDate()+diffToMon); weekStart.setHours(0,0,0,0);
+  var weekEnd=new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999);
+  var weekStartStr=weekStart.toISOString().split('T')[0];
+  var weekEndStr=weekEnd.toISOString().split('T')[0];
+
   var q=(document.getElementById('search-input').value||'').toLowerCase().trim();
   return cases.filter(function(c){
-    if(currentView==='month'){
-      if(!c.nextDate)return false;
+    if(currentView==='today'){
+      if(c.nextDate!==today) return false;
+    } else if(currentView==='week'){
+      if(!c.nextDate) return false;
+      if(c.nextDate<weekStartStr||c.nextDate>weekEndStr) return false;
+    } else if(currentView==='month'){
+      if(!c.nextDate) return false;
       var d=new Date(c.nextDate);
-      if(d.getFullYear()!==y||d.getMonth()!==mo)return false;
+      if(d.getFullYear()!==y||d.getMonth()!==mo) return false;
     }
     if(q) return ['caseNo','title','client','court','caseType'].some(function(k){return (c[k]||'').toLowerCase().indexOf(q)>=0;});
     return true;
@@ -860,6 +891,8 @@ function renderTable(){
 function switchView(v){
   currentView=v;
   document.getElementById('tab-all').className='tab'+(v==='all'?' active':'');
+  document.getElementById('tab-today').className='tab'+(v==='today'?' active':'');
+  document.getElementById('tab-week').className='tab'+(v==='week'?' active':'');
   document.getElementById('tab-month').className='tab'+(v==='month'?' active':'');
   renderTable();
 }
@@ -1000,33 +1033,92 @@ function generateList(){
 function buildPDF(dv,list){
   document.getElementById('pdf-title').textContent='Cause List - '+fmtDate(dv);
   document.getElementById('pdf-count').textContent=list.length+' case'+(list.length!==1?'s':'')+' on this date';
-  var rows='';
-  list.forEach(function(c,i){
-    var sm=SMETA[c.status]||SMETA['Closed'];
-    rows+='<tr><td>'+(i+1)+'.</td><td><strong>'+esc(c.caseNo||'-')+'</strong></td>'
-      +'<td>'+esc(c.title||'-')+(c.client?'<br><small style="color:#555">('+esc(c.client)+')</small>':'')+'</td>'
-      +'<td>'+esc(c.court||'-')+'</td>'
-      +'<td>'+esc(c.caseType||'-')+(c.stage?'<br><small style="color:#555">'+esc(c.stage)+'</small>':'')+'</td>'
-      +'<td class="next-date-cell">'+fmtDate(c.nextDate)+'</td>'
-      +'<td><span style="background:'+sm.bg+';color:'+sm.c+';padding:2px 7px;border-radius:12px;font-size:10px;font-weight:700;border:1px solid '+sm.b+'">'+esc(c.status||'-')+'</span></td>'
-      +'</tr>';
+
+  // Group cases by court
+  var courtOrder=[];
+  var courtMap={};
+  list.forEach(function(c){
+    var ct=c.court||'Other Court';
+    if(!courtMap[ct]){ courtMap[ct]=[]; courtOrder.push(ct); }
+    courtMap[ct].push(c);
   });
-  var table=list.length===0?'<p style="text-align:center;padding:36px 0;color:#888;font-size:14px">No cases scheduled for this date.</p>'
-    :'<table><thead><tr><th>S.No.</th><th>Case No.</th><th>Title / Parties</th><th>Court</th><th>Type / Stage</th><th>Next Date</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody></table>';
-  var html='<div class="print-hdr"><div class="court-lbl">IN THE COURT AT RAJPURA, DISTRICT PATIALA, PUNJAB</div>'
+
+  // Sort courts: criminal first then civil
+  courtOrder.sort(function(a,b){
+    var aIsCrim=/JMFC|Magistrate|Criminal|Sessions|ACJM/i.test(a)?0:1;
+    var bIsCrim=/JMFC|Magistrate|Criminal|Sessions|ACJM/i.test(b)?0:1;
+    if(aIsCrim!==bIsCrim) return aIsCrim-bIsCrim;
+    return a.localeCompare(b);
+  });
+
+  var sno=0;
+  var tableBody='';
+
+  if(list.length===0){
+    tableBody='<tr><td colspan="5" style="text-align:center;padding:30px;color:#888;font-size:13px">No cases scheduled for this date.</td></tr>';
+  } else {
+    courtOrder.forEach(function(courtName){
+      var courtCases=courtMap[courtName];
+      // Court section header row
+      tableBody+='<tr><td colspan="5" style="background:#1a56db;color:#fff;font-weight:700;font-size:11px;padding:6px 10px;letter-spacing:.5px;text-transform:uppercase">'
+        +esc(courtName)
+        +' <span style="font-weight:400;opacity:.85;font-size:10px">('+courtCases.length+' case'+(courtCases.length!==1?'s':'')+')</span>'
+        +'</td></tr>';
+      // Cases for this court
+      courtCases.forEach(function(c){
+        sno++;
+        tableBody+='<tr>'
+          +'<td style="text-align:center;font-weight:700;width:36px">'+sno+'.</td>'
+          +'<td style="font-weight:700;font-size:11px;white-space:nowrap">'+esc(c.caseNo||'-')+'</td>'
+          +'<td style="font-size:12px"><strong>'+esc(c.title||'-')+'</strong>'
+            +(c.client?'<br><span style="font-size:10px;color:#555">('+esc(c.client)+')</span>':'')
+          +'</td>'
+          +'<td style="font-size:11px;color:#444">'+esc(c.stage||'-')+'</td>'
+          +'<td style="text-align:center;min-width:90px">&nbsp;</td>'
+          +'</tr>';
+      });
+    });
+  }
+
+  var table='<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<thead><tr style="background:#eff6ff">'
+    +'<th style="border:1px solid #bfdbfe;padding:7px 8px;text-align:center;width:36px">S.No.</th>'
+    +'<th style="border:1px solid #bfdbfe;padding:7px 8px;text-align:left;width:140px">Case No.</th>'
+    +'<th style="border:1px solid #bfdbfe;padding:7px 8px;text-align:left">Case Name / Parties</th>'
+    +'<th style="border:1px solid #bfdbfe;padding:7px 8px;text-align:left;width:110px">Stage</th>'
+    +'<th style="border:1px solid #bfdbfe;padding:7px 8px;text-align:center;width:100px">Next Date</th>'
+    +'</tr></thead>'
+    +'<tbody>'+tableBody+'</tbody>'
+    +'</table>';
+
+  // Court wise summary for top of PDF
+  var summary='';
+  if(courtOrder.length>1){
+    summary='<div style="margin-bottom:14px;font-size:11.5px;color:#555;border:1px solid #dbeafe;border-radius:6px;padding:8px 12px;background:#f8fbff">'
+      +'<strong style="color:#1a56db">Courts today:</strong> '
+      +courtOrder.map(function(ct){return esc(ct)+' ('+courtMap[ct].length+')';}).join(' &nbsp;&bull;&nbsp; ')
+      +'</div>';
+  }
+
+  var content='<div class="print-hdr">'
+    +'<div class="court-lbl">IN THE COURT AT RAJPURA, DISTRICT PATIALA, PUNJAB</div>'
     +'<h1>DAILY CAUSE LIST</h1>'
     +'<div style="font-size:13px;margin-top:4px">Date: <strong>'+fmtDate(dv)+'</strong></div>'
     +'<div style="font-size:11.5px;color:#444;margin-top:3px">Advocate: Amandeep Sharma (PH/3112/2020) | Chamber No. 103, Civil Court Complex, Rajpura</div>'
-    +'</div>'+table
-    +'<div class="print-foot"><div>Total Cases: <strong>'+list.length+'</strong><br><small style="color:#888">Generated: '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})+'</small></div>'
-    +'<div><div class="sig-line">Amandeep Sharma</div><div style="font-size:10px;color:#666;text-align:right">Advocate, Rajpura</div></div></div>';
-  document.getElementById('pdf-preview').innerHTML=html;
-  document.getElementById('print-area').innerHTML=html;
+    +'</div>'
+    +summary
+    +table
+    +'<div class="print-foot">'
+    +'<div>Total Cases: <strong>'+list.length+'</strong><br>'
+    +'<small style="color:#888">Generated: '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})+'</small></div>'
+    +'<div><div class="sig-line">Amandeep Sharma</div>'
+    +'<div style="font-size:10px;color:#666;text-align:right">Advocate, Rajpura</div></div>'
+    +'</div>';
+
+  document.getElementById('pdf-preview').innerHTML=content;
+  document.getElementById('print-area').innerHTML=content;
 }
 
-// ============================================================
-// ECOURTS EMAIL IMPORT
-// ============================================================
 function parseECourtsData(rawText){
   // Remove newlines that split values
   var text = rawText.replace(/\n/g,'').replace(/\r/g,'').trim();
