@@ -8,8 +8,14 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f6ff;color:#1e3a5f;min-height:100vh;font-size:14px}
 @media print{
+  @page{size:A4 portrait;margin:12mm 10mm 12mm 10mm}
   body>*{display:none!important}
-  #print-area{display:block!important;position:fixed;inset:0;background:#fff;padding:24px 30px;font-family:'Times New Roman',serif;color:#000;z-index:9999}
+  #print-area{display:block!important;background:#fff!important;color:#000!important;font-family:'Times New Roman',serif;font-size:11px;width:100%;position:static}
+  #print-area table{width:100%!important;table-layout:fixed!important;border-collapse:collapse!important;font-size:10.5px!important}
+  #print-area th,#print-area td{border:1px solid #aaa!important;padding:5px 6px!important;word-wrap:break-word!important;overflow-wrap:break-word!important}
+  #print-area .print-hdr h1{font-size:16px!important}
+  #print-area .court-lbl{font-size:10px!important}
+  .print-foot{margin-top:14px!important}
 }
 #print-area{display:none}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#bfdbfe;border-radius:3px}
@@ -80,9 +86,9 @@ label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;
 #print-area th{background:#eff6ff;border:1px solid #bfdbfe;padding:7px 8px;font-weight:700}
 #print-area td{border:1px solid #dbeafe;padding:6px 8px;vertical-align:top}
 #print-area tr:nth-child(even) td{background:#f8fbff}
-.print-hdr{text-align:center;border-bottom:2.5px solid #1a56db;padding-bottom:12px;margin-bottom:14px}
-.print-hdr h1{font-size:20px;font-weight:800;margin:4px 0;letter-spacing:.5px}
-.print-hdr .court-lbl{font-size:11px;font-weight:700;color:#1a56db;letter-spacing:1.2px;text-transform:uppercase}
+.print-hdr{text-align:center;border-bottom:2px solid #1a56db;padding-bottom:10px;margin-bottom:12px}
+.print-hdr h1{font-size:18px;font-weight:800;margin:3px 0;letter-spacing:.4px}
+.print-hdr .court-lbl{font-size:10px;font-weight:700;color:#1a56db;letter-spacing:1px;text-transform:uppercase}
 .print-foot{margin-top:22px;display:flex;justify-content:space-between;font-size:12px;color:#555;align-items:flex-end}
 .sig-line{border-top:1px solid #333;padding-top:4px;font-weight:700;margin-top:28px;text-align:right}
 </style>
@@ -391,7 +397,7 @@ label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;
           <button class="btn btn-blue" onclick="window.print()">Print / Save PDF</button>
         </div>
       </div>
-      <div id="pdf-preview" style="background:#fff;border:1px solid #dbeafe;border-radius:8px;padding:28px 30px;font-family:'Times New Roman',serif;color:#111"></div>
+      <div id="pdf-preview" style="background:#fff;border:1px solid #dbeafe;border-radius:8px;padding:20px 22px;font-family:'Times New Roman',serif;color:#111;max-width:210mm;margin:0 auto"></div>
     </div>
   </div>
 </div>
@@ -1034,90 +1040,87 @@ function buildPDF(dv,list){
   document.getElementById('pdf-title').textContent='Cause List - '+fmtDate(dv);
   document.getElementById('pdf-count').textContent=list.length+' case'+(list.length!==1?'s':'')+' on this date';
 
-  // Group cases by court
+  // Group by court — preserve natural order as they appear in the list (sorted by nextDate already)
   var courtOrder=[];
   var courtMap={};
   list.forEach(function(c){
-    var ct=c.court||'Other Court';
+    var ct=(c.court||'Other Court').trim();
     if(!courtMap[ct]){ courtMap[ct]=[]; courtOrder.push(ct); }
     courtMap[ct].push(c);
   });
-
-  // Sort courts: criminal first then civil
-  courtOrder.sort(function(a,b){
-    var aIsCrim=/JMFC|Magistrate|Criminal|Sessions|ACJM/i.test(a)?0:1;
-    var bIsCrim=/JMFC|Magistrate|Criminal|Sessions|ACJM/i.test(b)?0:1;
-    if(aIsCrim!==bIsCrim) return aIsCrim-bIsCrim;
-    return a.localeCompare(b);
-  });
+  // NO re-sorting of courts — keep natural order
 
   var sno=0;
   var tableBody='';
 
   if(list.length===0){
-    tableBody='<tr><td colspan="5" style="text-align:center;padding:30px;color:#888;font-size:13px">No cases scheduled for this date.</td></tr>';
+    tableBody='<tr><td colspan="4" style="text-align:center;padding:30px;color:#888;font-size:12px">No cases scheduled for this date.</td></tr>';
   } else {
     courtOrder.forEach(function(courtName){
-      var courtCases=courtMap[courtName];
-      // Court section header row
-      tableBody+='<tr><td colspan="5" style="background:#1a56db;color:#fff;font-weight:700;font-size:11px;padding:6px 10px;letter-spacing:.5px;text-transform:uppercase">'
+      var cc=courtMap[courtName];
+      // Court header spanning all 4 columns
+      tableBody+='<tr>'
+        +'<td colspan="4" style="background:#1a56db;color:#fff;font-weight:700;font-size:10px;padding:5px 8px;letter-spacing:.6px;text-transform:uppercase;border:1px solid #1a56db">'
         +esc(courtName)
-        +' <span style="font-weight:400;opacity:.85;font-size:10px">('+courtCases.length+' case'+(courtCases.length!==1?'s':'')+')</span>'
+        +' <span style="font-weight:400;font-size:9px;opacity:.9">('+cc.length+' case'+(cc.length!==1?'s':'')+')</span>'
         +'</td></tr>';
-      // Cases for this court
-      courtCases.forEach(function(c){
+      cc.forEach(function(c){
         sno++;
+        var title=esc(c.title||'-');
+        var client=c.client?'<br><span style="font-size:9px;color:#444">('+esc(c.client)+')</span>':'';
         tableBody+='<tr>'
-          +'<td style="text-align:center;font-weight:700;width:36px">'+sno+'.</td>'
-          +'<td style="font-weight:700;font-size:11px;white-space:nowrap">'+esc(c.caseNo||'-')+'</td>'
-          +'<td style="font-size:12px"><strong>'+esc(c.title||'-')+'</strong>'
-            +(c.client?'<br><span style="font-size:10px;color:#555">('+esc(c.client)+')</span>':'')
-          +'</td>'
-          +'<td style="font-size:11px;color:#444">'+esc(c.stage||'-')+'</td>'
-          +'<td style="text-align:center;min-width:90px">&nbsp;</td>'
+          +'<td style="text-align:center;font-weight:700;font-size:11px;vertical-align:top;width:28px">'+sno+'.</td>'
+          +'<td style="font-size:11px;vertical-align:top"><strong>'+title+'</strong>'+client+'</td>'
+          +'<td style="font-size:10px;vertical-align:top;color:#333;width:80px">'+esc(c.stage||'-')+'</td>'
+          +'<td style="text-align:center;vertical-align:top;width:72px">&nbsp;</td>'
           +'</tr>';
       });
     });
   }
 
-  var table='<table style="width:100%;border-collapse:collapse;font-size:12px">'
+  // Court summary line
+  var summaryItems=courtOrder.map(function(ct){return esc(ct)+' ('+courtMap[ct].length+')';}).join(' &bull; ');
+  var summary=courtOrder.length>1
+    ?'<div style="margin-bottom:10px;font-size:9.5px;color:#444;border:1px solid #bfdbfe;border-radius:4px;padding:5px 10px;background:#f8fbff;line-height:1.6"><strong style="color:#1a56db">Courts today: </strong>'+summaryItems+'</div>'
+    :'';
+
+  var table='<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px">'
+    +'<colgroup>'
+    +'<col style="width:28px"/>'       // S.No.
+    +'<col style="width:auto"/>'       // Case Name — takes remaining space
+    +'<col style="width:80px"/>'       // Stage
+    +'<col style="width:72px"/>'       // Next Date (blank)
+    +'</colgroup>'
     +'<thead><tr style="background:#eff6ff">'
-    +'<th style="border:1px solid #bfdbfe;padding:7px 8px;text-align:center;width:36px">S.No.</th>'
-    +'<th style="border:1px solid #bfdbfe;padding:7px 8px;text-align:left;width:140px">Case No.</th>'
-    +'<th style="border:1px solid #bfdbfe;padding:7px 8px;text-align:left">Case Name / Parties</th>'
-    +'<th style="border:1px solid #bfdbfe;padding:7px 8px;text-align:left;width:110px">Stage</th>'
-    +'<th style="border:1px solid #bfdbfe;padding:7px 8px;text-align:center;width:100px">Next Date</th>'
+    +'<th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:center;font-size:10px">S.No.</th>'
+    +'<th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:left;font-size:10px">Case Name / Parties</th>'
+    +'<th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:left;font-size:10px">Stage</th>'
+    +'<th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:center;font-size:10px">Next Date</th>'
     +'</tr></thead>'
     +'<tbody>'+tableBody+'</tbody>'
     +'</table>';
 
-  // Court wise summary for top of PDF
-  var summary='';
-  if(courtOrder.length>1){
-    summary='<div style="margin-bottom:14px;font-size:11.5px;color:#555;border:1px solid #dbeafe;border-radius:6px;padding:8px 12px;background:#f8fbff">'
-      +'<strong style="color:#1a56db">Courts today:</strong> '
-      +courtOrder.map(function(ct){return esc(ct)+' ('+courtMap[ct].length+')';}).join(' &nbsp;&bull;&nbsp; ')
-      +'</div>';
-  }
-
-  var content='<div class="print-hdr">'
+  var advLine='<div style="font-size:10.5px;color:#444;margin-top:3px">Advocate: Amandeep Sharma (PH/3112/2020) | Chamber No. 103, Civil Court Complex, Rajpura</div>';
+  var content=''
+    +'<div class="print-hdr">'
     +'<div class="court-lbl">IN THE COURT AT RAJPURA, DISTRICT PATIALA, PUNJAB</div>'
     +'<h1>DAILY CAUSE LIST</h1>'
-    +'<div style="font-size:13px;margin-top:4px">Date: <strong>'+fmtDate(dv)+'</strong></div>'
-    +'<div style="font-size:11.5px;color:#444;margin-top:3px">Advocate: Amandeep Sharma (PH/3112/2020) | Chamber No. 103, Civil Court Complex, Rajpura</div>'
+    +'<div style="font-size:12px;margin-top:3px">Date: <strong>'+fmtDate(dv)+'</strong></div>'
+    +advLine
     +'</div>'
     +summary
     +table
     +'<div class="print-foot">'
-    +'<div>Total Cases: <strong>'+list.length+'</strong><br>'
-    +'<small style="color:#888">Generated: '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})+'</small></div>'
+    +'<div style="font-size:11px">Total Cases: <strong>'+list.length+'</strong><br>'
+    +'<span style="color:#888;font-size:10px">Generated: '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})+'</span></div>'
     +'<div><div class="sig-line">Amandeep Sharma</div>'
-    +'<div style="font-size:10px;color:#666;text-align:right">Advocate, Rajpura</div></div>'
+    +'<div style="font-size:9px;color:#666;text-align:right">Advocate, Rajpura</div></div>'
     +'</div>';
 
   document.getElementById('pdf-preview').innerHTML=content;
   document.getElementById('print-area').innerHTML=content;
 }
+
 
 function parseECourtsData(rawText){
   // Remove newlines that split values
