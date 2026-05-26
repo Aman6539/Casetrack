@@ -67,7 +67,29 @@ label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;
 .detail-field{border-bottom:1px solid #dbeafe;padding-bottom:8px}
 .detail-key{font-size:11px;color:#7b93ad;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
 .detail-val{font-size:14px;color:#1e3a5f;margin-top:2px}
-/* eCourts import specific */
+/* AI Panel */
+#app-layout{display:flex;min-height:calc(100vh - 62px)}
+#main-content{flex:1;min-width:0;transition:margin-right .25s}
+#ai-panel{width:360px;min-width:360px;background:#fff;border-left:1px solid #dbeafe;display:none;flex-direction:column;position:sticky;top:62px;height:calc(100vh - 62px);box-shadow:-4px 0 18px rgba(99,102,241,.08);transition:all .25s}
+#ai-panel.open{display:flex}
+.ai-panel-hdr{padding:14px 16px;border-bottom:1px solid #ede9fe;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff}
+.ai-panel-hdr h3{font-size:14px;font-weight:700;margin:0 0 2px}
+.ai-panel-hdr p{font-size:11px;opacity:.85;margin:0}
+#ai-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.ai-msg{max-width:88%;padding:10px 13px;border-radius:12px;font-size:13px;line-height:1.55}
+.ai-msg.user{background:#6366f1;color:#fff;align-self:flex-end;border-bottom-right-radius:3px}
+.ai-msg.bot{background:#f5f3ff;color:#1e1b4b;align-self:flex-start;border-bottom-left-radius:3px;border:1px solid #ede9fe}
+.ai-msg.bot.loading{color:#8b5cf6;font-style:italic}
+.ai-input-row{padding:12px;border-top:1px solid #ede9fe;display:flex;gap:8px;background:#faf9ff}
+.ai-input-row input{flex:1;border:1.5px solid #c4b5fd;border-radius:8px;padding:9px 12px;font-size:13px;color:#1e1b4b;outline:none}
+.ai-input-row input:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+.ai-send-btn{background:#6366f1;color:#fff;border:none;border-radius:8px;padding:9px 14px;cursor:pointer;font-size:16px;transition:background .15s}
+.ai-send-btn:hover{background:#4f46e5}
+.ai-quick-btns{padding:0 12px 10px;display:flex;flex-wrap:wrap;gap:6px}
+.ai-quick{background:#f5f3ff;border:1px solid #c4b5fd;color:#6366f1;border-radius:16px;padding:5px 11px;font-size:11.5px;cursor:pointer;font-weight:600;transition:all .15s}
+.ai-quick:hover{background:#ede9fe}
+/* AI Import upgrade */
+.ai-parse-badge{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-radius:6px;padding:2px 9px;font-size:11px;font-weight:700;margin-left:8px;vertical-align:middle}
 .ecimport-box{background:#f8fafc;border:1.5px dashed #bfdbfe;border-radius:9px;padding:14px;margin-bottom:14px;transition:border-color .2s}
 .ecimport-box:focus-within{border-color:#1a56db;background:#eff6ff}
 .ecimport-box textarea{border:none;background:transparent;box-shadow:none;resize:vertical;min-height:140px;font-family:monospace;font-size:13px;color:#1e3a5f;padding:0}
@@ -115,9 +137,12 @@ label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;
   <button class="btn btn-ghost" onclick="exportData()">&#8595; Export</button>
   <label class="btn btn-ghost" style="cursor:pointer">&#8593; Import<input type="file" accept=".json" style="display:none" onchange="importData(event)"/></label>
   <button class="btn btn-blue" onclick="openAddCase()">+ New Case</button>
+  <button class="btn" id="ai-toggle-btn" onclick="toggleAIPanel()" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;gap:6px" title="AI Case Assistant">&#129302; AI Assistant</button>
 </div>
 
 <!-- BODY -->
+<div id="app-layout">
+<div id="main-content">
 <div class="body">
   <div class="stats" style="grid-template-columns:repeat(5,1fr)">
     <div class="stat" style="cursor:pointer" onclick="switchView('all')"><div class="stat-num" id="s-total" style="color:#1a56db">0</div><div class="stat-lbl">Total Cases</div></div>
@@ -151,7 +176,35 @@ label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;
       </div>
     </div>
   </div>
+</div><!-- end main-content -->
+
+<!-- AI ASSISTANT PANEL -->
+<div id="ai-panel">
+  <div class="ai-panel-hdr">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <h3>&#129302; AI Case Assistant</h3>
+        <p>Ask about your cases or paste eCourts text</p>
+      </div>
+      <button onclick="toggleAIPanel()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:14px">&times;</button>
+    </div>
+  </div>
+  <div id="ai-messages">
+    <div class="ai-msg bot">Namaste! I'm your AI Case Assistant. I can help you:<br><br>&#8226; <strong>Parse eCourts emails</strong> &mdash; paste any notification text and I'll extract all dates automatically<br>&#8226; <strong>Answer questions</strong> about your cases<br>&#8226; <strong>Summarise upcoming hearings</strong><br><br>What would you like to do?</div>
+  </div>
+  <div class="ai-quick-btns">
+    <button class="ai-quick" onclick="aiQuick('How many cases do I have today?')">&#128197; Today's cases</button>
+    <button class="ai-quick" onclick="aiQuick('List all active cases with next hearing dates')">&#128203; Active cases</button>
+    <button class="ai-quick" onclick="aiQuick('Which cases have no CNR number?')">&#9888; Missing CNR</button>
+    <button class="ai-quick" onclick="aiQuick('Show all cases scheduled this week')">&#128198; This week</button>
+    <button class="ai-quick" onclick="openAIPasteMode()">&#128231; Parse eCourts email</button>
+  </div>
+  <div class="ai-input-row">
+    <input id="ai-input" type="text" placeholder="Ask about your cases or paste eCourts text…" onkeydown="if(event.key==='Enter')sendAIMessage()"/>
+    <button class="ai-send-btn" onclick="sendAIMessage()">&#10148;</button>
+  </div>
 </div>
+</div><!-- end app-layout -->
 
 <!-- ============================================================
      ECOURTS EMAIL / SMS IMPORT MODAL
@@ -208,7 +261,8 @@ label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;
           <textarea id="ec-paste-input" placeholder="Paste the full eCourts email text or SMS here...&#10;&#10;Example:&#10;Case No: CS-254-2022&#10;Next Date: 25/06/2026&#10;Purpose: Arguments&#10;&#10;You can paste multiple cases at once." oninput="ecParseInput()"></textarea>
         </div>
         <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-blue btn-sm" onclick="ecParseInput()">&#128269; Parse Text</button>
+          <button class="btn btn-blue btn-sm" onclick="ecParseWithAI()">&#129302; Parse with AI <span class="ai-parse-badge">NEW</span></button>
+          <button class="btn btn-ghost btn-sm" onclick="ecParseInput()">&#128269; Parse (regex)</button>
           <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ec-paste-input').value='';document.getElementById('ec-results-wrap').style.display='none'">Clear</button>
         </div>
       </div>
@@ -1266,6 +1320,273 @@ function importECourtsPaste(){
   if(!text){ ecStatus('Please paste the eCourts data first.','error'); return; }
   var imported=parseECourtsData(text);
   applyECourtsImport(imported);
+}
+
+// ============================================================
+// AI-POWERED eCOURTS IMPORT (Modal)
+// ============================================================
+async function ecParseWithAI(){
+  var text = document.getElementById('ec-paste-input').value.trim();
+  if(!text){ ecStatus('Please paste the eCourts text first.', 'error'); return; }
+
+  ecStatus('&#129302; Sending to AI for analysis…', 'ok');
+  document.getElementById('ec-results-wrap').style.display = 'none';
+
+  try {
+    var resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: 'You are a legal data extraction assistant for Indian courts. Extract ALL case hearing entries from the provided eCourts notification text. Return ONLY a valid JSON array (no markdown, no explanation). Each element: {"caseNo":"","cnr":"","nextDate":"YYYY-MM-DD","stage":"","court":"","petitioner":"","respondent":""}. Use empty string for missing fields. nextDate MUST be YYYY-MM-DD format.',
+        messages: [{ role: 'user', content: 'Extract all cases from this eCourts text:\n\n' + text }]
+      })
+    });
+
+    var data = await resp.json();
+    var raw = (data.content||[]).map(function(b){ return b.text||''; }).join('');
+    var clean = raw.replace(/```json|```/g,'').trim();
+    var parsed = JSON.parse(clean);
+
+    if(!Array.isArray(parsed) || parsed.length === 0){
+      ecStatus('AI could not find any cases. Try the regex parser or check the pasted text.', 'error');
+      return;
+    }
+
+    // Convert AI output to ecParsed format
+    ecParsed = parsed.map(function(u){
+      var title = '';
+      if(u.petitioner && u.respondent) title = u.petitioner + ' vs. ' + u.respondent;
+      else if(u.petitioner) title = u.petitioner;
+      return {
+        caseNo: u.caseNo || null,
+        cnr: u.cnr || null,
+        nextDate: u.nextDate || null,
+        stage: u.stage || null,
+        court: u.court || null,
+        title: title,
+        raw: JSON.stringify(u),
+        matchedCase: findMatchingCase(u.caseNo, u.cnr)
+      };
+    }).filter(function(e){ return e.nextDate; });
+
+    ecStatus('&#10003; AI found ' + ecParsed.length + ' case(s). Review and apply below.', 'ok');
+
+    var matched = ecParsed.filter(function(e){ return e.matchedCase; });
+    var unmatched = ecParsed.filter(function(e){ return !e.matchedCase; });
+
+    document.getElementById('ec-summary').innerHTML =
+      '<strong style="color:#16a34a">' + matched.length + ' matched</strong>'
+      + (unmatched.length ? ' &nbsp;|&nbsp; <strong style="color:#dc2626">' + unmatched.length + ' unmatched</strong>' : '')
+      + ' &mdash; <span style="font-size:12px;color:#8b5cf6;font-weight:600">&#129302; Parsed by AI</span>';
+
+    // Reuse existing render logic
+    var html = '<div class="parse-result-header">AI PARSED RESULTS &mdash; Review before applying</div>';
+    ecParsed.forEach(function(e, idx){
+      if(e.matchedCase){
+        html += '<div class="parse-row matched">'
+          +'<div><span class="match-dot" style="background:#16a34a;margin-right:6px;display:inline-block"></span>'
+          +'<strong>'+esc(e.matchedCase.title||e.matchedCase.caseNo||'-')+'</strong>'
+          +(e.matchedCase.caseNo?'<br><span style="font-size:11px;color:#7b93ad">'+esc(e.matchedCase.caseNo)+'</span>':'')
+          +'</div>'
+          +'<div style="font-size:13px;color:#4b6280">'+(e.caseNo||e.cnr||'-')+'</div>'
+          +'<div><strong style="color:#1a56db">'+fmtDate(e.nextDate)+'</strong>'
+          +(e.stage?'<br><span style="font-size:11px;color:#7b93ad">'+esc(e.stage)+'</span>':'')+'</div>'
+          +'<div><span style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">MATCHED</span></div>'
+          +'</div>';
+      } else {
+        var opts = '<option value="">-- Select case --</option>';
+        cases.forEach(function(c){ opts += '<option value="'+c.id+'">'+esc((c.caseNo||'?')+' | '+(c.title||'No title').substr(0,30))+'</option>'; });
+        html += '<div class="parse-row unmatched">'
+          +'<div><span class="match-dot" style="background:#dc2626;margin-right:6px;display:inline-block"></span>'
+          +'<span style="color:#dc2626;font-weight:600">Not matched</span>'
+          +(e.title?'<br><span style="font-size:11px;color:#4b6280">'+esc(e.title.substr(0,40))+'</span>':'')
+          +'<br><span style="font-size:11px;color:#7b93ad">'+esc(e.caseNo||e.cnr||'No ID')+'</span>'
+          +'</div>'
+          +'<div><select id="ec-sel-'+idx+'" style="font-size:12px;padding:5px 8px">'+opts+'</select></div>'
+          +'<div><strong style="color:#1a56db">'+fmtDate(e.nextDate)+'</strong>'
+          +(e.stage?'<br><span style="font-size:11px;color:#7b93ad">'+esc(e.stage)+'</span>':'')+'</div>'
+          +'<div><span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">SELECT</span></div>'
+          +'</div>';
+      }
+    });
+    document.getElementById('ec-results-list').innerHTML = html;
+    document.getElementById('ec-unmatched-wrap').style.display = unmatched.length ? 'block' : 'none';
+    document.getElementById('ec-results-wrap').style.display = 'block';
+
+  } catch(err) {
+    ecStatus('AI parsing failed: ' + err.message + '. Try the regex parser instead.', 'error');
+    console.error(err);
+  }
+}
+
+// ============================================================
+// AI ASSISTANT
+// ============================================================
+var aiHistory = [];
+
+function toggleAIPanel(){
+  var panel = document.getElementById('ai-panel');
+  panel.classList.toggle('open');
+  // Scroll to bottom of messages when opening
+  if(panel.classList.contains('open')){
+    var msgs = document.getElementById('ai-messages');
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+}
+
+function openAIPasteMode(){
+  var panel = document.getElementById('ai-panel');
+  if(!panel.classList.contains('open')) panel.classList.add('open');
+  var inp = document.getElementById('ai-input');
+  inp.placeholder = 'Paste eCourts email or SMS text here and press Enter…';
+  inp.focus();
+  addAIMessage('bot', '&#128231; <strong>eCourts Email Mode</strong><br>Paste your eCourts notification email or SMS text below. I\'ll extract all case numbers and next hearing dates, then update your records.');
+}
+
+function aiQuick(text){
+  document.getElementById('ai-input').value = text;
+  sendAIMessage();
+}
+
+function addAIMessage(role, html){
+  var msgs = document.getElementById('ai-messages');
+  var div = document.createElement('div');
+  div.className = 'ai-msg ' + role;
+  div.innerHTML = html;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+async function sendAIMessage(){
+  var inp = document.getElementById('ai-input');
+  var text = inp.value.trim();
+  if(!text) return;
+  inp.value = '';
+  inp.placeholder = 'Ask about your cases or paste eCourts text…';
+
+  addAIMessage('user', esc(text));
+
+  var loadingDiv = addAIMessage('bot', '<span style="color:#8b5cf6">&#9679;&#9679;&#9679; Thinking…</span>');
+  loadingDiv.classList.add('loading');
+
+  // Build case context summary (keep it concise to save tokens)
+  var caseSummary = cases.map(function(c){
+    return [c.caseNo||'?', c.title||'', c.court||'', c.nextDate||'no date', c.status||'', c.cnr||''];
+  });
+
+  // Detect if user pasted eCourts-like text (long text with dates / case refs)
+  var looksLikeImport = text.length > 120 ||
+    /next\s*date|hearing\s*date|case\s*no|CNR|adjourned|listed\s*for/i.test(text) ||
+    /\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/.test(text);
+
+  var systemPrompt = looksLikeImport
+    ? 'You are a legal assistant for an Indian advocate. The user has pasted eCourts notification text. Extract ALL case hearing entries from it. Return ONLY a JSON object (no markdown, no extra text) with two keys: "updates" (array of {caseNo, cnr, nextDate in YYYY-MM-DD, stage, court, title}) and "message" (a short friendly summary of what you found, in plain text). If you cannot find any cases, set updates to [] and explain in message.'
+    : 'You are a smart legal assistant for an Indian advocate named Amandeep Sharma practicing at Civil Court Complex, Rajpura, Punjab. You have access to their case list as JSON. Answer questions about their cases concisely. Today is ' + todayStr() + '. Cases JSON: ' + JSON.stringify(caseSummary.slice(0,80));
+
+  aiHistory.push({ role: 'user', content: looksLikeImport ? 'Extract cases from this eCourts text:\n' + text : text });
+
+  try {
+    var resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: aiHistory.slice(-6) // last 3 turns
+      })
+    });
+
+    var data = await resp.json();
+    var reply = (data.content||[]).map(function(b){ return b.text||''; }).join('');
+
+    // Try to parse as import JSON
+    if(looksLikeImport){
+      try {
+        var clean = reply.replace(/```json|```/g,'').trim();
+        var parsed = JSON.parse(clean);
+        aiHistory.push({ role: 'assistant', content: reply });
+        loadingDiv.remove();
+
+        if(parsed.updates && parsed.updates.length > 0){
+          var applied = applyAIUpdates(parsed.updates);
+          var summary = parsed.message || '';
+          var resultHtml = '<strong style="color:#16a34a">&#10003; ' + applied.updated + ' case' + (applied.updated!==1?'s':'') + ' updated';
+          if(applied.added) resultHtml += ', ' + applied.added + ' new added';
+          resultHtml += '</strong>';
+          if(applied.unmatched.length){
+            resultHtml += '<br><span style="color:#d97706">&#9888; ' + applied.unmatched.length + ' could not be matched: ' + applied.unmatched.join(', ') + '</span>';
+          }
+          if(summary) resultHtml += '<br><span style="font-size:12px;color:#4b6280;margin-top:4px;display:block">' + esc(summary) + '</span>';
+          addAIMessage('bot', resultHtml);
+        } else {
+          addAIMessage('bot', '<span style="color:#dc2626">&#9888; No cases found.</span> ' + esc(parsed.message||'Could not extract case data from the text.') + '<br><span style="font-size:12px;color:#7b93ad">Make sure the text contains case numbers and hearing dates.</span>');
+        }
+        return;
+      } catch(e) {
+        // Not JSON — treat as normal reply
+      }
+    }
+
+    aiHistory.push({ role: 'assistant', content: reply });
+    loadingDiv.classList.remove('loading');
+    loadingDiv.innerHTML = reply.replace(/\n/g,'<br>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+
+  } catch(err) {
+    loadingDiv.classList.remove('loading');
+    loadingDiv.innerHTML = '<span style="color:#dc2626">&#9888; Error connecting to AI. Please check your connection.</span>';
+    console.error(err);
+  }
+}
+
+function applyAIUpdates(updates){
+  var today = todayStr();
+  var added = 0, updated = 0;
+  var unmatched = [];
+
+  updates.forEach(function(u){
+    if(!u.nextDate) return;
+
+    // Match by CNR first, then case number
+    var idx = -1;
+    if(u.cnr) idx = cases.findIndex(function(c){ return normCase(c.cnr) === normCase(u.cnr); });
+    if(idx < 0 && u.caseNo) idx = cases.findIndex(function(c){ return normCase(c.caseNo) === normCase(u.caseNo); });
+    // Fuzzy match on case number (strip separators)
+    if(idx < 0 && u.caseNo) idx = cases.findIndex(function(c){ return normCase(c.caseNo) === normCase(u.caseNo); });
+
+    if(idx >= 0){
+      cases[idx].nextDate = u.nextDate;
+      cases[idx].lastSynced = new Date().toISOString();
+      if(u.stage) cases[idx].stage = u.stage;
+      updated++;
+    } else if(u.title || u.caseNo){
+      // Add as new case
+      cases.push({
+        id: genId(),
+        title: u.title || u.caseNo,
+        caseNo: u.caseNo || '',
+        cnr: u.cnr || '',
+        court: u.court || '',
+        nextDate: u.nextDate,
+        stage: u.stage || '',
+        status: u.nextDate >= today ? 'Active' : 'Adjourned',
+        caseType: 'Criminal Case',
+        createdAt: today,
+        lastSynced: new Date().toISOString(),
+        remarks: 'Imported via AI Assistant'
+      });
+      added++;
+    } else {
+      unmatched.push(u.caseNo || u.cnr || 'unknown');
+    }
+  });
+
+  save();
+  renderAll();
+  return { updated: updated, added: added, unmatched: unmatched };
 }
 
 </script>
