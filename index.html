@@ -3,165 +3,250 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>LexTrack - Advocate Case Manager</title>
+<title>LexTrack — Advocate Case Manager</title>
+
+<!-- Firebase SDK v10 (modular via CDN compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f6ff;color:#1e3a5f;min-height:100vh;font-size:14px}
 @media print{
-  @page{size:A4 portrait;margin:12mm 10mm 12mm 10mm}
-  body>*{display:none!important}
-  #print-area{display:block!important;background:#fff!important;color:#000!important;font-family:'Times New Roman',serif;font-size:11px;width:100%;position:static}
+  @page{size:A4 portrait;margin:10mm}
+  body>*{visibility:hidden!important}
+  #print-area,#print-area *{visibility:visible!important}
+  #print-area{position:fixed!important;top:0!important;left:0!important;width:100%!important;background:#fff!important;color:#000!important;font-family:'Times New Roman',serif!important;font-size:11px;z-index:99999!important;display:block!important}
   #print-area table{width:100%!important;table-layout:fixed!important;border-collapse:collapse!important;font-size:10.5px!important}
-  #print-area th,#print-area td{border:1px solid #aaa!important;padding:5px 6px!important;word-wrap:break-word!important;overflow-wrap:break-word!important}
-  #print-area .print-hdr h1{font-size:16px!important}
-  #print-area .court-lbl{font-size:10px!important}
-  .print-foot{margin-top:14px!important}
+  #print-area th,#print-area td{border:1px solid #999!important;padding:5px 6px!important;word-wrap:break-word!important}
 }
-#print-area{display:none}
+#print-area{display:none;position:absolute;left:-9999px}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#bfdbfe;border-radius:3px}
-.btn{border:none;border-radius:7px;padding:9px 18px;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;white-space:nowrap;font-family:inherit;display:inline-flex;align-items:center;gap:6px}
+
+/* ── Buttons ── */
+.btn{border:none;border-radius:7px;padding:9px 18px;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;white-space:nowrap;font-family:inherit;display:inline-flex;align-items:center;gap:5px}
 .btn-blue{background:#1a56db;color:#fff}.btn-blue:hover{background:#1e40af}
 .btn-outline{background:#fff;color:#1a56db;border:1.5px solid #1a56db}.btn-outline:hover{background:#eff6ff}
 .btn-ghost{background:transparent;color:#4b6280;border:1.5px solid #dbeafe}.btn-ghost:hover{color:#1a56db;border-color:#1a56db}
-.btn-red{background:#dc2626;color:#fff}.btn-red:hover{background:#b91c1c}
+.btn-red{background:#dc2626;color:#fff}
 .btn-green{background:#16a34a;color:#fff}.btn-green:hover{background:#15803d}
-.btn-amber{background:#d97706;color:#fff}.btn-amber:hover{background:#b45309}
+.btn-gold{background:linear-gradient(135deg,#d97706,#f59e0b);color:#fff}
+.btn-google{background:#fff;color:#3c4043;border:1.5px solid #dadce0;font-weight:600}.btn-google:hover{background:#f8f9fa;box-shadow:0 1px 6px rgba(0,0,0,.12)}
 .btn-sm{padding:5px 9px;font-size:12px;border-radius:6px}
+
+/* ── Inputs ── */
 input,select,textarea{background:#fff;border:1.5px solid #bfdbfe;border-radius:7px;color:#1e3a5f;padding:9px 12px;font-size:14px;width:100%;outline:none;font-family:inherit;transition:border-color .15s}
 input:focus,select:focus,textarea:focus{border-color:#1a56db;box-shadow:0 0 0 3px rgba(26,86,219,.1)}
 label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;font-weight:700;margin-bottom:4px;display:block}
-.header{background:#fff;border-bottom:1px solid #dbeafe;padding:0 20px;display:flex;align-items:center;gap:8px;min-height:62px;position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(26,86,219,.07);flex-wrap:wrap}
-.logo{width:38px;height:38px;background:linear-gradient(135deg,#1a56db,#3b82f6);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+
+/* ── Layout ── */
+.header{background:#fff;border-bottom:1px solid #dbeafe;padding:0 16px;display:flex;align-items:center;gap:7px;min-height:60px;position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(26,86,219,.07);flex-wrap:wrap}
+.logo{width:36px;height:36px;background:linear-gradient(135deg,#1a56db,#3b82f6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;color:#fff}
 .tab-group{display:flex;gap:3px;background:#f0f6ff;border-radius:8px;padding:3px;border:1px solid #dbeafe}
-.tab{padding:7px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;border:none;background:transparent;color:#4b6280;transition:all .15s;font-family:inherit}
+.tab{padding:6px 13px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;border:none;background:transparent;color:#4b6280;transition:all .15s;font-family:inherit}
 .tab.active{background:#1a56db;color:#fff;box-shadow:0 2px 6px rgba(26,86,219,.3)}
-.body{max-width:1160px;margin:0 auto;padding:20px 16px}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
-.stat{background:#fff;border:1px solid #dbeafe;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(26,86,219,.05)}
-.stat-num{font-size:28px;font-weight:800;line-height:1}
-.stat-lbl{font-size:12px;color:#7b93ad;margin-top:3px;font-weight:500}
+.body{max-width:1180px;margin:0 auto;padding:18px 14px}
+
+/* ── Stats ── */
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+.stat{background:#fff;border:1px solid #dbeafe;border-radius:10px;padding:13px 14px;box-shadow:0 1px 4px rgba(26,86,219,.05);cursor:pointer;transition:all .15s}
+.stat:hover{border-color:#1a56db;box-shadow:0 2px 10px rgba(26,86,219,.12)}
+.stat-num{font-size:26px;font-weight:800;line-height:1}
+.stat-lbl{font-size:11px;color:#7b93ad;margin-top:3px;font-weight:500}
+
+/* ── Table ── */
 .tbl-wrap{background:#fff;border:1px solid #dbeafe;border-radius:11px;overflow:hidden;box-shadow:0 1px 6px rgba(26,86,219,.05)}
-.tbl-head{display:grid;grid-template-columns:2fr 1.1fr 1fr 0.9fr 0.85fr 0.8fr 100px;background:#eff6ff;padding:10px 16px;font-size:11px;color:#7b93ad;letter-spacing:.7px;text-transform:uppercase;font-weight:700;gap:8px;border-bottom:1px solid #dbeafe}
-.tbl-row{display:grid;grid-template-columns:2fr 1.1fr 1fr 0.9fr 0.85fr 0.8fr 100px;padding:11px 16px;border-top:1px solid #f0f6ff;gap:8px;align-items:center;cursor:pointer;transition:background .12s}
+.tbl-head{display:grid;grid-template-columns:2fr 1.1fr 1fr 0.9fr 0.85fr 0.8fr 120px;background:#eff6ff;padding:9px 14px;font-size:11px;color:#7b93ad;letter-spacing:.7px;text-transform:uppercase;font-weight:700;gap:8px;border-bottom:1px solid #dbeafe}
+.tbl-row{display:grid;grid-template-columns:2fr 1.1fr 1fr 0.9fr 0.85fr 0.8fr 120px;padding:10px 14px;border-top:1px solid #f0f6ff;gap:8px;align-items:center;cursor:pointer;transition:background .12s}
 .tbl-row:hover{background:#f5f9ff}
-.cell-title{font-weight:600;color:#1e3a5f;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cell-sub{font-size:11.5px;color:#7b93ad;margin-top:2px}
-.cell-case{font-size:13px;color:#1a56db;font-weight:700}
-.badge{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;display:inline-block}
-.overlay{display:none;position:fixed;inset:0;background:rgba(15,30,60,.5);z-index:200;align-items:center;justify-content:center;padding:16px}
+.cell-title{font-weight:600;color:#1e3a5f;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell-sub{font-size:11px;color:#7b93ad;margin-top:2px}
+.cell-case{font-size:12px;color:#1a56db;font-weight:700}
+.badge{padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;display:inline-block}
+
+/* ── Modals ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(15,30,60,.5);z-index:200;align-items:center;justify-content:center;padding:14px}
 .overlay.open{display:flex}
-.modal{background:#fff;border:1px solid #dbeafe;border-radius:13px;width:100%;max-width:580px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(26,86,219,.18);animation:slideUp .2s ease}
-.modal.wide{max-width:860px}
-.modal.xwide{max-width:760px}
+.modal{background:#fff;border:1px solid #dbeafe;border-radius:13px;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(26,86,219,.18);animation:slideUp .2s ease}
+.modal.wide{max-width:820px}
 @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-.modal-body{padding:24px}
-.modal-title{font-size:17px;font-weight:700;color:#1a56db;margin-bottom:16px}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+.modal-body{padding:22px}
+.modal-title{font-size:16px;font-weight:700;color:#1a56db;margin-bottom:16px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
 .span2{grid-column:1/-1}
-#toast{position:fixed;top:18px;right:18px;z-index:9999;padding:12px 20px;border-radius:9px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.13);display:none;max-width:340px}
-.info-banner{background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#4b6280}
-.search-row{display:flex;gap:10px;margin-bottom:14px;align-items:center}
+
+/* ── Toast ── */
+#toast{position:fixed;top:16px;right:16px;z-index:9999;padding:11px 18px;border-radius:9px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.13);display:none;max-width:340px;line-height:1.4}
+
+/* ── Sync status bar ── */
+#sync-bar{background:#1a56db;color:#fff;font-size:12px;font-weight:600;text-align:center;padding:6px;display:none;align-items:center;justify-content:center;gap:8px}
+.sync-dot{width:8px;height:8px;background:#00e5a0;border-radius:50%;display:inline-block;animation:blink 1.5s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── Login Screen ── */
+#login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-card{background:#fff;border-radius:16px;padding:40px 36px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(26,86,219,.15);text-align:center}
+.login-logo{width:60px;height:60px;background:linear-gradient(135deg,#1a56db,#3b82f6);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 20px}
+.login-card h1{font-size:24px;font-weight:800;color:#1e3a5f;margin-bottom:6px}
+.login-card p{font-size:14px;color:#7b93ad;margin-bottom:28px;line-height:1.5}
+.google-btn{background:#fff;color:#3c4043;border:1.5px solid #dadce0;border-radius:9px;padding:13px 20px;font-size:14px;font-weight:600;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:10px;transition:all .18s;font-family:'Segoe UI',sans-serif}
+.google-btn:hover{background:#f8f9fa;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.google-logo{width:20px;height:20px}
+.offline-btn{background:transparent;color:#4b6280;border:1.5px solid #dbeafe;border-radius:9px;padding:11px 20px;font-size:13px;font-weight:600;cursor:pointer;width:100%;margin-top:10px;font-family:'Segoe UI',sans-serif;transition:all .15s}
+.offline-btn:hover{color:#1a56db;border-color:#1a56db}
+.login-features{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:22px 0;text-align:left}
+.feat-item{display:flex;align-items:center;gap:7px;font-size:12.5px;color:#4b6280}
+.feat-icon{color:#1a56db;font-size:14px;flex-shrink:0}
+
+/* ── User avatar ── */
+.user-avatar{width:30px;height:30px;border-radius:50%;border:2px solid #bfdbfe;cursor:pointer;object-fit:cover}
+.user-pill{display:flex;align-items:center;gap:7px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:4px 10px 4px 4px;cursor:pointer;font-size:12px;font-weight:600;color:#1e3a5f}
+
+/* ── Cloud sync indicator ── */
+.cloud-icon{font-size:16px;animation:none}
+.cloud-icon.syncing{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Print styles ── */
+.print-hdr{text-align:center;border-bottom:2px solid #1a56db;padding-bottom:10px;margin-bottom:12px}
+.print-hdr h1{font-size:18px;font-weight:800;margin:3px 0}
+.print-hdr .court-lbl{font-size:10px;font-weight:700;color:#1a56db;letter-spacing:1px;text-transform:uppercase}
+.print-foot{margin-top:18px;display:flex;justify-content:space-between;font-size:11px;color:#555;align-items:flex-end}
+.sig-line{border-top:1px solid #333;padding-top:4px;font-weight:700;margin-top:26px;text-align:right}
+
+/* ── Info banner ── */
+.info-banner{background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:9px 13px;margin-bottom:13px;font-size:13px;color:#4b6280}
+.search-row{display:flex;gap:10px;margin-bottom:13px;align-items:center}
 .search-row input{flex:1}
-.count-pill{background:#fff;border:1px solid #dbeafe;border-radius:8px;padding:0 14px;height:40px;display:flex;align-items:center;color:#7b93ad;font-size:12px;white-space:nowrap;font-weight:500}
-.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;margin-bottom:14px}
+.count-pill{background:#fff;border:1px solid #dbeafe;border-radius:8px;padding:0 13px;height:40px;display:flex;align-items:center;color:#7b93ad;font-size:12px;white-space:nowrap;font-weight:500}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 18px;margin-bottom:13px}
 .detail-field{border-bottom:1px solid #dbeafe;padding-bottom:8px}
 .detail-key{font-size:11px;color:#7b93ad;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
-.detail-val{font-size:14px;color:#1e3a5f;margin-top:2px}
-/* AI Panel */
-#app-layout{display:flex;min-height:calc(100vh - 62px)}
-#main-content{flex:1;min-width:0;transition:margin-right .25s}
-#ai-panel{width:360px;min-width:360px;background:#fff;border-left:1px solid #dbeafe;display:none;flex-direction:column;position:sticky;top:62px;height:calc(100vh - 62px);box-shadow:-4px 0 18px rgba(99,102,241,.08);transition:all .25s}
-#ai-panel.open{display:flex}
-.ai-panel-hdr{padding:14px 16px;border-bottom:1px solid #ede9fe;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff}
-.ai-panel-hdr h3{font-size:14px;font-weight:700;margin:0 0 2px}
-.ai-panel-hdr p{font-size:11px;opacity:.85;margin:0}
-#ai-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
-.ai-msg{max-width:88%;padding:10px 13px;border-radius:12px;font-size:13px;line-height:1.55}
-.ai-msg.user{background:#6366f1;color:#fff;align-self:flex-end;border-bottom-right-radius:3px}
-.ai-msg.bot{background:#f5f3ff;color:#1e1b4b;align-self:flex-start;border-bottom-left-radius:3px;border:1px solid #ede9fe}
-.ai-msg.bot.loading{color:#8b5cf6;font-style:italic}
-.ai-input-row{padding:12px;border-top:1px solid #ede9fe;display:flex;gap:8px;background:#faf9ff}
-.ai-input-row input{flex:1;border:1.5px solid #c4b5fd;border-radius:8px;padding:9px 12px;font-size:13px;color:#1e1b4b;outline:none}
-.ai-input-row input:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
-.ai-send-btn{background:#6366f1;color:#fff;border:none;border-radius:8px;padding:9px 14px;cursor:pointer;font-size:16px;transition:background .15s}
-.ai-send-btn:hover{background:#4f46e5}
-.ai-quick-btns{padding:0 12px 10px;display:flex;flex-wrap:wrap;gap:6px}
-.ai-quick{background:#f5f3ff;border:1px solid #c4b5fd;color:#6366f1;border-radius:16px;padding:5px 11px;font-size:11.5px;cursor:pointer;font-weight:600;transition:all .15s}
-.ai-quick:hover{background:#ede9fe}
-/* AI Import upgrade */
-.ai-parse-badge{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-radius:6px;padding:2px 9px;font-size:11px;font-weight:700;margin-left:8px;vertical-align:middle}
-.ecimport-box{background:#f8fafc;border:1.5px dashed #bfdbfe;border-radius:9px;padding:14px;margin-bottom:14px;transition:border-color .2s}
-.ecimport-box:focus-within{border-color:#1a56db;background:#eff6ff}
-.ecimport-box textarea{border:none;background:transparent;box-shadow:none;resize:vertical;min-height:140px;font-family:monospace;font-size:13px;color:#1e3a5f;padding:0}
-.ecimport-box textarea:focus{box-shadow:none;border:none}
-.parse-result{border:1px solid #dbeafe;border-radius:9px;overflow:hidden;margin-bottom:14px}
-.parse-result-header{background:#eff6ff;padding:10px 14px;font-size:12px;font-weight:700;color:#1a56db;letter-spacing:.4px}
-.parse-row{padding:10px 14px;border-top:1px solid #f0f6ff;display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:center;font-size:13px}
-.parse-row.matched{background:#f0fdf4}
-.parse-row.unmatched{background:#fef2f2}
-.parse-row.manual{background:#fffbeb}
-.match-dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
-.step-box{background:#f8fafc;border:1px solid #dbeafe;border-radius:8px;padding:13px 15px;margin-bottom:12px}
-.step-label{font-size:11px;font-weight:700;color:#1a56db;letter-spacing:.5px;margin-bottom:8px}
-#print-area{font-family:'Times New Roman',serif;color:#000}
-#print-area table{width:100%;border-collapse:collapse;font-size:12px}
-#print-area th{background:#eff6ff;border:1px solid #bfdbfe;padding:7px 8px;font-weight:700}
-#print-area td{border:1px solid #dbeafe;padding:6px 8px;vertical-align:top}
-#print-area tr:nth-child(even) td{background:#f8fbff}
-.print-hdr{text-align:center;border-bottom:2px solid #1a56db;padding-bottom:10px;margin-bottom:12px}
-.print-hdr h1{font-size:18px;font-weight:800;margin:3px 0;letter-spacing:.4px}
-.print-hdr .court-lbl{font-size:10px;font-weight:700;color:#1a56db;letter-spacing:1px;text-transform:uppercase}
-.print-foot{margin-top:22px;display:flex;justify-content:space-between;font-size:12px;color:#555;align-items:flex-end}
-.sig-line{border-top:1px solid #333;padding-top:4px;font-weight:700;margin-top:28px;text-align:right}
+.detail-val{font-size:13.5px;color:#1e3a5f;margin-top:2px}
+
+/* ── Firebase setup guide ── */
+.setup-step{background:#f8fafc;border:1px solid #dbeafe;border-radius:9px;padding:14px 16px;margin-bottom:10px}
+.setup-num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;background:#1a56db;color:#fff;border-radius:50%;font-size:12px;font-weight:700;flex-shrink:0;margin-right:8px}
+code{background:#eff6ff;color:#1a56db;padding:2px 7px;border-radius:4px;font-family:monospace;font-size:12px}
+.code-block{background:#1e2128;color:#00e5a0;padding:12px 14px;border-radius:8px;font-family:monospace;font-size:12px;line-height:1.6;overflow-x:auto;margin:8px 0;white-space:pre}
 </style>
 </head>
 <body>
-<div id="toast"></div>
 
-<!-- HEADER -->
-<div class="header">
-  <div class="logo">&#9878;</div>
-  <div style="margin-right:auto">
-    <div style="font-size:15px;font-weight:700;color:#1e3a5f;line-height:1.2">LexTrack <span style="font-size:11px;background:#eff6ff;color:#1a56db;border:1px solid #bfdbfe;border-radius:20px;padding:2px 9px;font-weight:600;vertical-align:middle">FREE</span></div>
-    <div style="font-size:10.5px;color:#7b93ad;font-weight:500">Amandeep Sharma (PH/3112/2020) &mdash; Civil Court Complex, Rajpura</div>
+<!-- TOAST -->
+<div id="toast"></div>
+<!-- PRINT AREA -->
+<div id="print-area"></div>
+
+<!-- ══════════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">⚖️</div>
+    <h1>LexTrack</h1>
+    <p>Advocate Case Manager with real-time cloud sync across all your devices</p>
+
+    <div class="login-features">
+      <div class="feat-item"><span class="feat-icon">☁</span> Real-time sync</div>
+      <div class="feat-item"><span class="feat-icon">🔐</span> Google login</div>
+      <div class="feat-item"><span class="feat-icon">📱</span> Any device</div>
+      <div class="feat-item"><span class="feat-icon">⚡</span> Instant updates</div>
+      <div class="feat-item"><span class="feat-icon">🔔</span> Reminders</div>
+      <div class="feat-item"><span class="feat-icon">📋</span> Cause list PDF</div>
+    </div>
+
+    <button class="google-btn" onclick="signInGoogle()">
+      <svg class="google-logo" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Sign in with Google
+    </button>
+
+    <button class="offline-btn" onclick="useOffline()">Continue without Google (Offline mode)</button>
+
+    <div id="login-msg" style="margin-top:14px;font-size:13px;color:#7b93ad;display:none"></div>
+
+    <!-- Firebase not configured notice -->
+    <div id="firebase-setup-notice" style="display:none;margin-top:16px;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:12px 14px;text-align:left">
+      <div style="font-size:12px;font-weight:700;color:#d97706;margin-bottom:6px">⚠ Firebase not configured yet</div>
+      <div style="font-size:12px;color:#92400e;line-height:1.5">Google login needs your Firebase config. Click <strong>"Setup Guide"</strong> below to configure it in 5 minutes — it's free.</div>
+      <button class="btn btn-gold" style="margin-top:10px;font-size:12px;padding:7px 14px" onclick="openModal('modal-setup')">📖 Setup Guide</button>
+    </div>
   </div>
-  <div class="tab-group">
-    <button class="tab active" id="tab-all" onclick="switchView('all')">All Cases</button>
-    <button class="tab" id="tab-today" onclick="switchView('today')">Today</button>
-    <button class="tab" id="tab-week" onclick="switchView('week')">This Week</button>
-    <button class="tab" id="tab-month" onclick="switchView('month')">This Month</button>
-  </div>
-  <button class="btn btn-outline" onclick="openModal('modal-listdate')">&#128203; Daily List</button>
-  <!-- eCourts Email Import - highlighted prominently -->
-  <button class="btn btn-amber" onclick="openModal('modal-ecimport')" title="Import next dates from eCourts email or SMS">&#128196; eCourts Email Import</button>
-  <button class="btn btn-ghost" onclick="exportData()">&#8595; Export</button>
-  <label class="btn btn-ghost" style="cursor:pointer">&#8593; Import<input type="file" accept=".json" style="display:none" onchange="importData(event)"/></label>
-  <button class="btn btn-blue" onclick="openAddCase()">+ New Case</button>
-  <button class="btn" id="ai-toggle-btn" onclick="toggleAIPanel()" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;gap:6px" title="AI Case Assistant">&#129302; AI Assistant</button>
 </div>
 
-<!-- BODY -->
-<div id="app-layout">
-<div id="main-content">
-<div class="body">
-  <div class="stats" style="grid-template-columns:repeat(5,1fr)">
-    <div class="stat" style="cursor:pointer" onclick="switchView('all')"><div class="stat-num" id="s-total" style="color:#1a56db">0</div><div class="stat-lbl">Total Cases</div></div>
-    <div class="stat" style="cursor:pointer" onclick="switchView('today');"><div class="stat-num" id="s-today" style="color:#d97706">0</div><div class="stat-lbl">Today</div></div>
-    <div class="stat" style="cursor:pointer" onclick="switchView('week')"><div class="stat-num" id="s-week" style="color:#7c3aed">0</div><div class="stat-lbl">This Week</div></div>
-    <div class="stat" style="cursor:pointer" onclick="switchView('month')"><div class="stat-num" id="s-month" style="color:#0891b2">0</div><div class="stat-lbl">This Month</div></div>
-    <div class="stat" style="cursor:pointer" onclick="switchView('all')"><div class="stat-num" id="s-active" style="color:#16a34a">0</div><div class="stat-lbl">Active</div></div>
+<!-- ══════════════════════════════════════════
+     SYNC BAR
+══════════════════════════════════════════ -->
+<div id="sync-bar">
+  <span class="sync-dot"></span>
+  <span id="sync-msg">Syncing with cloud...</span>
+</div>
+
+<!-- ══════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════ -->
+<div class="header" style="display:none" id="main-header">
+  <div class="logo">⚖️</div>
+  <div style="margin-right:auto">
+    <div style="font-size:14px;font-weight:700;color:#1e3a5f;line-height:1.2">
+      LexTrack
+      <span id="sync-indicator" style="font-size:11px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:20px;padding:2px 8px;font-weight:600;vertical-align:middle;margin-left:4px">● Online</span>
+    </div>
+    <div id="hdr-user" style="font-size:10.5px;color:#7b93ad;font-weight:500">Loading...</div>
   </div>
 
+  <div class="tab-group">
+    <button class="tab active" id="tab-all"   onclick="switchView('all')">All</button>
+    <button class="tab"        id="tab-today" onclick="switchView('today')">Today</button>
+    <button class="tab"        id="tab-week"  onclick="switchView('week')">This Week</button>
+    <button class="tab"        id="tab-month" onclick="switchView('month')">This Month</button>
+  </div>
+
+  <button class="btn btn-outline" onclick="openModal('modal-listdate')">📋 Daily List</button>
+  <button class="btn btn-gold"    onclick="openModal('modal-import')" title="Import eCourts/Excel/CSV">⬇ Import</button>
+  <button class="btn btn-ghost"   onclick="exportData()">⬆ Export</button>
+
+  <!-- User avatar / sign out -->
+  <div class="user-pill" onclick="openModal('modal-account')" id="user-pill" style="display:none">
+    <img id="user-photo" class="user-avatar" src="" alt=""/>
+    <span id="user-name-short"></span>
+    <span id="cloud-icon" class="cloud-icon">☁</span>
+  </div>
+  <button class="btn btn-ghost btn-sm" id="offline-badge" style="display:none" onclick="openModal('modal-account')">Offline Mode</button>
+
+  <button class="btn btn-blue" onclick="openAddCase()">+ New Case</button>
+</div>
+
+<!-- ══════════════════════════════════════════
+     BODY
+══════════════════════════════════════════ -->
+<div class="body" id="main-body" style="display:none">
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat" onclick="switchView('all')">   <div class="stat-num" id="s-total"  style="color:#1a56db">0</div><div class="stat-lbl">Total Cases</div></div>
+    <div class="stat" onclick="switchView('today')"> <div class="stat-num" id="s-today"  style="color:#d97706">0</div><div class="stat-lbl">Today</div></div>
+    <div class="stat" onclick="switchView('week')">  <div class="stat-num" id="s-week"   style="color:#7c3aed">0</div><div class="stat-lbl">This Week</div></div>
+    <div class="stat" onclick="switchView('month')"> <div class="stat-num" id="s-month"  style="color:#0891b2">0</div><div class="stat-lbl">This Month</div></div>
+    <div class="stat" onclick="switchView('all')">   <div class="stat-num" id="s-active" style="color:#16a34a">0</div><div class="stat-lbl">Active</div></div>
+  </div>
+
+  <!-- eCourts banner -->
   <div class="info-banner">
-    <strong style="color:#1a56db">New: eCourts Email Import</strong> &mdash;
-    Got a hearing date update email or SMS from eCourts? Click <strong>eCourts Email Import</strong> in the header, paste the text, and the app will automatically update next dates for all matched cases.
+    <strong style="color:#1a56db">☁ Cloud Sync Active:</strong>
+    All your cases sync in real-time across all devices. Changes appear instantly on every device logged in with the same Google account.
+    <span id="last-sync-time" style="margin-left:8px;color:#16a34a;font-weight:600"></span>
   </div>
 
+  <!-- SEARCH -->
   <div class="search-row">
-    <input type="text" id="search-input" placeholder="Search by case no., title, client, court, type..." oninput="renderTable()"/>
+    <input type="text" id="search-input" placeholder="Search case no., title, client, court, type..." oninput="renderTable()"/>
     <div class="count-pill" id="count-label">0 cases</div>
   </div>
 
+  <!-- TABLE -->
   <div class="tbl-wrap">
     <div class="tbl-head">
       <span>Case / Client</span><span>Case No. / CNR</span><span>Court</span>
@@ -170,129 +255,17 @@ label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;
     </div>
     <div id="tbl-body">
       <div style="padding:52px;text-align:center;color:#7b93ad">
-        <div style="font-size:38px;margin-bottom:12px">&#9878;</div>
+        <div style="font-size:38px;margin-bottom:12px">⚖️</div>
         <div style="font-size:15px;font-weight:600;color:#4b6280">No cases yet</div>
-        <div style="font-size:13px;margin-top:6px">Click &ldquo;+ New Case&rdquo; to begin</div>
+        <div style="font-size:13px;margin-top:6px">Click "+ New Case" to add your first case</div>
       </div>
     </div>
-  </div>
-</div><!-- end main-content -->
-
-<!-- AI ASSISTANT PANEL -->
-<div id="ai-panel">
-  <div class="ai-panel-hdr">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <div>
-        <h3>&#129302; AI Case Assistant</h3>
-        <p>Ask about your cases or paste eCourts text</p>
-      </div>
-      <button onclick="toggleAIPanel()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:14px">&times;</button>
-    </div>
-  </div>
-  <div id="ai-messages">
-    <div class="ai-msg bot">Namaste! I'm your AI Case Assistant. I can help you:<br><br>&#8226; <strong>Parse eCourts emails</strong> &mdash; paste any notification text and I'll extract all dates automatically<br>&#8226; <strong>Answer questions</strong> about your cases<br>&#8226; <strong>Summarise upcoming hearings</strong><br><br>What would you like to do?</div>
-  </div>
-  <div class="ai-quick-btns">
-    <button class="ai-quick" onclick="aiQuick('How many cases do I have today?')">&#128197; Today's cases</button>
-    <button class="ai-quick" onclick="aiQuick('List all active cases with next hearing dates')">&#128203; Active cases</button>
-    <button class="ai-quick" onclick="aiQuick('Which cases have no CNR number?')">&#9888; Missing CNR</button>
-    <button class="ai-quick" onclick="aiQuick('Show all cases scheduled this week')">&#128198; This week</button>
-    <button class="ai-quick" onclick="openAIPasteMode()">&#128231; Parse eCourts email</button>
-  </div>
-  <div class="ai-input-row">
-    <input id="ai-input" type="text" placeholder="Ask about your cases or paste eCourts text…" onkeydown="if(event.key==='Enter')sendAIMessage()"/>
-    <button class="ai-send-btn" onclick="sendAIMessage()">&#10148;</button>
   </div>
 </div>
-</div><!-- end app-layout -->
 
 <!-- ============================================================
-     ECOURTS EMAIL / SMS IMPORT MODAL
+     MODALS
 ============================================================ -->
-<div class="overlay" id="modal-ecimport">
-  <div class="modal xwide">
-    <div class="modal-body">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-        <div>
-          <div class="modal-title" style="margin-bottom:4px">&#128196; eCourts Email / SMS Import</div>
-          <div style="font-size:13px;color:#4b6280;margin-bottom:16px">Paste any eCourts notification email or SMS below. The app will read all case numbers and dates automatically.</div>
-        </div>
-        <button onclick="closeModal('modal-ecimport')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer;flex-shrink:0;margin-left:10px">&times;</button>
-      </div>
-
-      <!-- SUPPORTED FORMATS INFO -->
-      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:12px 14px;margin-bottom:16px;font-size:13px">
-        <strong style="color:#d97706">Supported formats &mdash; paste any of these:</strong>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;font-size:12px;color:#4b6280">
-          <div style="background:#fff;border:1px solid #fde68a;border-radius:6px;padding:8px;font-family:monospace;font-size:11.5px;line-height:1.7">
-            <strong style="color:#d97706">eCourts Email format:</strong><br>
-            Case No: CS-254-2022<br>
-            Next Date: 25/06/2026<br>
-            Purpose: Arguments<br>
-            Court: Civil Judge Rajpura
-          </div>
-          <div style="background:#fff;border:1px solid #fde68a;border-radius:6px;padding:8px;font-family:monospace;font-size:11.5px;line-height:1.7">
-            <strong style="color:#d97706">CNR / SMS format:</strong><br>
-            CNR: PBPT010012022<br>
-            Hearing Date: 25-06-2026<br>
-            Stage: Arguments<br>
-            <br>
-          </div>
-          <div style="background:#fff;border:1px solid #fde68a;border-radius:6px;padding:8px;font-family:monospace;font-size:11.5px;line-height:1.7">
-            <strong style="color:#d97706">Any plain text / copy-paste:</strong><br>
-            Case CS-254-2022 is listed<br>
-            on 25/06/2026 for Arguments<br>
-            <br>
-            <br>
-          </div>
-          <div style="background:#fff;border:1px solid #fde68a;border-radius:6px;padding:8px;font-family:monospace;font-size:11.5px;line-height:1.7">
-            <strong style="color:#d97706">Multiple cases at once:</strong><br>
-            Paste entire email with<br>
-            multiple cases listed &mdash;<br>
-            all will be parsed together
-          </div>
-        </div>
-      </div>
-
-      <!-- PASTE AREA -->
-      <div class="step-box">
-        <div class="step-label">STEP 1 &mdash; PASTE YOUR eCOURTS EMAIL OR SMS TEXT HERE</div>
-        <div class="ecimport-box">
-          <textarea id="ec-paste-input" placeholder="Paste the full eCourts email text or SMS here...&#10;&#10;Example:&#10;Case No: CS-254-2022&#10;Next Date: 25/06/2026&#10;Purpose: Arguments&#10;&#10;You can paste multiple cases at once." oninput="ecParseInput()"></textarea>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-blue btn-sm" onclick="ecParseWithAI()">&#129302; Parse with AI <span class="ai-parse-badge">NEW</span></button>
-          <button class="btn btn-ghost btn-sm" onclick="ecParseInput()">&#128269; Parse (regex)</button>
-          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ec-paste-input').value='';document.getElementById('ec-results-wrap').style.display='none'">Clear</button>
-        </div>
-      </div>
-
-      <!-- PARSE RESULTS -->
-      <div id="ec-results-wrap" style="display:none">
-        <div class="step-box">
-          <div class="step-label">STEP 2 &mdash; REVIEW MATCHES &amp; UPDATE</div>
-          <div style="font-size:13px;color:#4b6280;margin-bottom:12px" id="ec-summary"></div>
-
-          <div class="parse-result" id="ec-results-list"></div>
-
-          <!-- Unmatched manual assign -->
-          <div id="ec-unmatched-wrap" style="display:none">
-            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 14px;margin-bottom:10px;font-size:13px;color:#4b6280">
-              <strong style="color:#dc2626">Some entries could not be matched automatically.</strong>
-              For each unmatched entry below, select which case it belongs to from the dropdown, then click Apply All.
-            </div>
-          </div>
-
-          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
-            <button class="btn btn-green" onclick="ecApplyAll()" id="ec-apply-btn">&#10003; Apply All Updates</button>
-            <button class="btn btn-ghost" onclick="closeModal('modal-ecimport')">Cancel</button>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div>
-</div>
 
 <!-- ADD / EDIT CASE -->
 <div class="overlay" id="modal-case">
@@ -300,53 +273,38 @@ label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;
     <div class="modal-body">
       <div class="modal-title" id="case-modal-title">Add New Case</div>
       <div class="form-grid">
-        <div class="span2">
-          <label>Case Title / Parties *</label>
-          <input id="f-title" placeholder="e.g. Suresh Kumar vs. Tarsem Singh &amp; Others"/>
-        </div>
+        <div class="span2"><label>Case Title / Parties *</label><input id="f-title" placeholder="e.g. Suresh Kumar vs. Tarsem Singh &amp; Others"/></div>
         <div><label>Case Number</label><input id="f-caseNo" placeholder="e.g. CS-254-2022"/></div>
-        <div><label>CNR Number (eCourts Sync)</label><input id="f-cnr" placeholder="e.g. PBPT010012022"/></div>
-        <div>
-          <label>Court</label>
+        <div><label>CNR Number</label><input id="f-cnr" placeholder="e.g. PBPTA010012022"/></div>
+        <div><label>Court</label>
           <select id="f-court">
             <option value="">-- Select Court --</option>
-            <option>JMFC Rajpura</option>
-            <option>Civil Judge (Jr. Div.) Rajpura</option>
-            <option>Civil Judge (Sr. Div.) Rajpura</option>
-            <option>ACJM Rajpura</option>
-            <option>Sessions Court Patiala</option>
-            <option>Punjab &amp; Haryana High Court</option>
-            <option>Other</option>
+            <option>JMFC Rajpura</option><option>Civil Judge (Jr. Div.) Rajpura</option>
+            <option>Civil Judge (Sr. Div.) Rajpura</option><option>ACJM Rajpura</option>
+            <option>Sessions Court Patiala</option><option>Punjab &amp; Haryana High Court</option><option>Other</option>
           </select>
         </div>
-        <div>
-          <label>Case Type</label>
+        <div><label>Case Type</label>
           <select id="f-caseType">
             <option value="">-- Select Type --</option>
-            <option>Civil Suit</option><option>Criminal Case</option>
-            <option>NI Act Sec 138</option><option>Execution Petition</option>
-            <option>Motor Accident</option><option>Family Matter</option>
-            <option>Revenue Case</option><option>Writ Petition</option>
-            <option>Appeal</option><option>Revision</option>
-            <option>Bail Application</option><option>Other</option>
+            <option>Civil Suit</option><option>Criminal Case</option><option>NI Act Sec 138</option>
+            <option>Execution Petition</option><option>Motor Accident</option><option>Family Matter</option>
+            <option>Revenue Case</option><option>Writ Petition</option><option>Appeal</option>
+            <option>Revision</option><option>Bail Application</option><option>Other</option>
           </select>
         </div>
-        <div><label>Client Name</label><input id="f-client" placeholder="Client / Complainant name"/></div>
+        <div><label>Client Name</label><input id="f-client" placeholder="Client / Complainant"/></div>
         <div><label>Client Phone</label><input id="f-clientPhone" placeholder="Mobile number"/></div>
-        <div><label>Opposite Party</label><input id="f-opposite" placeholder="Accused / Defendant name"/></div>
-        <div><label>Sections / Provisions</label><input id="f-sections" placeholder="e.g. Sec 138 NI Act, BNS 303"/></div>
+        <div><label>Opposite Party</label><input id="f-opposite" placeholder="Accused / Defendant"/></div>
+        <div><label>Sections / Provisions</label><input id="f-sections" placeholder="e.g. Sec 138 NI Act"/></div>
         <div><label>Next Date of Hearing</label><input type="date" id="f-nextDate"/></div>
         <div><label>Stage / Purpose</label><input id="f-stage" placeholder="e.g. Arguments, Evidence"/></div>
-        <div>
-          <label>Status</label>
-          <select id="f-status">
-            <option>Active</option><option>Adjourned</option><option>Decided</option>
-            <option>Stayed</option><option>Withdrawn</option><option>Closed</option>
-          </select>
+        <div><label>Status</label>
+          <select id="f-status"><option>Active</option><option>Adjourned</option><option>Decided</option><option>Stayed</option><option>Withdrawn</option><option>Closed</option></select>
         </div>
-        <div class="span2"><label>Remarks / Notes</label><textarea id="f-remarks" rows="3" placeholder="Additional notes, previous orders..."></textarea></div>
+        <div class="span2"><label>Remarks / Notes (used for reminders)</label><textarea id="f-remarks" rows="2" placeholder="Notes, instructions, follow-ups..."></textarea></div>
       </div>
-      <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end">
+      <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
         <button class="btn btn-ghost" onclick="closeModal('modal-case')">Cancel</button>
         <button class="btn btn-blue" onclick="saveCase()">Save Case</button>
       </div>
@@ -358,49 +316,47 @@ label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;
 <div class="overlay" id="modal-detail">
   <div class="modal wide">
     <div class="modal-body">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
-        <div style="flex:1;padding-right:14px">
-          <div id="d-title" style="font-size:17px;font-weight:700;color:#1e3a5f;line-height:1.35"></div>
-          <span id="d-status-badge" class="badge" style="margin-top:7px;display:inline-block"></span>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:13px">
+        <div style="flex:1;padding-right:12px">
+          <div id="d-title" style="font-size:16px;font-weight:700;color:#1e3a5f;line-height:1.35"></div>
+          <span id="d-status-badge" class="badge" style="margin-top:6px;display:inline-block"></span>
         </div>
         <button onclick="closeModal('modal-detail')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
       </div>
       <div class="detail-grid" id="d-fields"></div>
-      <div id="d-remarks-wrap" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:11px 14px;margin-bottom:14px">
-        <div style="font-size:11px;color:#7b93ad;text-transform:uppercase;font-weight:600;margin-bottom:5px;letter-spacing:.5px">Remarks</div>
-        <div id="d-remarks" style="font-size:13.5px;color:#4b6280;line-height:1.65"></div>
+      <div id="d-remarks-wrap" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 13px;margin-bottom:13px">
+        <div style="font-size:11px;color:#7b93ad;text-transform:uppercase;font-weight:600;margin-bottom:4px">Remarks</div>
+        <div id="d-remarks" style="font-size:13px;color:#4b6280;line-height:1.6"></div>
       </div>
-      <div style="display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap">
+      <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
         <button class="btn btn-ghost" onclick="closeModal('modal-detail')">Close</button>
-        <button class="btn btn-outline" onclick="openSyncFromDetail()">Sync eCourts</button>
-        <button class="btn btn-blue" onclick="editFromDetail()">Edit Case</button>
+        <button class="btn btn-ghost" style="border-color:#16a34a;color:#16a34a" onclick="closeModal('modal-detail');openAlertModal(detailId)">🔔 Reminder</button>
+        <button class="btn btn-outline" onclick="openSyncFromDetail()">⟳ Sync eCourts</button>
+        <button class="btn btn-blue" onclick="editFromDetail()">✏ Edit</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ECOURTS MANUAL SYNC -->
+<!-- eCOURTS SYNC -->
 <div class="overlay" id="modal-sync">
   <div class="modal">
     <div class="modal-body">
-      <div class="modal-title">Sync from eCourts</div>
-      <div id="sync-info" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px"></div>
-      <div class="step-box">
-        <div class="step-label">STEP 1 &mdash; OPEN eCOURTS</div>
-        <button class="btn btn-outline" style="width:100%;padding:10px;font-size:14px" id="sync-open-btn" onclick="openECourts()">Open eCourts Services</button>
-        <div id="sync-hint" style="font-size:12px;color:#7b93ad;margin-top:8px;line-height:1.5"></div>
-      <div style="margin-top:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:7px;padding:10px 12px;font-size:12px;color:#92400e;line-height:1.6">
-        <strong>If eCourts shows 404:</strong> Go to <strong>services.ecourts.gov.in</strong> manually &rarr; click <em>Case Status</em> &rarr; select <em>CNR Number</em> &rarr; enter the CNR shown above.
+      <div class="modal-title">⟳ Sync from eCourts</div>
+      <div id="sync-info" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 13px;margin-bottom:14px;font-size:13px"></div>
+      <div style="background:#f8fafc;border:1px solid #dbeafe;border-radius:8px;padding:13px;margin-bottom:11px">
+        <div style="font-size:11px;font-weight:700;color:#1a56db;margin-bottom:8px">STEP 1 — OPEN eCOURTS</div>
+        <button class="btn btn-outline" style="width:100%;padding:10px" id="sync-open-btn" onclick="openECourts()">🌐 Open eCourts Portal</button>
+        <div style="margin-top:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 11px;font-size:12px;color:#92400e">If 404: go to services.ecourts.gov.in → Case Status → CNR Number</div>
       </div>
-      </div>
-      <div class="step-box">
-        <div class="step-label">STEP 2 &mdash; ENTER DATE FROM eCOURTS</div>
-        <div style="margin-bottom:12px"><label>Next Date of Hearing</label><input type="date" id="sync-date"/></div>
-        <div><label>Stage / Purpose (optional)</label><input id="sync-stage" placeholder="e.g. Arguments, Evidence"/></div>
+      <div style="background:#f8fafc;border:1px solid #dbeafe;border-radius:8px;padding:13px;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:#1a56db;margin-bottom:10px">STEP 2 — ENTER DATE</div>
+        <div style="margin-bottom:10px"><label>Next Date of Hearing</label><input type="date" id="sync-date"/></div>
+        <div><label>Stage (optional)</label><input id="sync-stage" placeholder="e.g. Arguments, Evidence"/></div>
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end">
         <button class="btn btn-ghost" onclick="closeModal('modal-sync')">Cancel</button>
-        <button class="btn btn-blue" onclick="applySync()">Update Date</button>
+        <button class="btn btn-blue" onclick="applySync()">✓ Update Date</button>
       </div>
     </div>
   </div>
@@ -408,123 +364,221 @@ label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;
 
 <!-- DELETE -->
 <div class="overlay" id="modal-delete">
-  <div class="modal">
-    <div class="modal-body" style="text-align:center;padding:32px 24px">
-      <div style="font-size:36px;margin-bottom:12px">&#128465;</div>
-      <div style="font-size:17px;font-weight:700;color:#1e3a5f;margin-bottom:8px">Delete this case?</div>
-      <div id="del-name" style="font-size:13.5px;color:#4b6280;margin-bottom:24px;line-height:1.5"></div>
-      <div style="display:flex;gap:10px;justify-content:center">
-        <button class="btn btn-ghost" onclick="closeModal('modal-delete')">Cancel</button>
-        <button class="btn btn-red" onclick="confirmDelete()">Delete</button>
-      </div>
+  <div class="modal"><div class="modal-body" style="text-align:center;padding:28px 22px">
+    <div style="font-size:34px;margin-bottom:11px">🗑️</div>
+    <div style="font-size:16px;font-weight:700;color:#1e3a5f;margin-bottom:7px">Delete this case?</div>
+    <div id="del-name" style="font-size:13px;color:#4b6280;margin-bottom:22px;line-height:1.5"></div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button class="btn btn-ghost" onclick="closeModal('modal-delete')">Cancel</button>
+      <button class="btn btn-red" onclick="confirmDelete()">Delete</button>
     </div>
-  </div>
+  </div></div>
 </div>
 
-<!-- DAILY LIST DATE -->
+<!-- DAILY LIST DATE PICKER -->
 <div class="overlay" id="modal-listdate">
-  <div class="modal">
-    <div class="modal-body">
-      <div class="modal-title">Generate Daily Cause List</div>
-      <div style="font-size:13px;color:#4b6280;margin-bottom:18px">Select a date to generate the printable cause list for that day.</div>
-      <label>Date</label>
-      <input type="date" id="list-date" style="margin-bottom:20px"/>
-      <div style="display:flex;gap:10px">
-        <button class="btn btn-ghost" onclick="closeModal('modal-listdate')">Cancel</button>
-        <button class="btn btn-blue" onclick="generateList()">Generate List</button>
-      </div>
+  <div class="modal"><div class="modal-body">
+    <div class="modal-title">📋 Generate Daily Cause List</div>
+    <div style="font-size:13px;color:#4b6280;margin-bottom:16px">Select date to generate printable cause list.</div>
+    <label>Date</label>
+    <input type="date" id="list-date" style="margin-bottom:18px"/>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-ghost" onclick="closeModal('modal-listdate')">Cancel</button>
+      <button class="btn btn-blue" onclick="generateList()">Generate List</button>
     </div>
-  </div>
+  </div></div>
 </div>
 
 <!-- PDF PREVIEW -->
 <div class="overlay" id="modal-pdf">
-  <div class="modal wide">
-    <div class="modal-body">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
-        <div>
-          <div style="font-size:16px;font-weight:700;color:#1e3a5f" id="pdf-title">Cause List</div>
-          <div style="font-size:12px;color:#7b93ad" id="pdf-count"></div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost" onclick="closeModal('modal-pdf')">Close</button>
-          <button class="btn btn-blue" onclick="window.print()">Print / Save PDF</button>
-        </div>
+  <div class="modal wide"><div class="modal-body">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:#1e3a5f" id="pdf-title">Cause List</div>
+        <div style="font-size:12px;color:#7b93ad" id="pdf-count"></div>
       </div>
-      <div id="pdf-preview" style="background:#fff;border:1px solid #dbeafe;border-radius:8px;padding:20px 22px;font-family:'Times New Roman',serif;color:#111;max-width:210mm;margin:0 auto"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="closeModal('modal-pdf')">Close</button>
+        <button class="btn btn-blue" onclick="doPrint()">🖨 Print / Save PDF</button>
+      </div>
     </div>
-  </div>
+    <div id="pdf-preview" style="background:#fff;border:1px solid #dbeafe;border-radius:8px;padding:20px 22px;font-family:'Times New Roman',serif;color:#111;max-width:210mm;margin:0 auto"></div>
+  </div></div>
 </div>
 
-<div id="print-area"></div>
-
-
-<!-- ECOURTS EMAIL IMPORT MODAL -->
-<div class="overlay" id="modal-ecimport">
-  <div class="modal wide">
-    <div class="modal-body">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div class="modal-title" style="margin-bottom:0">&#128229; eCourts Email Import</div>
-        <button onclick="closeModal('modal-ecimport')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
-      </div>
-
-      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#4b6280">
-        <strong style="color:#1a56db">How eCourts email works:</strong> eCourts sends you an email with your case list as a <strong>.txt file attachment</strong> containing JSON data. This tool reads that file and imports all cases automatically.
-      </div>
-
-      <!-- Method 1: File Upload -->
-      <div style="background:#f8fafc;border:2px solid #1a56db;border-radius:10px;padding:16px;margin-bottom:14px">
-        <div style="font-size:13px;font-weight:700;color:#1a56db;margin-bottom:10px;letter-spacing:.4px">METHOD 1 &mdash; UPLOAD THE .TXT OR .PDF FILE FROM EMAIL</div>
-        <label class="btn btn-blue" style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;width:100%;justify-content:center;padding:12px">
-          &#128193; Select eCourts File (.txt or .pdf)
-          <input type="file" accept=".txt,.pdf,.json" style="display:none" onchange="importECourtsFile(event)"/>
-        </label>
-        <div style="font-size:12px;color:#7b93ad;margin-top:8px;line-height:1.5">Accepts: <strong>.txt</strong> (eCourts email attachment) &bull; <strong>.pdf</strong> (eCourts PDF export) &bull; <strong>.json</strong> (LexTrack backup)</div>
-      </div>
-
-      <!-- Method 2: Paste text -->
-      <div style="background:#f8fafc;border:1px solid #dbeafe;border-radius:10px;padding:16px;margin-bottom:14px">
-        <div style="font-size:13px;font-weight:700;color:#1a56db;margin-bottom:10px;letter-spacing:.4px">METHOD 2 &mdash; PASTE THE TEXT FROM EMAIL</div>
-        <div style="font-size:12px;color:#4b6280;margin-bottom:8px">Open the .txt attachment in your email, select all text (Ctrl+A), copy, and paste below:</div>
-        <textarea id="ec-paste-area" rows="5" placeholder='Paste eCourts data here... (starts with [{&quot;cino&quot;:&quot;PBPTA...&quot;}])' style="font-family:monospace;font-size:12px;margin-bottom:10px"></textarea>
-        <button class="btn btn-blue" style="width:100%;padding:10px" onclick="importECourtsPaste()">Import Pasted Data</button>
-      </div>
-
-      <!-- Status area -->
-      <div id="ec-status" style="display:none;border-radius:8px;padding:12px 14px;font-size:13px;margin-bottom:14px"></div>
-
-      <!-- Instructions -->
-      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px 16px;margin-bottom:14px">
-        <div style="font-weight:700;color:#16a34a;font-size:13px;margin-bottom:8px">How to get the eCourts email file:</div>
-        <div style="font-size:12.5px;color:#4b6280;line-height:1.7">
-          1. Login to <strong>services.ecourts.gov.in</strong><br>
-          2. Go to <strong>Advocate &rarr; My Cases</strong><br>
-          3. Click <strong>Send to Email</strong> button<br>
-          4. Check your email inbox<br>
-          5. Download the <strong>.txt attachment</strong> from that email<br>
-          6. Upload it here using Method 1 above
-        </div>
-      </div>
-
-      <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button class="btn btn-ghost" onclick="closeModal('modal-ecimport')">Close</button>
+<!-- IMPORT -->
+<div class="overlay" id="modal-import">
+  <div class="modal wide"><div class="modal-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="modal-title" style="margin-bottom:0">⬇ Import Cases</div>
+      <button onclick="closeModal('modal-import')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+      <label style="border:2px solid #dbeafe;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:all .15s;background:#fff;display:block" onmouseover="this.style.borderColor='#1a56db'" onmouseout="this.style.borderColor='#dbeafe'">
+        <div style="font-size:26px;margin-bottom:6px">📨</div>
+        <div style="font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:3px">eCourts File</div>
+        <div style="font-size:11px;color:#7b93ad">.txt / .pdf / .json</div>
+        <input type="file" accept=".txt,.pdf,.json" style="display:none" onchange="handleImportFile(event)"/>
+      </label>
+      <label style="border:2px solid #dbeafe;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:all .15s;background:#fff;display:block" onmouseover="this.style.borderColor='#16a34a'" onmouseout="this.style.borderColor='#dbeafe'">
+        <div style="font-size:26px;margin-bottom:6px">📊</div>
+        <div style="font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:3px">Excel / CSV</div>
+        <div style="font-size:11px;color:#7b93ad">.xlsx / .csv</div>
+        <input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImportFile(event)"/>
+      </label>
+      <label style="border:2px solid #dbeafe;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:all .15s;background:#fff;display:block" onmouseover="this.style.borderColor='#0891b2'" onmouseout="this.style.borderColor='#dbeafe'">
+        <div style="font-size:26px;margin-bottom:6px">💾</div>
+        <div style="font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:3px">LexTrack Backup</div>
+        <div style="font-size:11px;color:#7b93ad">.json backup</div>
+        <input type="file" accept=".json" style="display:none" onchange="handleImportFile(event)"/>
+      </label>
+    </div>
+    <div id="import-status" style="display:none;border-radius:8px;padding:11px 14px;font-size:13px;margin-bottom:14px"></div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px 14px">
+      <div style="font-weight:700;color:#16a34a;font-size:13px;margin-bottom:6px">How to get eCourts email file:</div>
+      <div style="font-size:12.5px;color:#4b6280;line-height:1.7">
+        Login to <strong>services.ecourts.gov.in</strong> → Advocate → My Cases → <strong>Send to Email</strong> → Download the <strong>.txt attachment</strong> → Upload here
       </div>
     </div>
-  </div>
+  </div></div>
+</div>
+
+<!-- REMINDER / ALERT -->
+<div class="overlay" id="modal-alert">
+  <div class="modal"><div class="modal-body">
+    <div class="modal-title">🔔 Set Reminder</div>
+    <div id="alert-case-name" style="font-size:13px;color:#4b6280;margin-bottom:14px;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-weight:600"></div>
+    <input type="hidden" id="alert-case-id"/>
+    <div style="display:grid;gap:12px">
+      <div><label>Reminder Message</label><textarea id="alert-msg" rows="2" placeholder="e.g. Prepare arguments, Collect documents, Call client..."></textarea></div>
+      <div>
+        <label>Alert Date &amp; Time</label>
+        <input type="datetime-local" id="alert-datetime"/>
+        <div style="font-size:11px;color:#7b93ad;margin-top:4px">You'll get a browser notification + in-app alert at this time.</div>
+      </div>
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px">
+        <div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:6px">Quick Set</div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="quickAlert(0)">Today 9am</button>
+          <button class="btn btn-ghost btn-sm" onclick="quickAlert(1)">Tomorrow</button>
+          <button class="btn btn-ghost btn-sm" onclick="quickAlert(2)">2 Days</button>
+          <button class="btn btn-ghost btn-sm" onclick="quickAlert(7)">1 Week</button>
+          <button class="btn btn-ghost btn-sm" onclick="quickAlertHearing()">Day Before Hearing</button>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal('modal-alert')">Cancel</button>
+      <button class="btn btn-green" onclick="saveAlert()">🔔 Set Reminder</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- REMINDER FIRED -->
+<div class="overlay" id="modal-alert-fired">
+  <div class="modal"><div class="modal-body" style="text-align:center;padding:28px 24px">
+    <div style="font-size:44px;margin-bottom:12px;animation:pulse 1s infinite">🔔</div>
+    <div style="font-size:18px;font-weight:700;color:#1e3a5f;margin-bottom:8px">Reminder!</div>
+    <div id="alert-fired-case" style="font-size:12px;color:#7b93ad;margin-bottom:10px"></div>
+    <div id="alert-fired-msg" style="font-size:15px;color:#1e3a5f;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:14px;line-height:1.5;margin-bottom:20px"></div>
+    <button class="btn btn-blue" style="width:100%" onclick="closeModal('modal-alert-fired')">OK, Got It</button>
+  </div></div>
+</div>
+
+<!-- ACCOUNT / CLOUD -->
+<div class="overlay" id="modal-account">
+  <div class="modal"><div class="modal-body">
+    <div class="modal-title">👤 Account &amp; Cloud Sync</div>
+    <div id="account-info" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:14px;margin-bottom:16px"></div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#4b6280;line-height:1.6">
+      <strong style="color:#16a34a">☁ Real-time sync is active.</strong> Your cases are stored in Firebase Firestore and sync instantly across all devices logged in with the same Google account. Open this app on any device and sign in to access all your cases.
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+      <button class="btn btn-ghost" onclick="closeModal('modal-account')">Close</button>
+      <button class="btn btn-ghost" onclick="exportData()">⬆ Export Backup</button>
+      <button class="btn btn-red" onclick="signOut()">Sign Out</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- FIREBASE SETUP GUIDE -->
+<div class="overlay" id="modal-setup">
+  <div class="modal wide"><div class="modal-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="modal-title" style="margin-bottom:0">🔥 Firebase Setup Guide</div>
+      <button onclick="closeModal('modal-setup')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
+    </div>
+
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#4b6280">
+      Firebase is <strong style="color:#1a56db">Google's free cloud platform</strong>. The free tier gives you <strong>50,000 reads + 20,000 writes per day</strong> — more than enough for any advocate. Takes about <strong>5 minutes</strong> to set up.
+    </div>
+
+    <div class="setup-step">
+      <span class="setup-num">1</span><strong>Go to Firebase Console</strong>
+      <div style="margin-top:8px;font-size:13px;color:#4b6280">Open <a href="https://console.firebase.google.com" target="_blank" style="color:#1a56db">console.firebase.google.com</a> → Sign in with your Google account → Click <strong>"Create a project"</strong></div>
+      <div style="margin-top:6px;font-size:13px;color:#4b6280">Name: <code>lextrack</code> → Disable Google Analytics (optional) → Create project</div>
+    </div>
+
+    <div class="setup-step">
+      <span class="setup-num">2</span><strong>Add a Web App</strong>
+      <div style="margin-top:8px;font-size:13px;color:#4b6280">In your project → Click <strong>"&lt;/&gt;"</strong> (Web) icon → App nickname: <code>lextrack-web</code> → Register app → <strong>Copy the firebaseConfig object shown</strong></div>
+    </div>
+
+    <div class="setup-step">
+      <span class="setup-num">3</span><strong>Enable Google Sign-In</strong>
+      <div style="margin-top:8px;font-size:13px;color:#4b6280">Left sidebar → <strong>Authentication</strong> → Get started → Sign-in method → <strong>Google</strong> → Enable → Add your email as support email → Save</div>
+    </div>
+
+    <div class="setup-step">
+      <span class="setup-num">4</span><strong>Create Firestore Database</strong>
+      <div style="margin-top:8px;font-size:13px;color:#4b6280">Left sidebar → <strong>Firestore Database</strong> → Create database → Start in <strong>production mode</strong> → Choose location: <code>asia-south1</code> (Mumbai) → Done</div>
+      <div style="margin-top:8px;font-size:13px;color:#4b6280">Then go to <strong>Rules</strong> tab → Replace with:</div>
+      <div class="code-block">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/cases/{caseId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/alerts/{alertId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}</div>
+      <div style="font-size:12px;color:#4b6280">Click <strong>Publish</strong></div>
+    </div>
+
+    <div class="setup-step">
+      <span class="setup-num">5</span><strong>Add Authorized Domain (for GitHub Pages)</strong>
+      <div style="margin-top:8px;font-size:13px;color:#4b6280">Authentication → Settings → <strong>Authorized domains</strong> → Add domain → Enter: <code>aman6539.github.io</code></div>
+    </div>
+
+    <div class="setup-step">
+      <span class="setup-num">6</span><strong>Paste your Firebase Config below</strong>
+      <div style="margin-top:8px;font-size:13px;color:#4b6280">Copy the <code>firebaseConfig</code> from Step 2 and paste it here:</div>
+      <textarea id="fb-config-input" rows="8" style="font-family:monospace;font-size:12px;margin-top:8px;background:#1e2128;color:#00e5a0;border-color:#2a2d35" placeholder='{
+  "apiKey": "AIza...",
+  "authDomain": "lextrack-xxxxx.firebaseapp.com",
+  "projectId": "lextrack-xxxxx",
+  "storageBucket": "lextrack-xxxxx.appspot.com",
+  "messagingSenderId": "123456789",
+  "appId": "1:123456789:web:abcdef"
+}'></textarea>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-blue" onclick="applyFirebaseConfig()">✓ Apply Config &amp; Reload</button>
+        <button class="btn btn-ghost" onclick="closeModal('modal-setup')">Cancel</button>
+      </div>
+      <div id="config-msg" style="margin-top:8px;font-size:12px"></div>
+    </div>
+
+  </div></div>
 </div>
 
 <script>
 // ============================================================
-// STATE
+// ── FIREBASE CONFIG ──────────────────────────────────────────
+// Paste your Firebase config here OR use the Setup Guide
 // ============================================================
-var APPKEY = 'lextrack_free_v2';
-var cases = [];
-var currentView = 'all';
-var editingId = null;
-var syncingId = null;
-var deletingId = null;
-var detailId = null;
-var ecParsed = []; // parsed entries from email import
+var FIREBASE_CONFIG = null; // Will be loaded from localStorage or setup guide
 
 var SMETA = {
   'Active':   {c:'#16a34a',bg:'#f0fdf4',b:'#bbf7d0'},
@@ -535,11 +589,278 @@ var SMETA = {
   'Closed':   {c:'#64748b',bg:'#f8fafc',b:'#e2e8f0'}
 };
 
+var cases = [];
+var currentView = 'all';
+var editingId = null, syncingId = null, deletingId = null, detailId = null;
+var currentUser = null;
+var db = null, auth = null;
+var isOnline = false;
+var alertTimers = {};
+var alerts = [];
+var LOCAL_KEY = 'lextrack_offline_v1';
+var CONFIG_KEY = 'lextrack_firebase_config';
+var unsubscribeSnapshot = null;
+
+// ── INIT ──────────────────────────────────────────────────────
 window.onload = function(){
-  try{ var d=localStorage.getItem(APPKEY); if(d) cases=JSON.parse(d); }catch(e){}
   document.getElementById('list-date').value = todayStr();
-  renderAll();
+
+  // Try to load saved Firebase config
+  try{
+    var saved = localStorage.getItem(CONFIG_KEY);
+    if(saved) FIREBASE_CONFIG = JSON.parse(saved);
+  }catch(e){}
+
+  if(FIREBASE_CONFIG){
+    initFirebase(FIREBASE_CONFIG);
+  } else {
+    // Show setup notice
+    document.getElementById('firebase-setup-notice').style.display = 'block';
+  }
+
+  // Load local alerts
+  loadLocalAlerts();
 };
+
+// ── FIREBASE INIT ─────────────────────────────────────────────
+function initFirebase(config){
+  try{
+    if(!firebase.apps.length){
+      firebase.initializeApp(config);
+    }
+    db   = firebase.firestore();
+    auth = firebase.auth();
+
+    // Enable offline persistence
+    db.enablePersistence({synchronizeTabs:true}).catch(function(e){
+      console.log('Persistence:', e.code);
+    });
+
+    // Auth state listener
+    auth.onAuthStateChanged(function(user){
+      if(user){
+        currentUser = user;
+        isOnline = true;
+        showApp(user);
+        startCloudSync(user);
+      } else {
+        currentUser = null;
+      }
+    });
+
+    // Network status
+    db.collection('_ping').onSnapshot(function(){
+      updateSyncIndicator(true);
+    }, function(){
+      updateSyncIndicator(false);
+    });
+
+  }catch(e){
+    console.error('Firebase init error:', e);
+    showToast('Firebase error: '+e.message+'. Use offline mode.','error');
+  }
+}
+
+// ── GOOGLE SIGN IN ────────────────────────────────────────────
+function signInGoogle(){
+  if(!FIREBASE_CONFIG){
+    document.getElementById('firebase-setup-notice').style.display = 'block';
+    document.getElementById('login-msg').style.display = 'block';
+    document.getElementById('login-msg').textContent = 'Please configure Firebase first using the Setup Guide below.';
+    return;
+  }
+  document.getElementById('login-msg').style.display = 'block';
+  document.getElementById('login-msg').textContent = 'Opening Google sign-in...';
+  var provider = new firebase.auth.GoogleAuthProvider();
+  provider.addScope('email');
+  provider.addScope('profile');
+  auth.signInWithPopup(provider).catch(function(e){
+    document.getElementById('login-msg').textContent = 'Sign-in failed: '+e.message;
+    // Try redirect as fallback
+    if(e.code === 'auth/popup-blocked'){
+      auth.signInWithRedirect(provider);
+    }
+  });
+}
+
+function useOffline(){
+  isOnline = false;
+  // Load from localStorage
+  try{
+    var saved = localStorage.getItem(LOCAL_KEY);
+    if(saved) cases = JSON.parse(saved);
+  }catch(e){}
+  showApp(null);
+}
+
+function signOut(){
+  if(auth && currentUser){
+    if(unsubscribeSnapshot) unsubscribeSnapshot();
+    auth.signOut();
+  }
+  currentUser = null; isOnline = false; cases = [];
+  closeModal('modal-account');
+  document.getElementById('main-header').style.display = 'none';
+  document.getElementById('main-body').style.display   = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  showToast('Signed out.','warn');
+}
+
+// ── SHOW APP ──────────────────────────────────────────────────
+function showApp(user){
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('main-header').style.display  = 'flex';
+  document.getElementById('main-body').style.display    = 'block';
+
+  if(user){
+    document.getElementById('user-pill').style.display    = 'flex';
+    document.getElementById('offline-badge').style.display = 'none';
+    document.getElementById('user-photo').src = user.photoURL || '';
+    document.getElementById('user-name-short').textContent = user.displayName ? user.displayName.split(' ')[0] : 'User';
+    document.getElementById('hdr-user').textContent = (user.displayName||user.email)+' · Cloud Sync Active';
+
+    // Account info modal
+    document.getElementById('account-info').innerHTML =
+      '<div style="display:flex;align-items:center;gap:12px">'
+      +(user.photoURL?'<img src="'+user.photoURL+'" style="width:44px;height:44px;border-radius:50%;border:2px solid #bfdbfe"/>':'<div style="width:44px;height:44px;border-radius:50%;background:#1a56db;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px">👤</div>')
+      +'<div><div style="font-weight:700;font-size:15px;color:#1e3a5f">'+(user.displayName||'User')+'</div>'
+      +'<div style="font-size:12px;color:#7b93ad">'+user.email+'</div>'
+      +'<div style="font-size:11px;color:#16a34a;margin-top:3px">☁ Synced with Firebase Firestore</div>'
+      +'</div></div>';
+  } else {
+    document.getElementById('user-pill').style.display    = 'none';
+    document.getElementById('offline-badge').style.display = 'block';
+    document.getElementById('hdr-user').textContent = 'Offline mode — data saved locally';
+    document.getElementById('account-info').innerHTML =
+      '<div style="font-size:13px;color:#4b6280"><strong>Offline Mode</strong> — cases saved on this device only.<br>Sign in with Google to enable cloud sync.</div>';
+  }
+  renderAll();
+  scheduleAllAlerts();
+  requestNotifPermission();
+}
+
+// ── CLOUD SYNC (FIRESTORE) ────────────────────────────────────
+function startCloudSync(user){
+  if(!db || !user) return;
+  if(unsubscribeSnapshot) unsubscribeSnapshot();
+  showSyncBar('Connecting to cloud...');
+
+  unsubscribeSnapshot = db.collection('users').doc(user.uid).collection('cases')
+    .onSnapshot(function(snapshot){
+      hideSyncBar();
+      updateLastSync();
+      updateSyncIndicator(true);
+
+      // Build cases from snapshot
+      var cloudCases = [];
+      snapshot.forEach(function(doc){
+        cloudCases.push(Object.assign({}, doc.data(), {id: doc.id}));
+      });
+      cases = cloudCases;
+      renderAll();
+    }, function(err){
+      updateSyncIndicator(false);
+      showToast('Cloud sync error. Working offline.','error');
+      // Fall back to local
+      try{ var s=localStorage.getItem(LOCAL_KEY); if(s) cases=JSON.parse(s); }catch(e){}
+      renderAll();
+    });
+}
+
+function saveCase_cloud(data){
+  if(!db || !currentUser){
+    // Offline save
+    saveLocal();
+    return;
+  }
+  showCloudIcon('syncing');
+  var ref = db.collection('users').doc(currentUser.uid).collection('cases');
+  if(data.id){
+    ref.doc(data.id).set(data, {merge:true})
+      .then(function(){ showCloudIcon('ok'); showToast('Case saved & synced to cloud.'); })
+      .catch(function(e){ showToast('Sync error: '+e.message,'error'); });
+  } else {
+    data.id = genId();
+    ref.doc(data.id).set(data)
+      .then(function(){ showCloudIcon('ok'); showToast('Case added & synced.'); })
+      .catch(function(e){ showToast('Sync error: '+e.message,'error'); });
+  }
+}
+
+function deleteCase_cloud(id){
+  if(!db || !currentUser){
+    cases = cases.filter(function(c){return c.id!==id;});
+    saveLocal(); renderAll();
+    return;
+  }
+  db.collection('users').doc(currentUser.uid).collection('cases').doc(id).delete()
+    .then(function(){ showToast('Case deleted.','error'); })
+    .catch(function(e){ showToast('Delete error: '+e.message,'error'); });
+}
+
+function saveLocal(){
+  try{ localStorage.setItem(LOCAL_KEY, JSON.stringify(cases)); }catch(e){}
+}
+
+function showSyncBar(msg){
+  var bar = document.getElementById('sync-bar');
+  bar.style.display = 'flex';
+  document.getElementById('sync-msg').textContent = msg||'Syncing...';
+}
+function hideSyncBar(){
+  setTimeout(function(){ document.getElementById('sync-bar').style.display='none'; },1500);
+}
+function updateSyncIndicator(online){
+  var el = document.getElementById('sync-indicator');
+  if(!el) return;
+  el.textContent = online ? '● Online' : '◌ Offline';
+  el.style.background = online?'#f0fdf4':'#fffbeb';
+  el.style.color = online?'#16a34a':'#d97706';
+  el.style.borderColor = online?'#bbf7d0':'#fde68a';
+}
+function showCloudIcon(state){
+  var el = document.getElementById('cloud-icon');
+  if(!el) return;
+  if(state==='syncing'){ el.textContent='⟳'; el.className='cloud-icon syncing'; }
+  else { el.textContent='☁'; el.className='cloud-icon'; }
+}
+function updateLastSync(){
+  var el = document.getElementById('last-sync-time');
+  if(el) el.textContent = '● Last synced: '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ── FIREBASE CONFIG SETUP ──────────────────────────────────────
+function applyFirebaseConfig(){
+  var raw = document.getElementById('fb-config-input').value.trim();
+  var msg = document.getElementById('config-msg');
+  try{
+    // Handle both JS object and JSON
+    var cleaned = raw.replace(/(\w+):/g,'"$1":').replace(/'/g,'"');
+    // Better: just try eval-safe parse
+    var config;
+    if(raw.startsWith('{')){
+      try{ config = JSON.parse(raw); }
+      catch(e){
+        // Try removing trailing commas
+        var fixed = raw.replace(/,(\s*[}\]])/g,'$1');
+        config = JSON.parse(fixed);
+      }
+    } else {
+      msg.innerHTML = '<span style="color:#dc2626">Please paste the config object starting with {</span>';
+      return;
+    }
+    if(!config.apiKey || !config.projectId){
+      msg.innerHTML = '<span style="color:#dc2626">Invalid config — missing apiKey or projectId</span>';
+      return;
+    }
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+    FIREBASE_CONFIG = config;
+    msg.innerHTML = '<span style="color:#16a34a">✓ Config saved! Reloading...</span>';
+    setTimeout(function(){ location.reload(); }, 1200);
+  }catch(e){
+    msg.innerHTML = '<span style="color:#dc2626">Parse error: '+e.message+'<br>Make sure to paste valid JSON (use double quotes around keys)</span>';
+  }
+}
 
 // ============================================================
 // HELPERS
@@ -547,19 +868,17 @@ window.onload = function(){
 function genId(){ return Date.now().toString(36)+Math.random().toString(36).substr(2); }
 function todayStr(){ return new Date().toISOString().split('T')[0]; }
 function fmtDate(d){ if(!d)return'-'; var p=d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
-function save(){ try{localStorage.setItem(APPKEY,JSON.stringify(cases));}catch(e){} }
-function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function showToast(msg,type){
+function showToast(msg, type){
   type=type||'ok';
   var t=document.getElementById('toast');
   var cols={ok:{bg:'#f0fdf4',c:'#16a34a',b:'#bbf7d0'},error:{bg:'#fef2f2',c:'#dc2626',b:'#fecaca'},warn:{bg:'#fffbeb',c:'#d97706',b:'#fde68a'}};
   var col=cols[type]||cols.ok;
-  t.style.background=col.bg; t.style.color=col.c; t.style.border='1px solid '+col.b; t.style.display='block';
-  t.textContent=msg;
+  t.style.background=col.bg; t.style.color=col.c; t.style.border='1px solid '+col.b;
+  t.style.display='block'; t.innerHTML=msg;
   clearTimeout(t._t); t._t=setTimeout(function(){t.style.display='none';},3500);
 }
-
 function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 document.querySelectorAll('.overlay').forEach(function(el){
@@ -567,394 +886,80 @@ document.querySelectorAll('.overlay').forEach(function(el){
 });
 
 // ============================================================
-// eCOURTS EMAIL/SMS PARSER
-// ============================================================
-
-// Convert various date formats to YYYY-MM-DD
-function parseAnyDate(str) {
-  if(!str) return null;
-  str = str.trim();
-
-  // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
-  var m1 = str.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
-  if(m1) {
-    var day=m1[1].padStart(2,'0'), mon=m1[2].padStart(2,'0'), yr=m1[3];
-    // Validate
-    if(parseInt(mon)>=1&&parseInt(mon)<=12&&parseInt(day)>=1&&parseInt(day)<=31)
-      return yr+'-'+mon+'-'+day;
-  }
-
-  // YYYY-MM-DD (already ISO)
-  var m2 = str.match(/(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
-  if(m2) return m2[1]+'-'+m2[2]+'-'+m2[3];
-
-  // DD Month YYYY e.g. 25 June 2026 or 25-Jun-2026
-  var months={january:'01',february:'02',march:'03',april:'04',may:'05',june:'06',
-              july:'07',august:'08',september:'09',october:'10',november:'11',december:'12',
-              jan:'01',feb:'02',mar:'03',apr:'04',jun:'06',jul:'07',aug:'08',
-              sep:'09',oct:'10',nov:'11',dec:'12'};
-  var m3 = str.match(/(\d{1,2})[\s\-]([a-zA-Z]+)[\s\-](\d{4})/);
-  if(m3) {
-    var mo = months[m3[2].toLowerCase()];
-    if(mo) return m3[3]+'-'+mo+'-'+m3[1].padStart(2,'0');
-  }
-
-  return null;
-}
-
-// Normalize case number for comparison (remove spaces, lowercase)
-function normCase(s){
-  return String(s||'').toLowerCase().replace(/[\s\-\/]/g,'');
-}
-
-// Try to find a matching case in our list
-function findMatchingCase(caseNo, cnr) {
-  // Exact CNR match first
-  if(cnr) {
-    var byCnr = cases.find(function(c){ return normCase(c.cnr)===normCase(cnr); });
-    if(byCnr) return byCnr;
-  }
-  // Exact case number match
-  if(caseNo) {
-    var byNo = cases.find(function(c){ return normCase(c.caseNo)===normCase(caseNo); });
-    if(byNo) return byNo;
-  }
-  // Partial case number match (e.g. email says "CS-254-2022", we have "CS/254/2022")
-  if(caseNo) {
-    var nc = normCase(caseNo);
-    var partial = cases.find(function(c){ return normCase(c.caseNo)===nc || nc.indexOf(normCase(c.caseNo))>=0 || normCase(c.caseNo).indexOf(nc)>=0; });
-    if(partial) return partial;
-  }
-  return null;
-}
-
-// Main parser - handles multiple formats
-function parseECourtsText(text) {
-  var results = [];
-  if(!text||!text.trim()) return results;
-
-  // Split by common block separators
-  var blocks = text.split(/\n{2,}|---+|===+|\*{3,}/);
-
-  blocks.forEach(function(block) {
-    if(!block.trim()) return;
-
-    var entry = { caseNo:null, cnr:null, nextDate:null, stage:null, court:null, raw:block.trim() };
-
-    // Extract Case Number - many patterns
-    var cnPatterns = [
-      /case\s*no\.?\s*[:\-]?\s*([A-Za-z0-9\-\/\.\s]+)/i,
-      /case\s*number\s*[:\-]?\s*([A-Za-z0-9\-\/\.\s]+)/i,
-      /case\s*#\s*([A-Za-z0-9\-\/\.]+)/i,
-      /\b(CS|CC|CRL|CRR|CR|RSA|FAO|RFA|CRLMM|MC|MAC|RCA|EP|RA|CM|CWP|CRM)\s*[\-\/]?\s*(\d+)\s*[\-\/]\s*(\d{4})\b/i
-    ];
-    for(var i=0;i<cnPatterns.length;i++){
-      var m=block.match(cnPatterns[i]);
-      if(m){
-        entry.caseNo = m[1]?(m[1].trim()):(m[1]+'-'+m[2]+'-'+m[3]);
-        if(entry.caseNo) entry.caseNo = entry.caseNo.replace(/\s+/g,' ').trim();
-        break;
-      }
-    }
-
-    // Extract CNR
-    var cnrMatch = block.match(/CNR\s*(?:No\.?|Number|#)?\s*[:\-]?\s*([A-Z]{4}\d{10,}|[A-Z]{2}\w{8,})/i);
-    if(!cnrMatch) cnrMatch = block.match(/\b([A-Z]{2}[A-Z]{2}\d{2}\d{6,}\d{4})\b/); // PBPT0100012022 format
-    if(cnrMatch) entry.cnr = cnrMatch[1].trim();
-
-    // Extract date - try labeled first, then any date in block
-    var datePatterns = [
-      /next\s*(?:date|hearing|listing)\s*[:\-]?\s*([\d\/\-\.]+\s*(?:\d{4})?(?:[a-zA-Z]+\s*\d{4})?)/i,
-      /hearing\s*(?:date|on)\s*[:\-]?\s*([\d\/\-\.]+(?:\s+[a-zA-Z]+\s+\d{4})?)/i,
-      /date\s*(?:of\s*(?:next)?\s*hearing)?\s*[:\-]\s*([\d\/\-\.]+(?:\s+[a-zA-Z]+\s+\d{4})?)/i,
-      /listed\s*(?:on|for)\s*([\d\/\-\.]+ (?:[a-zA-Z]+\s*)?\d{4})/i,
-      /adjourned\s*to\s*([\d\/\-\.]+(?:\s+[a-zA-Z]+\s+\d{4})?)/i,
-      /next\s*date\s*[:]\s*([\d\/\-\.]+)/i,
-    ];
-    for(var j=0;j<datePatterns.length;j++){
-      var dm=block.match(datePatterns[j]);
-      if(dm){
-        var parsed=parseAnyDate(dm[1]);
-        if(parsed){ entry.nextDate=parsed; break; }
-      }
-    }
-    // If still no date, try to find any date-looking string
-    if(!entry.nextDate){
-      var allDates=block.match(/\b\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}\b/g);
-      if(allDates){
-        for(var k=0;k<allDates.length;k++){
-          var pd=parseAnyDate(allDates[k]);
-          if(pd){ entry.nextDate=pd; break; }
-        }
-      }
-    }
-
-    // Extract Stage/Purpose
-    var stageMatch = block.match(/(?:purpose|stage|for|next\s*purpose)\s*[:\-]\s*([A-Za-z\s]+)/i);
-    if(stageMatch) entry.stage = stageMatch[1].trim().replace(/\n.*/,'').trim();
-
-    // Extract Court
-    var courtMatch = block.match(/court\s*[:\-]\s*([^\n]+)/i);
-    if(courtMatch) entry.court = courtMatch[1].trim();
-
-    // Only add if we got at least a date AND (case number or CNR)
-    if(entry.nextDate && (entry.caseNo || entry.cnr)) {
-      entry.matchedCase = findMatchingCase(entry.caseNo, entry.cnr);
-      results.push(entry);
-    }
-    // If only date found with no case ID, still show as unmatched for manual assignment
-    else if(entry.nextDate && !entry.caseNo && !entry.cnr) {
-      entry.matchedCase = null;
-      results.push(entry);
-    }
-  });
-
-  // Also try to parse the whole text as a single block if no entries found from blocks
-  if(results.length===0 && text.trim()) {
-    // Look for all date patterns in full text alongside case numbers
-    var allCaseNos = text.match(/\b(CS|CC|CRL|CR|RSA|FAO|RFA|MAC|MC|EP|CM|CWP|CRM)\s*[\-\/]?\s*\d+\s*[\-\/]\s*\d{4}\b/ig);
-    var allDatesRaw = text.match(/\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}\b/g);
-    if(allCaseNos && allDatesRaw) {
-      var usedDates = {};
-      allCaseNos.forEach(function(cn, idx){
-        var dt = allDatesRaw[idx] || allDatesRaw[0];
-        if(dt && !usedDates[dt+cn]) {
-          usedDates[dt+cn]=true;
-          var parsed = parseAnyDate(dt);
-          if(parsed) {
-            var entry = {caseNo:cn.trim(), cnr:null, nextDate:parsed, stage:null, court:null, raw:cn+' -> '+dt};
-            entry.matchedCase = findMatchingCase(cn.trim(), null);
-            results.push(entry);
-          }
-        }
-      });
-    }
-  }
-
-  return results;
-}
-
-// Render parse results
-function ecParseInput() {
-  var text = document.getElementById('ec-paste-input').value;
-  if(!text.trim()){
-    document.getElementById('ec-results-wrap').style.display='none';
-    return;
-  }
-
-  ecParsed = parseECourtsText(text);
-  var wrap = document.getElementById('ec-results-wrap');
-
-  if(ecParsed.length===0){
-    document.getElementById('ec-summary').innerHTML =
-      '<span style="color:#dc2626">Could not find any case numbers with dates in the pasted text.</span><br>'
-      +'<span style="font-size:12px">Make sure the text contains a case number (like CS-254-2022) and a date (like 25/06/2026).</span>';
-    document.getElementById('ec-results-list').innerHTML='';
-    document.getElementById('ec-unmatched-wrap').style.display='none';
-    wrap.style.display='block';
-    return;
-  }
-
-  var matched = ecParsed.filter(function(e){return e.matchedCase;});
-  var unmatched = ecParsed.filter(function(e){return !e.matchedCase;});
-
-  document.getElementById('ec-summary').innerHTML =
-    '<strong style="color:#16a34a">'+matched.length+' case'+(matched.length!==1?'s':'')+' matched</strong>'
-    +(unmatched.length?' &nbsp;|&nbsp; <strong style="color:#dc2626">'+unmatched.length+' not matched</strong>':'')
-    +' from pasted text.';
-
-  // Build results list
-  var html = '<div class="parse-result-header">PARSED RESULTS &mdash; Review before applying</div>';
-
-  ecParsed.forEach(function(e, idx){
-    if(e.matchedCase){
-      html += '<div class="parse-row matched">'
-        +'<div><span class="match-dot" style="background:#16a34a;margin-right:6px;display:inline-block"></span>'
-        +'<strong>'+esc(e.matchedCase.title||e.matchedCase.caseNo||'-')+'</strong>'
-        +(e.matchedCase.caseNo?'<br><span style="font-size:11px;color:#7b93ad">'+esc(e.matchedCase.caseNo)+'</span>':'')
-        +'</div>'
-        +'<div style="font-size:13px;color:#4b6280">'+(e.caseNo||e.cnr||'-')+'</div>'
-        +'<div><strong style="color:#1a56db">'+fmtDate(e.nextDate)+'</strong>'
-        +(e.stage?'<br><span style="font-size:11px;color:#7b93ad">'+esc(e.stage)+'</span>':'')+'</div>'
-        +'<div><span style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">MATCHED</span></div>'
-        +'</div>';
-    } else {
-      // Build case selector for unmatched
-      var opts = '<option value="">-- Select case --</option>';
-      cases.forEach(function(c){
-        opts += '<option value="'+c.id+'">'+esc((c.caseNo||'?')+' | '+(c.title||'No title').substr(0,30))+'</option>';
-      });
-      html += '<div class="parse-row unmatched">'
-        +'<div><span class="match-dot" style="background:#dc2626;margin-right:6px;display:inline-block"></span>'
-        +'<span style="color:#dc2626;font-weight:600">Not matched</span>'
-        +'<br><span style="font-size:11px;color:#7b93ad">'+esc(e.caseNo||e.cnr||'No case ID found')+'</span>'
-        +'</div>'
-        +'<div><select id="ec-sel-'+idx+'" style="font-size:12px;padding:5px 8px">'+opts+'</select></div>'
-        +'<div><strong style="color:#1a56db">'+fmtDate(e.nextDate)+'</strong>'
-        +(e.stage?'<br><span style="font-size:11px;color:#7b93ad">'+esc(e.stage)+'</span>':'')+'</div>'
-        +'<div><span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">SELECT</span></div>'
-        +'</div>';
-    }
-  });
-
-  document.getElementById('ec-results-list').innerHTML = html;
-  document.getElementById('ec-unmatched-wrap').style.display = unmatched.length ? 'block' : 'none';
-  wrap.style.display = 'block';
-}
-
-// Apply all matched + manually assigned updates
-function ecApplyAll(){
-  var updated = 0;
-  var skipped = 0;
-
-  ecParsed.forEach(function(e, idx){
-    var targetCase = e.matchedCase;
-
-    // If unmatched, check if user selected a case
-    if(!targetCase){
-      var sel = document.getElementById('ec-sel-'+idx);
-      if(sel && sel.value){
-        targetCase = cases.find(function(c){return c.id===sel.value;});
-      }
-    }
-
-    if(targetCase && e.nextDate){
-      var cIdx = cases.findIndex(function(c){return c.id===targetCase.id;});
-      if(cIdx>=0){
-        cases[cIdx].nextDate = e.nextDate;
-        cases[cIdx].lastSynced = new Date().toISOString();
-        cases[cIdx].status = 'Adjourned'; // auto-set to adjourned when date updates
-        if(e.stage) cases[cIdx].stage = e.stage;
-        updated++;
-      }
-    } else {
-      skipped++;
-    }
-  });
-
-  save();
-  closeModal('modal-ecimport');
-  renderAll();
-  document.getElementById('ec-paste-input').value='';
-  document.getElementById('ec-results-wrap').style.display='none';
-  ecParsed=[];
-
-  if(updated>0){
-    showToast(updated+' case'+(updated!==1?'s':'')+' updated from eCourts email.'+(skipped?' '+skipped+' skipped.':''));
-  } else {
-    showToast('No cases were updated. Please select cases for unmatched entries.','warn');
-  }
-}
-
-// ============================================================
 // RENDER
 // ============================================================
 function renderAll(){ renderStats(); renderTable(); }
 
 function renderStats(){
-  var today=todayStr();
-  var now=new Date();
-  var y=now.getFullYear();
-  var m=now.getMonth();
-  // Week range
-  var dayOfWeek=now.getDay();
-  var diffToMon=dayOfWeek===0?-6:1-dayOfWeek;
-  var weekStart=new Date(now); weekStart.setDate(now.getDate()+diffToMon); weekStart.setHours(0,0,0,0);
-  var weekEnd=new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6);
-  var weekStartStr=weekStart.toISOString().split('T')[0];
-  var weekEndStr=weekEnd.toISOString().split('T')[0];
-
+  var today=todayStr(); var now=new Date(); var y=now.getFullYear(); var m=now.getMonth();
+  var dow=now.getDay(); var diff=dow===0?-6:1-dow;
+  var ws=new Date(now); ws.setDate(now.getDate()+diff); ws.setHours(0,0,0,0);
+  var we=new Date(ws); we.setDate(ws.getDate()+6);
+  var wss=ws.toISOString().split('T')[0]; var wes=we.toISOString().split('T')[0];
   document.getElementById('s-total').textContent=cases.length;
-  document.getElementById('s-active').textContent=cases.filter(function(c){return c.status==='Active';}).length;
   document.getElementById('s-today').textContent=cases.filter(function(c){return c.nextDate===today;}).length;
-  document.getElementById('s-week').textContent=cases.filter(function(c){
-    return c.nextDate&&c.nextDate>=weekStartStr&&c.nextDate<=weekEndStr;
-  }).length;
-  document.getElementById('s-month').textContent=cases.filter(function(c){
-    if(!c.nextDate)return false;
-    var d=new Date(c.nextDate); return d.getFullYear()===y&&d.getMonth()===m;
-  }).length;
-}
-
-function getDisplayed(){
-  var today=todayStr();
-  var now=new Date();
-  var y=now.getFullYear();
-  var mo=now.getMonth();
-  // Week: Monday to Sunday of current week
-  var dayOfWeek=now.getDay(); // 0=Sun
-  var diffToMon=dayOfWeek===0?-6:1-dayOfWeek;
-  var weekStart=new Date(now); weekStart.setDate(now.getDate()+diffToMon); weekStart.setHours(0,0,0,0);
-  var weekEnd=new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999);
-  var weekStartStr=weekStart.toISOString().split('T')[0];
-  var weekEndStr=weekEnd.toISOString().split('T')[0];
-
-  var q=(document.getElementById('search-input').value||'').toLowerCase().trim();
-  return cases.filter(function(c){
-    if(currentView==='today'){
-      if(c.nextDate!==today) return false;
-    } else if(currentView==='week'){
-      if(!c.nextDate) return false;
-      if(c.nextDate<weekStartStr||c.nextDate>weekEndStr) return false;
-    } else if(currentView==='month'){
-      if(!c.nextDate) return false;
-      var d=new Date(c.nextDate);
-      if(d.getFullYear()!==y||d.getMonth()!==mo) return false;
-    }
-    if(q) return ['caseNo','title','client','court','caseType'].some(function(k){return (c[k]||'').toLowerCase().indexOf(q)>=0;});
-    return true;
-  }).sort(function(a,b){
-    if(!a.nextDate)return 1; if(!b.nextDate)return -1;
-    return a.nextDate.localeCompare(b.nextDate);
-  });
-}
-
-function mkBadge(status){
-  var sm=SMETA[status]||SMETA['Closed'];
-  return '<span class="badge" style="background:'+sm.bg+';color:'+sm.c+';border:1px solid '+sm.b+'">'+esc(status||'-')+'</span>';
-}
-
-function renderTable(){
-  var today=todayStr();
-  var list=getDisplayed();
-  document.getElementById('count-label').textContent=list.length+' / '+cases.length+' case'+(cases.length!==1?'s':'');
-  if(list.length===0){
-    document.getElementById('tbl-body').innerHTML='<div style="padding:52px;text-align:center;color:#7b93ad"><div style="font-size:38px;margin-bottom:12px">&#9878;</div><div style="font-size:15px;font-weight:600;color:#4b6280">'+(cases.length===0?'No cases yet':'No cases in this view')+'</div><div style="font-size:13px;margin-top:6px">Click &ldquo;+ New Case&rdquo; to begin</div></div>';
-    return;
-  }
-  var html='';
-  list.forEach(function(c){
-    var isToday=c.nextDate===today;
-    var isPast=c.nextDate&&c.nextDate<today;
-    var dc=isToday?'#16a34a':isPast?'#dc2626':'#1e3a5f';
-    var sub=c.lastSynced?'Synced: '+new Date(c.lastSynced).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}):'';
-    html+='<div class="tbl-row" onclick="openDetail(\''+c.id+'\')">'
-      +'<div><div class="cell-title">'+esc(c.title||'-')+'</div><div class="cell-sub">'+esc(c.client||'-')+'</div></div>'
-      +'<div><div class="cell-case">'+esc(c.caseNo||'-')+'</div>'+(c.cnr?'<div class="cell-sub">CNR: '+esc(c.cnr)+'</div>':'')+'</div>'
-      +'<div style="font-size:12px;color:#4b6280">'+esc(c.court||'-')+'</div>'
-      +'<div><div style="font-size:13px;font-weight:'+(isToday?'700':'500')+';color:'+dc+'">'+fmtDate(c.nextDate)+'</div>'
-        +(isToday?'<div style="font-size:10px;color:#16a34a;font-weight:700">TODAY</div>':'')
-        +(isPast&&!isToday&&c.nextDate?'<div style="font-size:10px;color:#dc2626;font-weight:600">PAST DUE</div>':'')
-        +(sub?'<div style="font-size:10px;color:#7b93ad">'+esc(sub)+'</div>':'')
-      +'</div>'
-      +'<div style="font-size:12px;color:#4b6280">'+esc(c.caseType||'-')+'</div>'
-      +'<div>'+mkBadge(c.status)+'</div>'
-      +'<div style="display:flex;gap:5px;justify-content:center" onclick="event.stopPropagation()">'
-        +'<button class="btn btn-outline btn-sm" title="Sync eCourts" onclick="openSync(\''+c.id+'\')">S</button>'
-        +'<button class="btn btn-sm" style="background:#fffbeb;border:1px solid #fde68a;color:#d97706" onclick="openEdit(\''+c.id+'\')">E</button>'
-        +'<button class="btn btn-sm" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626" onclick="openDelete(\''+c.id+'\')">D</button>'
-      +'</div></div>';
-  });
-  document.getElementById('tbl-body').innerHTML=html;
+  document.getElementById('s-week').textContent=cases.filter(function(c){return c.nextDate&&c.nextDate>=wss&&c.nextDate<=wes;}).length;
+  document.getElementById('s-month').textContent=cases.filter(function(c){if(!c.nextDate)return false;var d=new Date(c.nextDate);return d.getFullYear()===y&&d.getMonth()===m;}).length;
+  document.getElementById('s-active').textContent=cases.filter(function(c){return c.status==='Active';}).length;
 }
 
 function switchView(v){
   currentView=v;
-  document.getElementById('tab-all').className='tab'+(v==='all'?' active':'');
-  document.getElementById('tab-today').className='tab'+(v==='today'?' active':'');
-  document.getElementById('tab-week').className='tab'+(v==='week'?' active':'');
-  document.getElementById('tab-month').className='tab'+(v==='month'?' active':'');
+  ['all','today','week','month'].forEach(function(t){document.getElementById('tab-'+t).className='tab'+(v===t?' active':'');});
   renderTable();
+}
+
+function getDisplayed(){
+  var today=todayStr(); var now=new Date(); var y=now.getFullYear(); var mo=now.getMonth();
+  var dow=now.getDay(); var diff=dow===0?-6:1-dow;
+  var ws=new Date(now); ws.setDate(now.getDate()+diff); ws.setHours(0,0,0,0);
+  var we=new Date(ws); we.setDate(ws.getDate()+6);
+  var wss=ws.toISOString().split('T')[0]; var wes=we.toISOString().split('T')[0];
+  var q=(document.getElementById('search-input').value||'').toLowerCase().trim();
+  return cases.filter(function(c){
+    if(currentView==='today'&&c.nextDate!==today)return false;
+    if(currentView==='week'&&(!c.nextDate||c.nextDate<wss||c.nextDate>wes))return false;
+    if(currentView==='month'){if(!c.nextDate)return false;var d=new Date(c.nextDate);if(d.getFullYear()!==y||d.getMonth()!==mo)return false;}
+    if(q)return['caseNo','title','client','court','caseType'].some(function(k){return(c[k]||'').toLowerCase().indexOf(q)>=0;});
+    return true;
+  }).sort(function(a,b){if(!a.nextDate)return 1;if(!b.nextDate)return -1;return a.nextDate.localeCompare(b.nextDate);});
+}
+
+function mkBadge(s){var sm=SMETA[s]||SMETA['Closed'];return'<span class="badge" style="background:'+sm.bg+';color:'+sm.c+';border:1px solid '+sm.b+'">'+esc(s||'-')+'</span>';}
+
+function renderTable(){
+  var today=todayStr(); var list=getDisplayed();
+  document.getElementById('count-label').textContent=list.length+' / '+cases.length+' case'+(cases.length!==1?'s':'');
+  if(!list.length){
+    document.getElementById('tbl-body').innerHTML='<div style="padding:50px;text-align:center;color:#7b93ad"><div style="font-size:36px;margin-bottom:11px">⚖️</div><div style="font-size:14px;font-weight:600;color:#4b6280">'+(cases.length?'No cases match':'No cases yet')+'</div></div>';
+    return;
+  }
+  var html='';
+  list.forEach(function(c){
+    var it=c.nextDate===today; var ip=c.nextDate&&c.nextDate<today;
+    var dc=it?'#16a34a':ip?'#dc2626':'#1e3a5f';
+    var sub=c.lastSynced?'⟳ '+new Date(c.lastSynced).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}):'';
+    var hasAlerts=getAlertsForCase(c.id).length>0;
+    html+='<div class="tbl-row" onclick="openDetail(\''+c.id+'\')">'
+      +'<div><div class="cell-title">'+esc(c.title||'-')+(hasAlerts?' 🔔':'' )+'</div><div class="cell-sub">'+esc(c.client||'-')+'</div></div>'
+      +'<div><div class="cell-case">'+esc(c.caseNo||'-')+'</div>'+(c.cnr?'<div class="cell-sub">CNR: '+esc(c.cnr)+'</div>':'')+'</div>'
+      +'<div style="font-size:12px;color:#4b6280;word-break:break-word">'+esc(c.court||'-')+'</div>'
+      +'<div><div style="font-size:12px;font-weight:'+(it?'700':'500')+';color:'+dc+'">'+fmtDate(c.nextDate)+'</div>'
+        +(it?'<div style="font-size:10px;color:#16a34a;font-weight:700">TODAY</div>':'')
+        +(ip&&!it&&c.nextDate?'<div style="font-size:10px;color:#dc2626;font-weight:600">PAST DUE</div>':'')
+        +(sub?'<div style="font-size:10px;color:#7b93ad">'+esc(sub)+'</div>':'')
+      +'</div>'
+      +'<div style="font-size:12px;color:#4b6280">'+esc(c.caseType||'-')+'</div>'
+      +'<div>'+mkBadge(c.status)+'</div>'
+      +'<div style="display:flex;gap:4px;justify-content:center" onclick="event.stopPropagation()">'
+        +'<button class="btn btn-outline btn-sm" title="eCourts Sync" onclick="openSync(\''+c.id+'\')">⟳</button>'
+        +'<button class="btn btn-sm" style="background:#fffbeb;border:1px solid #fde68a;color:#d97706" title="Edit" onclick="openEdit(\''+c.id+'\')">✏</button>'
+        +'<button class="btn btn-sm" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a" title="Reminder" onclick="openAlertModal(\''+c.id+'\')">🔔</button>'
+        +'<button class="btn btn-sm" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626" title="Delete" onclick="openDelete(\''+c.id+'\')">🗑</button>'
+      +'</div>'
+      +'</div>';
+  });
+  document.getElementById('tbl-body').innerHTML=html;
 }
 
 // ============================================================
@@ -962,633 +967,250 @@ function switchView(v){
 // ============================================================
 var FLDS=['title','caseNo','cnr','client','clientPhone','opposite','court','caseType','status','nextDate','stage','sections','remarks'];
 
-function openAddCase(){
-  editingId=null;
-  document.getElementById('case-modal-title').textContent='Add New Case';
-  FLDS.forEach(function(f){ var el=document.getElementById('f-'+f); if(el) el.value=f==='status'?'Active':''; });
-  openModal('modal-case');
-}
-function openEdit(id){
-  var c=cases.find(function(x){return x.id===id;}); if(!c)return;
-  editingId=id;
-  document.getElementById('case-modal-title').textContent='Edit Case';
-  FLDS.forEach(function(f){ var el=document.getElementById('f-'+f); if(el) el.value=c[f]||''; });
-  openModal('modal-case');
-}
+function openAddCase(){editingId=null;document.getElementById('case-modal-title').textContent='Add New Case';FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=f==='status'?'Active':'';});openModal('modal-case');}
+function openEdit(id){var c=cases.find(function(x){return x.id===id;});if(!c)return;editingId=id;document.getElementById('case-modal-title').textContent='Edit Case';FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=c[f]||'';});openModal('modal-case');}
+
 function saveCase(){
   var title=document.getElementById('f-title').value.trim();
   var caseNo=document.getElementById('f-caseNo').value.trim();
-  if(!title&&!caseNo){ alert('Please enter case title or case number.'); return; }
+  if(!title&&!caseNo){alert('Please enter case title or case number.');return;}
   var data={};
-  FLDS.forEach(function(f){ var el=document.getElementById('f-'+f); data[f]=el?el.value.trim():''; });
+  FLDS.forEach(function(f){var el=document.getElementById('f-'+f);data[f]=el?el.value.trim():'';});
+  data.updatedAt = new Date().toISOString();
   if(editingId){
+    data.id=editingId;
     var idx=cases.findIndex(function(c){return c.id===editingId;});
-    if(idx>=0){ data.id=editingId; data.createdAt=cases[idx].createdAt; data.lastSynced=cases[idx].lastSynced||null; cases[idx]=data; }
-    showToast('Case updated.');
+    if(idx>=0){data.createdAt=cases[idx].createdAt;data.lastSynced=cases[idx].lastSynced||null;}
+    if(isOnline && currentUser){
+      saveCase_cloud(data);
+    } else {
+      cases[idx]=data; saveLocal(); renderAll(); showToast('Case updated.');
+    }
   } else {
     data.id=genId(); data.createdAt=todayStr(); data.lastSynced=null;
-    cases.push(data); showToast('Case added.');
+    if(isOnline && currentUser){
+      saveCase_cloud(data);
+    } else {
+      cases.push(data); saveLocal(); renderAll(); showToast('Case added.');
+    }
   }
-  save(); closeModal('modal-case'); renderAll();
+  closeModal('modal-case');
 }
 
 function openDetail(id){
-  var c=cases.find(function(x){return x.id===id;}); if(!c)return;
-  detailId=id;
+  var c=cases.find(function(x){return x.id===id;}); if(!c)return; detailId=id;
   document.getElementById('d-title').textContent=c.title||'-';
-  var sm=SMETA[c.status]||SMETA['Closed'];
-  var sb=document.getElementById('d-status-badge');
-  sb.textContent=c.status||'-'; sb.style.background=sm.bg; sb.style.color=sm.c; sb.style.border='1px solid '+sm.b;
-  var rows=[['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Case Type',c.caseType],
-    ['Client',c.client],['Phone',c.clientPhone],['Opposite Party',c.opposite],['Sections',c.sections],
-    ['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],
-    ['Added On',fmtDate(c.createdAt)],['Last eCourts Sync',c.lastSynced?new Date(c.lastSynced).toLocaleString('en-IN'):null]];
-  document.getElementById('d-fields').innerHTML=rows.filter(function(r){return r[1];}).map(function(r){
-    return '<div class="detail-field"><div class="detail-key">'+esc(r[0])+'</div><div class="detail-val" style="font-weight:'+(r[0]==='Next Hearing'?'700':'400')+'">'+esc(r[1])+'</div></div>';
-  }).join('');
+  var sm=SMETA[c.status]||SMETA['Closed']; var sb=document.getElementById('d-status-badge');
+  sb.textContent=c.status||'-';sb.style.background=sm.bg;sb.style.color=sm.c;sb.style.border='1px solid '+sm.b;
+  var rows=[['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Type',c.caseType],['Client',c.client],['Phone',c.clientPhone],['Opposite',c.opposite],['Sections',c.sections],['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],['Added',fmtDate(c.createdAt)],['Cloud Sync',c.updatedAt?new Date(c.updatedAt).toLocaleString('en-IN'):null]];
+  document.getElementById('d-fields').innerHTML=rows.filter(function(r){return r[1];}).map(function(r){return'<div class="detail-field"><div class="detail-key">'+esc(r[0])+'</div><div class="detail-val" style="font-weight:'+(r[0]==='Next Hearing'?'700':'400')+'">'+esc(r[1])+'</div></div>';}).join('');
   var rw=document.getElementById('d-remarks-wrap');
-  if(c.remarks){ rw.style.display='block'; document.getElementById('d-remarks').textContent=c.remarks; }
-  else rw.style.display='none';
+  if(c.remarks){rw.style.display='block';document.getElementById('d-remarks').textContent=c.remarks;}else rw.style.display='none';
   openModal('modal-detail');
 }
-function editFromDetail(){ closeModal('modal-detail'); openEdit(detailId); }
-function openSyncFromDetail(){ closeModal('modal-detail'); openSync(detailId); }
+function editFromDetail(){closeModal('modal-detail');openEdit(detailId);}
+function openSyncFromDetail(){closeModal('modal-detail');openSync(detailId);}
+function openDelete(id){var c=cases.find(function(x){return x.id===id;});if(!c)return;deletingId=id;document.getElementById('del-name').textContent='"'+(c.title||c.caseNo)+'" will be permanently deleted.';openModal('modal-delete');}
+function confirmDelete(){deleteCase_cloud(deletingId);setConfirmDel(null);closeModal('modal-delete');}
+function setConfirmDel(id){deletingId=id;}
 
-function openDelete(id){
-  var c=cases.find(function(x){return x.id===id;}); if(!c)return;
-  deletingId=id;
-  document.getElementById('del-name').textContent='"'+(c.title||c.caseNo)+'" will be permanently deleted.';
-  openModal('modal-delete');
-}
-function confirmDelete(){
-  cases=cases.filter(function(c){return c.id!==deletingId;});
-  save(); closeModal('modal-delete'); renderAll(); showToast('Case deleted.','error');
-}
-
+// ── eCOURTS SYNC ─────────────────────────────────────────────
 function openSync(id){
-  var c=cases.find(function(x){return x.id===id;}); if(!c)return;
+  var c=cases.find(function(x){return x.id===id;});if(!c)return;
   syncingId=id;
   document.getElementById('sync-date').value=c.nextDate||'';
   document.getElementById('sync-stage').value=c.stage||'';
   var cnr=c.cnr||'';
-  document.getElementById('sync-info').innerHTML='<strong>'+esc(c.title||'-')+'</strong><br>'
-    +'<span style="font-size:12px;color:#4b6280">'+esc(c.caseNo||'')+(c.court?' | '+esc(c.court):'')+'</span>'
-    +(cnr?'<br><span style="font-size:12px;color:#1a56db;font-weight:600">CNR: '+esc(cnr)+'</span>'
-         :'<br><span style="font-size:12px;color:#d97706">No CNR saved. Edit case to add CNR.</span>');
-  document.getElementById('sync-open-btn').textContent=cnr?'Open eCourts → CNR: '+cnr:'Open eCourts Services';
-  document.getElementById('sync-hint').textContent=cnr
-    ?'eCourts will open with your CNR pre-filled. Note the next hearing date.'
-    :'Search your case by number or party name on eCourts, then note the next date.';
+  document.getElementById('sync-info').innerHTML='<strong>'+esc(c.title||'-')+'</strong><br><span style="font-size:12px;color:#4b6280">'+esc(c.caseNo||'')+(c.court?' | '+esc(c.court):'')+'</span>'+(cnr?'<br><span style="font-size:12px;color:#1a56db;font-weight:600">CNR: '+esc(cnr)+'</span>':'<br><span style="font-size:12px;color:#d97706">No CNR — add CNR in Edit to enable direct eCourts link.</span>');
+  document.getElementById('sync-open-btn').textContent=cnr?'🌐 Open eCourts — CNR: '+cnr:'🌐 Open eCourts Services';
   openModal('modal-sync');
 }
 function openECourts(){
-  var c=cases.find(function(x){return x.id===syncingId;});
-  var cnr=(c&&c.cnr)?c.cnr.trim():'';
-  // Three working eCourts URLs to try
-  var urls=[
-    cnr?'https://hcservices.ecourts.gov.in/hcservices/main.php?11#':null,
-    cnr?'https://services.ecourts.gov.in/ecourtindia_v6/?p=casestatus/index&searchby=2&cino='+encodeURIComponent(cnr):null,
-    'https://services.ecourts.gov.in/ecourtindia_v6/'
-  ].filter(Boolean);
-  // Open primary working URL
-  window.open(urls[1]||urls[0],'_blank');
-  if(cnr) showToast('Opened eCourts for CNR: '+cnr,'ok');
+  var c=cases.find(function(x){return x.id===syncingId;}); var cnr=c&&c.cnr?c.cnr.trim():'';
+  window.open(cnr?'https://services.ecourts.gov.in/ecourtindia_v6/?p=casestatus/index&searchby=2&cino='+encodeURIComponent(cnr):'https://services.ecourts.gov.in/ecourtindia_v6/','_blank');
 }
 function applySync(){
-  var nd=document.getElementById('sync-date').value;
-  if(!nd){ alert('Please enter the next hearing date.'); return; }
+  var nd=document.getElementById('sync-date').value; var ns=document.getElementById('sync-stage').value.trim();
+  if(!nd){alert('Please enter next hearing date.');return;}
   var idx=cases.findIndex(function(c){return c.id===syncingId;});
-  if(idx>=0){ cases[idx].nextDate=nd; cases[idx].lastSynced=new Date().toISOString(); var ns=document.getElementById('sync-stage').value.trim(); if(ns) cases[idx].stage=ns; }
-  save(); closeModal('modal-sync'); renderAll(); showToast('Next hearing date updated.');
+  if(idx>=0){
+    cases[idx].nextDate=nd; cases[idx].lastSynced=new Date().toISOString(); if(ns)cases[idx].stage=ns;
+    if(isOnline&&currentUser){saveCase_cloud(cases[idx]);}else{saveLocal();renderAll();}
+  }
+  closeModal('modal-sync'); showToast('Next date updated.');
 }
 
-// ============================================================
-// EXPORT / IMPORT (JSON backup)
-// ============================================================
+// ── EXPORT / IMPORT ──────────────────────────────────────────
 function exportData(){
-  if(!cases.length){ showToast('No cases to export.','warn'); return; }
+  if(!cases.length){showToast('No cases to export.','warn');return;}
   var blob=new Blob([JSON.stringify(cases,null,2)],{type:'application/json'});
-  var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='lextrack_backup_'+todayStr()+'.json'; a.click();
-  showToast('Cases exported.');
-}
-function importData(e){
-  var file=e.target.files[0]; if(!file)return;
-  var reader=new FileReader();
-  reader.onload=function(ev){
-    try{ var data=JSON.parse(ev.target.result); if(Array.isArray(data)){ cases=data; save(); renderAll(); showToast('Imported '+data.length+' cases.'); } else showToast('Invalid file.','error'); }
-    catch(err){ showToast('Could not read file.','error'); }
-  };
-  reader.readAsText(file); e.target.value='';
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='lextrack_backup_'+todayStr()+'.json';a.click();
+  showToast('Exported '+cases.length+' cases.');
 }
 
-// ============================================================
-// PDF / CAUSE LIST
-// ============================================================
-function generateList(){
-  var dv=document.getElementById('list-date').value; if(!dv){ alert('Please select a date.'); return; }
-  var list=cases.filter(function(c){return c.nextDate===dv;});
-  buildPDF(dv,list); closeModal('modal-listdate'); openModal('modal-pdf');
-}
-function buildPDF(dv,list){
-  document.getElementById('pdf-title').textContent='Cause List - '+fmtDate(dv);
-  document.getElementById('pdf-count').textContent=list.length+' case'+(list.length!==1?'s':'')+' on this date';
+function handleImportFile(e){
+  var file=e.target.files[0];if(!file)return;
+  var statusEl=document.getElementById('import-status');
+  statusEl.style.display='block';
+  statusEl.style.background='#eff6ff';statusEl.style.color='#1a56db';statusEl.style.border='1px solid #bfdbfe';
+  statusEl.innerHTML='Reading <strong>'+esc(file.name)+'</strong>...';
 
-  // Group by court — preserve natural order as they appear in the list (sorted by nextDate already)
-  var courtOrder=[];
-  var courtMap={};
-  list.forEach(function(c){
-    var ct=(c.court||'Other Court').trim();
-    if(!courtMap[ct]){ courtMap[ct]=[]; courtOrder.push(ct); }
-    courtMap[ct].push(c);
-  });
-  // NO re-sorting of courts — keep natural order
-
-  var sno=0;
-  var tableBody='';
-
-  if(list.length===0){
-    tableBody='<tr><td colspan="4" style="text-align:center;padding:30px;color:#888;font-size:12px">No cases scheduled for this date.</td></tr>';
-  } else {
-    courtOrder.forEach(function(courtName){
-      var cc=courtMap[courtName];
-      // Court header spanning all 4 columns
-      tableBody+='<tr>'
-        +'<td colspan="4" style="background:#1a56db;color:#fff;font-weight:700;font-size:10px;padding:5px 8px;letter-spacing:.6px;text-transform:uppercase;border:1px solid #1a56db">'
-        +esc(courtName)
-        +' <span style="font-weight:400;font-size:9px;opacity:.9">('+cc.length+' case'+(cc.length!==1?'s':'')+')</span>'
-        +'</td></tr>';
-      cc.forEach(function(c){
-        sno++;
-        var title=esc(c.title||'-');
-        var client=c.client?'<br><span style="font-size:9px;color:#444">('+esc(c.client)+')</span>':'';
-        tableBody+='<tr>'
-          +'<td style="text-align:center;font-weight:700;font-size:11px;vertical-align:top;width:28px">'+sno+'.</td>'
-          +'<td style="font-size:11px;vertical-align:top"><strong>'+title+'</strong>'+client+'</td>'
-          +'<td style="font-size:10px;vertical-align:top;color:#333;width:80px">'+esc(c.stage||'-')+'</td>'
-          +'<td style="text-align:center;vertical-align:top;width:72px">&nbsp;</td>'
-          +'</tr>';
-      });
-    });
-  }
-
-  // Court summary line
-  var summaryItems=courtOrder.map(function(ct){return esc(ct)+' ('+courtMap[ct].length+')';}).join(' &bull; ');
-  var summary=courtOrder.length>1
-    ?'<div style="margin-bottom:10px;font-size:9.5px;color:#444;border:1px solid #bfdbfe;border-radius:4px;padding:5px 10px;background:#f8fbff;line-height:1.6"><strong style="color:#1a56db">Courts today: </strong>'+summaryItems+'</div>'
-    :'';
-
-  var table='<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px">'
-    +'<colgroup>'
-    +'<col style="width:28px"/>'       // S.No.
-    +'<col style="width:auto"/>'       // Case Name — takes remaining space
-    +'<col style="width:80px"/>'       // Stage
-    +'<col style="width:72px"/>'       // Next Date (blank)
-    +'</colgroup>'
-    +'<thead><tr style="background:#eff6ff">'
-    +'<th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:center;font-size:10px">S.No.</th>'
-    +'<th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:left;font-size:10px">Case Name / Parties</th>'
-    +'<th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:left;font-size:10px">Stage</th>'
-    +'<th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:center;font-size:10px">Next Date</th>'
-    +'</tr></thead>'
-    +'<tbody>'+tableBody+'</tbody>'
-    +'</table>';
-
-  var advLine='<div style="font-size:10.5px;color:#444;margin-top:3px">Advocate: Amandeep Sharma (PH/3112/2020) | Chamber No. 103, Civil Court Complex, Rajpura</div>';
-  var content=''
-    +'<div class="print-hdr">'
-    +'<div class="court-lbl">IN THE COURT AT RAJPURA, DISTRICT PATIALA, PUNJAB</div>'
-    +'<h1>DAILY CAUSE LIST</h1>'
-    +'<div style="font-size:12px;margin-top:3px">Date: <strong>'+fmtDate(dv)+'</strong></div>'
-    +advLine
-    +'</div>'
-    +summary
-    +table
-    +'<div class="print-foot">'
-    +'<div style="font-size:11px">Total Cases: <strong>'+list.length+'</strong><br>'
-    +'<span style="color:#888;font-size:10px">Generated: '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})+'</span></div>'
-    +'<div><div class="sig-line">Amandeep Sharma</div>'
-    +'<div style="font-size:9px;color:#666;text-align:right">Advocate, Rajpura</div></div>'
-    +'</div>';
-
-  document.getElementById('pdf-preview').innerHTML=content;
-  document.getElementById('print-area').innerHTML=content;
-}
-
-
-function parseECourtsData(rawText){
-  // Remove newlines that split values
-  var text = rawText.replace(/\n/g,'').replace(/\r/g,'').trim();
-  
-  // Try direct JSON parse first (clean JSON)
-  try{
-    var d = JSON.parse(text);
-    if(Array.isArray(d)) return d.map(function(item){
-      if(typeof item === 'string') try{ return JSON.parse(item); }catch(e){ return null; }
-      return item;
-    }).filter(Boolean);
-  }catch(e){}
-
-  // Strip outer quote layers
-  if(text.startsWith('"') && text.endsWith('"')){
-    text = text.slice(1,-1).replace(/\\"/g,'"').replace(/\\\\/g,'\\');
-    try{
-      var d2 = JSON.parse(text);
-      if(Array.isArray(d2)) return d2.map(function(item){
-        if(typeof item==='string') try{ return JSON.parse(item); }catch(e){ return null; }
-        return item;
-      }).filter(Boolean);
-    }catch(e){}
-  }
-
-  // Regex extraction fallback - works on any escaping level
-  function getAll(re,str){ var r=[],m; re.lastIndex=0; while((m=re.exec(str))!==null) r.push(m[1].trim()); return r; }
-  var cinos   = getAll(/\\*"cino\\*"\\*:\\*"([A-Z0-9]+)\\*"/g, text);
-  var pets    = getAll(/\\*"petparty_name\\*"\\*:\\*"([^"\\]+?)\\*"/g, text);
-  var res     = getAll(/\\*"resparty_name\\*"\\*:\\*"([^"\\]+?)\\*"/g, text);
-  var dates   = getAll(/\\*"date_next_list\\*"\\*:\\*"(\d{4}-\d{4,8})\\*"/g, text);
-  var purps   = getAll(/\\*"purpose_name\\*"\\*:\\*"([^"\\]+?)\\*"/g, text);
-  var courts  = getAll(/\\*"court_no_desg_name\\*"\\*:\\*"([^"\\]+?)\\*"/g, text);
-  var cnos    = getAll(/\\*"case_no\\*"\\*:\\*"(\d{10,})\\*"/g, text);
-
-  if(!cinos.length) return [];
-
-  var n = Math.min(cinos.length, pets.length, res.length, dates.length);
-  var today = new Date().toISOString().split('T')[0];
-  var out = [];
-  for(var i=0;i<n;i++){
-    var nd = dates[i];
-    var dm = nd.match(/^(\d{4})-(\d{2})(\d{2})$/);
-    if(dm) nd = dm[1]+'-'+dm[2]+'-'+dm[3];
-    
-    // fix run-together names
-    var pet = pets[i].replace(/([a-z])([A-Z])/g,'$1 $2').replace(/\s+/g,' ').trim();
-    var resp = res[i].replace(/([a-z])([A-Z])/g,'$1 $2').replace(/\s+/g,' ').trim();
-    var court = (courts[i]||'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/\s+/g,' ').trim();
-    var courtMapped = court;
-    if(/Sub Divisional|JMFC/i.test(court)) courtMapped='JMFC Rajpura';
-    else if(/Civil Judge.*Jr/i.test(court)) courtMapped='Civil Judge (Jr. Div.) Rajpura';
-    else if(/Civil Judge.*Sr/i.test(court)) courtMapped='Civil Judge (Sr. Div.) Rajpura';
-    else if(/Sessions/i.test(court)) courtMapped='Sessions Court Patiala';
-    else if(/High Court/i.test(court)) courtMapped='Punjab & Haryana High Court';
-    else if(/ACJM/i.test(court)) courtMapped='ACJM Rajpura';
-    else if(/Magistrate/i.test(court)) courtMapped='JMFC Rajpura';
-
-    out.push({
-      id: cinos[i]+'_'+i,
-      cnr: cinos[i],
-      caseNo: cnos[i]||'',
-      title: pet+' vs. '+resp,
-      client: pet,
-      opposite: resp,
-      court: courtMapped,
-      caseType: 'Criminal Case',
-      nextDate: nd,
-      stage: purps[i]||'',
-      status: nd>=today?'Active':'Adjourned',
-      sections:'',
-      remarks:'Imported from eCourts. Court: '+court,
-      createdAt: today,
-      lastSynced: null
-    });
-  }
-  return out;
-}
-
-function applyECourtsImport(imported){
-  if(!imported||!imported.length){
-    ecStatus('Could not find any cases in this file. Make sure it is the correct eCourts export file.','error');
-    return;
-  }
-  var added=0, updated=0;
-  imported.forEach(function(ic){
-    var idx=cases.findIndex(function(c){ return ic.cnr&&c.cnr===ic.cnr; });
-    if(idx>=0){
-      cases[idx].nextDate=ic.nextDate;
-      cases[idx].stage=ic.stage;
-      cases[idx].status=ic.status;
-      cases[idx].lastSynced=new Date().toISOString();
-      updated++;
-    } else {
-      cases.push(ic);
-      added++;
+  var processText=function(text){
+    var imported=parseECourtsText(text);
+    if(!imported||!imported.length){
+      try{
+        var d=JSON.parse(text);
+        if(Array.isArray(d)&&d.length){
+          imported=d;
+        }
+      }catch(ex){}
     }
-  });
-  save(); renderAll();
-  ecStatus(imported.length+' cases processed: '+added+' new added, '+updated+' dates updated.','ok');
-  showToast('eCourts import done: '+added+' added, '+updated+' updated.');
-}
+    if(!imported||!imported.length){
+      statusEl.style.background='#fef2f2';statusEl.style.color='#dc2626';statusEl.style.border='1px solid #fecaca';
+      statusEl.textContent='Could not read file. Try pasting the content instead.';return;
+    }
+    var added=0,updated=0;
+    imported.forEach(function(ic){
+      var idx=cases.findIndex(function(c){return ic.cnr&&c.cnr===ic.cnr;});
+      if(idx>=0){cases[idx].nextDate=ic.nextDate;cases[idx].stage=ic.stage||cases[idx].stage;cases[idx].status=ic.status;cases[idx].lastSynced=new Date().toISOString();updated++;}
+      else{cases.push(ic);added++;}
+    });
+    if(isOnline&&currentUser){
+      imported.forEach(function(ic){saveCase_cloud(ic);});
+    } else {saveLocal();}
+    renderAll();
+    statusEl.style.background='#f0fdf4';statusEl.style.color='#16a34a';statusEl.style.border='1px solid #bbf7d0';
+    statusEl.innerHTML='✓ <strong>'+added+' added</strong>, '+updated+' updated.';
+    showToast('Import done: '+added+' added, '+updated+' updated.');
+  };
 
-function ecStatus(msg,type){
-  var el=document.getElementById('ec-status');
-  el.style.display='block';
-  el.style.background=type==='ok'?'#f0fdf4':'#fef2f2';
-  el.style.color=type==='ok'?'#16a34a':'#dc2626';
-  el.style.border='1px solid '+(type==='ok'?'#bbf7d0':'#fecaca');
-  el.textContent=(type==='ok'?'\u2713 ':' \u2715 ')+msg;
-}
-
-function importECourtsFile(e){
-  var file=e.target.files[0]; if(!file)return;
-  ecStatus('Reading file...','ok');
-  var reader=new FileReader();
-  
   if(file.name.toLowerCase().endsWith('.pdf')){
+    var reader=new FileReader();
     reader.onload=function(ev){
       var bytes=new Uint8Array(ev.target.result);
-      var raw='';
-      for(var i=0;i<bytes.length;i++){
-        if(bytes[i]>=32||bytes[i]===10||bytes[i]===13) raw+=String.fromCharCode(bytes[i]);
-      }
-      var imported=parseECourtsData(raw);
-      applyECourtsImport(imported);
+      var raw='';for(var i=0;i<bytes.length;i++){var b=bytes[i];if(b>=32||b===10||b===13)raw+=String.fromCharCode(b);}
+      processText(raw);
     };
     reader.readAsArrayBuffer(file);
   } else {
-    // .txt or .json
-    reader.onload=function(ev){
-      var imported=parseECourtsData(ev.target.result);
-      applyECourtsImport(imported);
-    };
-    reader.readAsText(file);
+    var reader=new FileReader();
+    reader.onload=function(ev){processText(ev.target.result);};
+    reader.readAsText(file,'UTF-8');
   }
   e.target.value='';
 }
 
-function importECourtsPaste(){
-  var text=document.getElementById('ec-paste-area').value.trim();
-  if(!text){ ecStatus('Please paste the eCourts data first.','error'); return; }
-  var imported=parseECourtsData(text);
-  applyECourtsImport(imported);
-}
-
-// ============================================================
-// AI-POWERED eCOURTS IMPORT (Modal)
-// ============================================================
-async function ecParseWithAI(){
-  var text = document.getElementById('ec-paste-input').value.trim();
-  if(!text){ ecStatus('Please paste the eCourts text first.', 'error'); return; }
-
-  ecStatus('&#129302; Sending to AI for analysis…', 'ok');
-  document.getElementById('ec-results-wrap').style.display = 'none';
-
-  try {
-    var resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: 'You are a legal data extraction assistant for Indian courts. Extract ALL case hearing entries from the provided eCourts notification text. Return ONLY a valid JSON array (no markdown, no explanation). Each element: {"caseNo":"","cnr":"","nextDate":"YYYY-MM-DD","stage":"","court":"","petitioner":"","respondent":""}. Use empty string for missing fields. nextDate MUST be YYYY-MM-DD format.',
-        messages: [{ role: 'user', content: 'Extract all cases from this eCourts text:\n\n' + text }]
-      })
-    });
-
-    var data = await resp.json();
-    var raw = (data.content||[]).map(function(b){ return b.text||''; }).join('');
-    var clean = raw.replace(/```json|```/g,'').trim();
-    var parsed = JSON.parse(clean);
-
-    if(!Array.isArray(parsed) || parsed.length === 0){
-      ecStatus('AI could not find any cases. Try the regex parser or check the pasted text.', 'error');
-      return;
-    }
-
-    // Convert AI output to ecParsed format
-    ecParsed = parsed.map(function(u){
-      var title = '';
-      if(u.petitioner && u.respondent) title = u.petitioner + ' vs. ' + u.respondent;
-      else if(u.petitioner) title = u.petitioner;
-      return {
-        caseNo: u.caseNo || null,
-        cnr: u.cnr || null,
-        nextDate: u.nextDate || null,
-        stage: u.stage || null,
-        court: u.court || null,
-        title: title,
-        raw: JSON.stringify(u),
-        matchedCase: findMatchingCase(u.caseNo, u.cnr)
-      };
-    }).filter(function(e){ return e.nextDate; });
-
-    ecStatus('&#10003; AI found ' + ecParsed.length + ' case(s). Review and apply below.', 'ok');
-
-    var matched = ecParsed.filter(function(e){ return e.matchedCase; });
-    var unmatched = ecParsed.filter(function(e){ return !e.matchedCase; });
-
-    document.getElementById('ec-summary').innerHTML =
-      '<strong style="color:#16a34a">' + matched.length + ' matched</strong>'
-      + (unmatched.length ? ' &nbsp;|&nbsp; <strong style="color:#dc2626">' + unmatched.length + ' unmatched</strong>' : '')
-      + ' &mdash; <span style="font-size:12px;color:#8b5cf6;font-weight:600">&#129302; Parsed by AI</span>';
-
-    // Reuse existing render logic
-    var html = '<div class="parse-result-header">AI PARSED RESULTS &mdash; Review before applying</div>';
-    ecParsed.forEach(function(e, idx){
-      if(e.matchedCase){
-        html += '<div class="parse-row matched">'
-          +'<div><span class="match-dot" style="background:#16a34a;margin-right:6px;display:inline-block"></span>'
-          +'<strong>'+esc(e.matchedCase.title||e.matchedCase.caseNo||'-')+'</strong>'
-          +(e.matchedCase.caseNo?'<br><span style="font-size:11px;color:#7b93ad">'+esc(e.matchedCase.caseNo)+'</span>':'')
-          +'</div>'
-          +'<div style="font-size:13px;color:#4b6280">'+(e.caseNo||e.cnr||'-')+'</div>'
-          +'<div><strong style="color:#1a56db">'+fmtDate(e.nextDate)+'</strong>'
-          +(e.stage?'<br><span style="font-size:11px;color:#7b93ad">'+esc(e.stage)+'</span>':'')+'</div>'
-          +'<div><span style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">MATCHED</span></div>'
-          +'</div>';
-      } else {
-        var opts = '<option value="">-- Select case --</option>';
-        cases.forEach(function(c){ opts += '<option value="'+c.id+'">'+esc((c.caseNo||'?')+' | '+(c.title||'No title').substr(0,30))+'</option>'; });
-        html += '<div class="parse-row unmatched">'
-          +'<div><span class="match-dot" style="background:#dc2626;margin-right:6px;display:inline-block"></span>'
-          +'<span style="color:#dc2626;font-weight:600">Not matched</span>'
-          +(e.title?'<br><span style="font-size:11px;color:#4b6280">'+esc(e.title.substr(0,40))+'</span>':'')
-          +'<br><span style="font-size:11px;color:#7b93ad">'+esc(e.caseNo||e.cnr||'No ID')+'</span>'
-          +'</div>'
-          +'<div><select id="ec-sel-'+idx+'" style="font-size:12px;padding:5px 8px">'+opts+'</select></div>'
-          +'<div><strong style="color:#1a56db">'+fmtDate(e.nextDate)+'</strong>'
-          +(e.stage?'<br><span style="font-size:11px;color:#7b93ad">'+esc(e.stage)+'</span>':'')+'</div>'
-          +'<div><span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">SELECT</span></div>'
-          +'</div>';
-      }
-    });
-    document.getElementById('ec-results-list').innerHTML = html;
-    document.getElementById('ec-unmatched-wrap').style.display = unmatched.length ? 'block' : 'none';
-    document.getElementById('ec-results-wrap').style.display = 'block';
-
-  } catch(err) {
-    ecStatus('AI parsing failed: ' + err.message + '. Try the regex parser instead.', 'error');
-    console.error(err);
+// ── eCOURTS TEXT PARSER ───────────────────────────────────────
+function parseECourtsText(raw){
+  var text=raw.replace(/\r?\n/g,'');
+  var getAll=function(fn){var re=new RegExp('\\\\*"'+fn+'\\\\*"\\\\*:\\\\*"([^"\\\\]+?)\\\\*"','g');var r=[],m;while((m=re.exec(text))!==null)r.push(m[1].trim());return r;};
+  var cinos=getAll('cino'),pets=getAll('petparty_name'),res=getAll('resparty_name'),dates=getAll('date_next_list'),purps=getAll('purpose_name'),courts=getAll('court_no_desg_name'),cnos=getAll('case_no');
+  if(!cinos.length)return[];
+  var n=Math.min(cinos.length,pets.length||cinos.length,res.length||cinos.length,dates.length||cinos.length);
+  var today=todayStr(),out=[];
+  for(var i=0;i<n;i++){
+    var nd=dates[i]||'';var dm=nd.replace(/\s/g,'').match(/^(\d{4})-(\d{2})(\d{2})$/);if(dm)nd=dm[1]+'-'+dm[2]+'-'+dm[3];
+    var pet=fixN(pets[i]||''),resp=fixN(res[i]||''),ct=(courts[i]||'').replace(/\s+/g,' ').trim();
+    out.push({id:cinos[i]+'_'+i,cnr:cinos[i],caseNo:cnos[i]||'',title:pet+' vs. '+resp,client:pet,opposite:resp,court:mapCt(ct),caseType:'',nextDate:nd,stage:purps[i]||'',status:nd&&nd>=today?'Active':'Adjourned',sections:'',remarks:'Court: '+ct,createdAt:today,lastSynced:null});
   }
+  return out;
+}
+function fixN(s){return s.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/\s+/g,' ').trim();}
+function mapCt(c){var u=c.toUpperCase();if(/SUB.DIV|JMFC|MAGISTRATE.*IST|MAGISTRATE.*1ST/.test(u))return'JMFC Rajpura';if(/ACJM/.test(u))return'ACJM Rajpura';if(/CIVIL.*JR|CIVIL.*JUNIOR|ADDITIONAL.*CIVIL/.test(u))return'Civil Judge (Jr. Div.) Rajpura';if(/CIVIL.*SR|CIVIL.*SENIOR/.test(u))return'Civil Judge (Sr. Div.) Rajpura';if(/SESSION/.test(u))return'Sessions Court Patiala';if(/HIGH.COURT/.test(u))return'Punjab & Haryana High Court';return c||'Other';}
+
+// ── DAILY LIST / PDF ─────────────────────────────────────────
+function generateList(){
+  var dv=document.getElementById('list-date').value;if(!dv){alert('Please select a date.');return;}
+  var list=cases.filter(function(c){return c.nextDate===dv;});
+  buildPDF(dv,list);closeModal('modal-listdate');openModal('modal-pdf');
 }
 
-// ============================================================
-// AI ASSISTANT
-// ============================================================
-var aiHistory = [];
-
-function toggleAIPanel(){
-  var panel = document.getElementById('ai-panel');
-  panel.classList.toggle('open');
-  // Scroll to bottom of messages when opening
-  if(panel.classList.contains('open')){
-    var msgs = document.getElementById('ai-messages');
-    msgs.scrollTop = msgs.scrollHeight;
-  }
-}
-
-function openAIPasteMode(){
-  var panel = document.getElementById('ai-panel');
-  if(!panel.classList.contains('open')) panel.classList.add('open');
-  var inp = document.getElementById('ai-input');
-  inp.placeholder = 'Paste eCourts email or SMS text here and press Enter…';
-  inp.focus();
-  addAIMessage('bot', '&#128231; <strong>eCourts Email Mode</strong><br>Paste your eCourts notification email or SMS text below. I\'ll extract all case numbers and next hearing dates, then update your records.');
-}
-
-function aiQuick(text){
-  document.getElementById('ai-input').value = text;
-  sendAIMessage();
-}
-
-function addAIMessage(role, html){
-  var msgs = document.getElementById('ai-messages');
-  var div = document.createElement('div');
-  div.className = 'ai-msg ' + role;
-  div.innerHTML = html;
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-  return div;
-}
-
-async function sendAIMessage(){
-  var inp = document.getElementById('ai-input');
-  var text = inp.value.trim();
-  if(!text) return;
-  inp.value = '';
-  inp.placeholder = 'Ask about your cases or paste eCourts text…';
-
-  addAIMessage('user', esc(text));
-
-  var loadingDiv = addAIMessage('bot', '<span style="color:#8b5cf6">&#9679;&#9679;&#9679; Thinking…</span>');
-  loadingDiv.classList.add('loading');
-
-  // Build case context summary (keep it concise to save tokens)
-  var caseSummary = cases.map(function(c){
-    return [c.caseNo||'?', c.title||'', c.court||'', c.nextDate||'no date', c.status||'', c.cnr||''];
-  });
-
-  // Detect if user pasted eCourts-like text (long text with dates / case refs)
-  var looksLikeImport = text.length > 120 ||
-    /next\s*date|hearing\s*date|case\s*no|CNR|adjourned|listed\s*for/i.test(text) ||
-    /\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/.test(text);
-
-  var systemPrompt = looksLikeImport
-    ? 'You are a legal assistant for an Indian advocate. The user has pasted eCourts notification text. Extract ALL case hearing entries from it. Return ONLY a JSON object (no markdown, no extra text) with two keys: "updates" (array of {caseNo, cnr, nextDate in YYYY-MM-DD, stage, court, title}) and "message" (a short friendly summary of what you found, in plain text). If you cannot find any cases, set updates to [] and explain in message.'
-    : 'You are a smart legal assistant for an Indian advocate named Amandeep Sharma practicing at Civil Court Complex, Rajpura, Punjab. You have access to their case list as JSON. Answer questions about their cases concisely. Today is ' + todayStr() + '. Cases JSON: ' + JSON.stringify(caseSummary.slice(0,80));
-
-  aiHistory.push({ role: 'user', content: looksLikeImport ? 'Extract cases from this eCourts text:\n' + text : text });
-
-  try {
-    var resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: systemPrompt,
-        messages: aiHistory.slice(-6) // last 3 turns
-      })
-    });
-
-    var data = await resp.json();
-    var reply = (data.content||[]).map(function(b){ return b.text||''; }).join('');
-
-    // Try to parse as import JSON
-    if(looksLikeImport){
-      try {
-        var clean = reply.replace(/```json|```/g,'').trim();
-        var parsed = JSON.parse(clean);
-        aiHistory.push({ role: 'assistant', content: reply });
-        loadingDiv.remove();
-
-        if(parsed.updates && parsed.updates.length > 0){
-          var applied = applyAIUpdates(parsed.updates);
-          var summary = parsed.message || '';
-          var resultHtml = '<strong style="color:#16a34a">&#10003; ' + applied.updated + ' case' + (applied.updated!==1?'s':'') + ' updated';
-          if(applied.added) resultHtml += ', ' + applied.added + ' new added';
-          resultHtml += '</strong>';
-          if(applied.unmatched.length){
-            resultHtml += '<br><span style="color:#d97706">&#9888; ' + applied.unmatched.length + ' could not be matched: ' + applied.unmatched.join(', ') + '</span>';
-          }
-          if(summary) resultHtml += '<br><span style="font-size:12px;color:#4b6280;margin-top:4px;display:block">' + esc(summary) + '</span>';
-          addAIMessage('bot', resultHtml);
-        } else {
-          addAIMessage('bot', '<span style="color:#dc2626">&#9888; No cases found.</span> ' + esc(parsed.message||'Could not extract case data from the text.') + '<br><span style="font-size:12px;color:#7b93ad">Make sure the text contains case numbers and hearing dates.</span>');
-        }
-        return;
-      } catch(e) {
-        // Not JSON — treat as normal reply
-      }
-    }
-
-    aiHistory.push({ role: 'assistant', content: reply });
-    loadingDiv.classList.remove('loading');
-    loadingDiv.innerHTML = reply.replace(/\n/g,'<br>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
-
-  } catch(err) {
-    loadingDiv.classList.remove('loading');
-    loadingDiv.innerHTML = '<span style="color:#dc2626">&#9888; Error connecting to AI. Please check your connection.</span>';
-    console.error(err);
-  }
-}
-
-function applyAIUpdates(updates){
-  var today = todayStr();
-  var added = 0, updated = 0;
-  var unmatched = [];
-
-  updates.forEach(function(u){
-    if(!u.nextDate) return;
-
-    // Match by CNR first, then case number
-    var idx = -1;
-    if(u.cnr) idx = cases.findIndex(function(c){ return normCase(c.cnr) === normCase(u.cnr); });
-    if(idx < 0 && u.caseNo) idx = cases.findIndex(function(c){ return normCase(c.caseNo) === normCase(u.caseNo); });
-    // Fuzzy match on case number (strip separators)
-    if(idx < 0 && u.caseNo) idx = cases.findIndex(function(c){ return normCase(c.caseNo) === normCase(u.caseNo); });
-
-    if(idx >= 0){
-      cases[idx].nextDate = u.nextDate;
-      cases[idx].lastSynced = new Date().toISOString();
-      if(u.stage) cases[idx].stage = u.stage;
-      updated++;
-    } else if(u.title || u.caseNo){
-      // Add as new case
-      cases.push({
-        id: genId(),
-        title: u.title || u.caseNo,
-        caseNo: u.caseNo || '',
-        cnr: u.cnr || '',
-        court: u.court || '',
-        nextDate: u.nextDate,
-        stage: u.stage || '',
-        status: u.nextDate >= today ? 'Active' : 'Adjourned',
-        caseType: 'Criminal Case',
-        createdAt: today,
-        lastSynced: new Date().toISOString(),
-        remarks: 'Imported via AI Assistant'
+function buildPDF(dv,list){
+  document.getElementById('pdf-title').textContent='Cause List - '+fmtDate(dv);
+  document.getElementById('pdf-count').textContent=list.length+' case'+(list.length!==1?'s':'')+' on this date';
+  var courtOrder=[],courtMap={};
+  list.forEach(function(c){var ct=(c.court||'Other').trim();if(!courtMap[ct]){courtMap[ct]=[];courtOrder.push(ct);}courtMap[ct].push(c);});
+  var sno=0,body='';
+  if(!list.length){body='<tr><td colspan="4" style="text-align:center;padding:28px;color:#888">No cases scheduled for this date.</td></tr>';}
+  else{
+    courtOrder.forEach(function(ct){
+      var cc=courtMap[ct];
+      body+='<tr><td colspan="4" style="background:#1a56db;color:#fff;font-weight:700;font-size:10px;padding:5px 8px;letter-spacing:.6px;text-transform:uppercase;border:1px solid #1a56db">'+esc(ct)+' <span style="font-weight:400;font-size:9px;opacity:.9">('+cc.length+' case'+(cc.length!==1?'s':'')+')</span></td></tr>';
+      cc.forEach(function(c){
+        sno++;
+        body+='<tr><td style="text-align:center;font-weight:700;font-size:11px;vertical-align:top;width:28px">'+sno+'.</td><td style="font-size:11px;vertical-align:top"><strong>'+esc(c.title||'-')+'</strong>'+(c.client?'<br><span style="font-size:9px;color:#444">('+esc(c.client)+')</span>':'')+'</td><td style="font-size:10px;vertical-align:top;color:#333;width:80px">'+esc(c.stage||'-')+'</td><td style="text-align:center;vertical-align:top;width:72px">&nbsp;</td></tr>';
       });
-      added++;
-    } else {
-      unmatched.push(u.caseNo || u.cnr || 'unknown');
-    }
-  });
-
-  save();
-  renderAll();
-  return { updated: updated, added: added, unmatched: unmatched };
+    });
+  }
+  var summary=courtOrder.length>1?'<div style="margin-bottom:10px;font-size:9.5px;color:#444;border:1px solid #bfdbfe;border-radius:4px;padding:5px 10px;background:#f8fbff"><strong style="color:#1a56db">Courts today: </strong>'+courtOrder.map(function(ct){return esc(ct)+' ('+courtMap[ct].length+')';}).join(' &bull; ')+'</div>':'';
+  var table='<table style="width:100%;border-collapse:collapse;table-layout:fixed"><colgroup><col style="width:28px"/><col/><col style="width:80px"/><col style="width:72px"/></colgroup><thead><tr style="background:#eff6ff"><th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:center;font-size:10px">S.No.</th><th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:left;font-size:10px">Case Name / Parties</th><th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:left;font-size:10px">Stage</th><th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:center;font-size:10px">Next Date</th></tr></thead><tbody>'+body+'</tbody></table>';
+  var advName = currentUser && currentUser.displayName ? currentUser.displayName : 'Amandeep Sharma';
+  var content='<div class="print-hdr"><div class="court-lbl">IN THE COURT AT RAJPURA, DISTRICT PATIALA, PUNJAB</div><h1>DAILY CAUSE LIST</h1><div style="font-size:12px;margin-top:3px">Date: <strong>'+fmtDate(dv)+'</strong></div><div style="font-size:10.5px;color:#444;margin-top:3px">Advocate: '+esc(advName)+' (PH/3112/2020) | Chamber No. 103, Civil Court Complex, Rajpura</div></div>'+summary+table+'<div class="print-foot"><div style="font-size:11px">Total: <strong>'+list.length+'</strong><br><span style="color:#888;font-size:10px">'+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})+'</span></div><div><div class="sig-line">'+esc(advName)+'</div><div style="font-size:9px;color:#666;text-align:right">Advocate, Rajpura</div></div></div>';
+  document.getElementById('pdf-preview').innerHTML=content;
+  document.getElementById('print-area').innerHTML=content;
 }
 
+function doPrint(){
+  var pa=document.getElementById('print-area');
+  if(!pa||!pa.innerHTML.trim()){alert('Generate a cause list first.');return;}
+  pa.style.display='block';pa.style.position='fixed';pa.style.top='0';pa.style.left='0';pa.style.width='100%';pa.style.zIndex='99999';pa.style.background='#fff';
+  setTimeout(function(){
+    window.print();
+    setTimeout(function(){pa.style.display='none';pa.style.position='absolute';pa.style.left='-9999px';},1000);
+  },200);
+}
+
+// ── ALERTS / REMINDERS ───────────────────────────────────────
+var ALERT_KEY='lextrack_alerts_v2';
+function loadLocalAlerts(){try{var a=localStorage.getItem(ALERT_KEY);if(a)alerts=JSON.parse(a);}catch(e){}}
+function saveLocalAlerts(){localStorage.setItem(ALERT_KEY,JSON.stringify(alerts));}
+function getAlertsForCase(cid){return alerts.filter(function(a){return a.caseId===cid&&!a.done;});}
+
+function scheduleAllAlerts(){alerts.forEach(function(a){if(!a.done)scheduleAlert(a);});}
+function scheduleAlert(a){
+  if(alertTimers[a.id])clearTimeout(alertTimers[a.id]);
+  var delay=new Date(a.fireAt).getTime()-Date.now();
+  if(delay<0){if(!a.done)fireAlert(a);return;}
+  alertTimers[a.id]=setTimeout(function(){fireAlert(a);},delay);
+}
+function fireAlert(a){
+  a.done=true;saveLocalAlerts();
+  if(window.Notification&&Notification.permission==='granted'){
+    new Notification('LexTrack Reminder',{body:a.msg,icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚖️</text></svg>'});
+  }
+  showToast('🔔 REMINDER: '+a.msg,'ok');
+  document.getElementById('alert-fired-case').textContent=a.caseTitle||'';
+  document.getElementById('alert-fired-msg').textContent=a.msg;
+  openModal('modal-alert-fired');
+  renderTable();
+}
+function requestNotifPermission(){if(window.Notification&&Notification.permission==='default')Notification.requestPermission();}
+function openAlertModal(cid){
+  var c=cases.find(function(x){return x.id===cid;});if(!c)return;
+  document.getElementById('alert-case-name').textContent=c.title||c.caseNo||'Case';
+  document.getElementById('alert-case-id').value=cid;
+  document.getElementById('alert-msg').value=c.remarks?'Reminder: '+c.remarks.substring(0,80):'Follow up: '+(c.title||c.caseNo);
+  var def=new Date();
+  if(c.nextDate){def=new Date(c.nextDate);def.setDate(def.getDate()-1);}
+  else{def.setDate(def.getDate()+1);}
+  def.setHours(9,0,0,0);
+  document.getElementById('alert-datetime').value=def.toISOString().slice(0,16);
+  openModal('modal-alert');
+}
+function saveAlert(){
+  var cid=document.getElementById('alert-case-id').value;
+  var msg=document.getElementById('alert-msg').value.trim();
+  var dt=document.getElementById('alert-datetime').value;
+  if(!msg){alert('Please enter a reminder message.');return;}
+  if(!dt){alert('Please select date and time.');return;}
+  var c=cases.find(function(x){return x.id===cid;});
+  var a={id:genId(),caseId:cid,caseTitle:c?c.title:'',msg:msg,fireAt:dt,done:false,createdAt:new Date().toISOString()};
+  alerts.push(a);saveLocalAlerts();scheduleAlert(a);
+  showToast('🔔 Reminder set for '+new Date(dt).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}));
+  requestNotifPermission();closeModal('modal-alert');renderTable();
+}
+function quickAlert(days){var dt=new Date();if(days===0)dt.setHours(9,0,0,0);else{dt.setDate(dt.getDate()+days);dt.setHours(9,0,0,0);}document.getElementById('alert-datetime').value=dt.toISOString().slice(0,16);}
+function quickAlertHearing(){var id=document.getElementById('alert-case-id').value;var c=cases.find(function(x){return x.id===id;});if(c&&c.nextDate){var dt=new Date(c.nextDate);dt.setDate(dt.getDate()-1);dt.setHours(9,0,0,0);document.getElementById('alert-datetime').value=dt.toISOString().slice(0,16);}else showToast('No hearing date set — add it first.','warn');}
 </script>
 </body>
 </html>
