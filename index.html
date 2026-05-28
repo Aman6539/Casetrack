@@ -5,248 +5,274 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>LexTrack — Advocate Case Manager</title>
 
-<!-- Firebase SDK v10 (modular via CDN compat) -->
+<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f6ff;color:#1e3a5f;min-height:100vh;font-size:14px}
-@media print{
-  @page{size:A4 portrait;margin:10mm}
-  body>*{visibility:hidden!important}
-  #print-area,#print-area *{visibility:visible!important}
-  #print-area{position:fixed!important;top:0!important;left:0!important;width:100%!important;background:#fff!important;color:#000!important;font-family:'Times New Roman',serif!important;font-size:11px;z-index:99999!important;display:block!important}
-  #print-area table{width:100%!important;table-layout:fixed!important;border-collapse:collapse!important;font-size:10.5px!important}
-  #print-area th,#print-area td{border:1px solid #999!important;padding:5px 6px!important;word-wrap:break-word!important}
+/* ═══════════════════════════════════════════════════════════
+   PRINT STYLES — MUST BE FIRST — A4 PORTRAIT FULL DETAILS
+═══════════════════════════════════════════════════════════ */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm 12mm 10mm;
+  }
+  /* Hide everything except print area */
+  body > * { display: none !important; }
+  #print-area {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    font-family: 'Times New Roman', Times, serif !important;
+    font-size: 10.5pt !important;
+    color: #000 !important;
+    background: #fff !important;
+    line-height: 1.4 !important;
+  }
+  #print-area * { visibility: visible !important; }
+  .ph { /* print header */
+    text-align: center;
+    border-bottom: 2pt solid #000;
+    padding-bottom: 6pt;
+    margin-bottom: 10pt;
+  }
+  .ph .ph-court { font-size: 9pt; font-weight: bold; letter-spacing: 1pt; text-transform: uppercase; }
+  .ph h1 { font-size: 16pt; font-weight: bold; margin: 3pt 0; letter-spacing: 1pt; }
+  .ph .ph-date { font-size: 11pt; margin: 2pt 0; }
+  .ph .ph-adv  { font-size: 9pt; color: #333; margin-top: 2pt; }
+  .p-summary {
+    font-size: 9pt; border: 0.5pt solid #aaa; padding: 4pt 6pt;
+    margin-bottom: 8pt; background: #f5f5f5;
+  }
+  .p-court-hdr {
+    background: #1a56db; color: #fff;
+    font-size: 9pt; font-weight: bold;
+    padding: 4pt 6pt; letter-spacing: 0.5pt; text-transform: uppercase;
+  }
+  table.p-tbl { width: 100%; border-collapse: collapse; margin-bottom: 6pt; }
+  table.p-tbl th {
+    background: #e8f0fe; font-size: 9pt; font-weight: bold;
+    padding: 4pt 5pt; border: 0.5pt solid #666; text-align: left;
+  }
+  table.p-tbl th:first-child { text-align: center; width: 24pt; }
+  table.p-tbl td {
+    font-size: 9.5pt; padding: 4pt 5pt; border: 0.5pt solid #bbb;
+    vertical-align: top; word-wrap: break-word; overflow-wrap: break-word;
+  }
+  table.p-tbl td:first-child { text-align: center; font-weight: bold; width: 24pt; }
+  table.p-tbl tr:nth-child(even) td { background: #fafcff; }
+  .p-title-cell { font-weight: bold; font-size: 10pt; }
+  .p-client-cell { font-size: 8.5pt; color: #444; margin-top: 1pt; }
+  .p-stage-cell { font-size: 9pt; }
+  .p-date-cell  { font-size: 9pt; text-align: center; min-width: 56pt; }
+  .p-footer {
+    margin-top: 10pt; display: flex; justify-content: space-between;
+    font-size: 9pt; color: #444; border-top: 0.5pt solid #aaa; padding-top: 6pt;
+    align-items: flex-end;
+  }
+  .p-sig { text-align: right; }
+  .p-sig-line { border-top: 0.5pt solid #000; padding-top: 3pt; font-weight: bold; margin-top: 24pt; }
+  /* Prevent page breaks inside court sections */
+  .p-court-section { page-break-inside: avoid; }
+  /* Force new page if needed */
+  .p-page-break { page-break-before: always; }
 }
-#print-area{display:none;position:absolute;left:-9999px}
-::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:#bfdbfe;border-radius:3px}
 
-/* ── Buttons ── */
-.btn{border:none;border-radius:7px;padding:9px 18px;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;white-space:nowrap;font-family:inherit;display:inline-flex;align-items:center;gap:5px}
-.btn-blue{background:#1a56db;color:#fff}.btn-blue:hover{background:#1e40af}
-.btn-outline{background:#fff;color:#1a56db;border:1.5px solid #1a56db}.btn-outline:hover{background:#eff6ff}
-.btn-ghost{background:transparent;color:#4b6280;border:1.5px solid #dbeafe}.btn-ghost:hover{color:#1a56db;border-color:#1a56db}
-.btn-red{background:#dc2626;color:#fff}
-.btn-green{background:#16a34a;color:#fff}.btn-green:hover{background:#15803d}
-.btn-gold{background:linear-gradient(135deg,#d97706,#f59e0b);color:#fff}
-.btn-google{background:#fff;color:#3c4043;border:1.5px solid #dadce0;font-weight:600}.btn-google:hover{background:#f8f9fa;box-shadow:0 1px 6px rgba(0,0,0,.12)}
-.btn-sm{padding:5px 9px;font-size:12px;border-radius:6px}
+/* ═══════════════════════════════════════════════════════════
+   SCREEN STYLES
+═══════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f6ff; color: #1e3a5f; min-height: 100vh; font-size: 14px; }
+#print-area { display: none; }
 
-/* ── Inputs ── */
-input,select,textarea{background:#fff;border:1.5px solid #bfdbfe;border-radius:7px;color:#1e3a5f;padding:9px 12px;font-size:14px;width:100%;outline:none;font-family:inherit;transition:border-color .15s}
-input:focus,select:focus,textarea:focus{border-color:#1a56db;box-shadow:0 0 0 3px rgba(26,86,219,.1)}
-label{font-size:11px;color:#7b93ad;letter-spacing:.6px;text-transform:uppercase;font-weight:700;margin-bottom:4px;display:block}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: #bfdbfe; border-radius: 3px; }
 
-/* ── Layout ── */
-.header{background:#fff;border-bottom:1px solid #dbeafe;padding:0 16px;display:flex;align-items:center;gap:7px;min-height:60px;position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(26,86,219,.07);flex-wrap:wrap}
-.logo{width:36px;height:36px;background:linear-gradient(135deg,#1a56db,#3b82f6);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;color:#fff}
-.tab-group{display:flex;gap:3px;background:#f0f6ff;border-radius:8px;padding:3px;border:1px solid #dbeafe}
-.tab{padding:6px 13px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;border:none;background:transparent;color:#4b6280;transition:all .15s;font-family:inherit}
-.tab.active{background:#1a56db;color:#fff;box-shadow:0 2px 6px rgba(26,86,219,.3)}
-.body{max-width:1180px;margin:0 auto;padding:18px 14px}
+/* Buttons */
+.btn { border: none; border-radius: 7px; padding: 9px 18px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all .15s; white-space: nowrap; font-family: inherit; display: inline-flex; align-items: center; gap: 6px; }
+.btn-blue { background: #1a56db; color: #fff; } .btn-blue:hover { background: #1e40af; }
+.btn-outline { background: #fff; color: #1a56db; border: 1.5px solid #1a56db; } .btn-outline:hover { background: #eff6ff; }
+.btn-ghost { background: transparent; color: #4b6280; border: 1.5px solid #dbeafe; } .btn-ghost:hover { color: #1a56db; border-color: #1a56db; }
+.btn-red   { background: #dc2626; color: #fff; } .btn-red:hover { background: #b91c1c; }
+.btn-green { background: #16a34a; color: #fff; } .btn-green:hover { background: #15803d; }
+.btn-gold  { background: linear-gradient(135deg,#d97706,#f59e0b); color: #fff; }
+.btn-sm    { padding: 5px 9px; font-size: 12px; border-radius: 6px; }
 
-/* ── Stats ── */
-.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
-.stat{background:#fff;border:1px solid #dbeafe;border-radius:10px;padding:13px 14px;box-shadow:0 1px 4px rgba(26,86,219,.05);cursor:pointer;transition:all .15s}
-.stat:hover{border-color:#1a56db;box-shadow:0 2px 10px rgba(26,86,219,.12)}
-.stat-num{font-size:26px;font-weight:800;line-height:1}
-.stat-lbl{font-size:11px;color:#7b93ad;margin-top:3px;font-weight:500}
+/* Inputs */
+input, select, textarea { background: #fff; border: 1.5px solid #bfdbfe; border-radius: 7px; color: #1e3a5f; padding: 9px 12px; font-size: 14px; width: 100%; outline: none; font-family: inherit; transition: border-color .15s; }
+input:focus, select:focus, textarea:focus { border-color: #1a56db; box-shadow: 0 0 0 3px rgba(26,86,219,.1); }
+label { font-size: 11px; color: #7b93ad; letter-spacing: .6px; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; display: block; }
 
-/* ── Table ── */
-.tbl-wrap{background:#fff;border:1px solid #dbeafe;border-radius:11px;overflow:hidden;box-shadow:0 1px 6px rgba(26,86,219,.05)}
-.tbl-head{display:grid;grid-template-columns:2fr 1.1fr 1fr 0.9fr 0.85fr 0.8fr 120px;background:#eff6ff;padding:9px 14px;font-size:11px;color:#7b93ad;letter-spacing:.7px;text-transform:uppercase;font-weight:700;gap:8px;border-bottom:1px solid #dbeafe}
-.tbl-row{display:grid;grid-template-columns:2fr 1.1fr 1fr 0.9fr 0.85fr 0.8fr 120px;padding:10px 14px;border-top:1px solid #f0f6ff;gap:8px;align-items:center;cursor:pointer;transition:background .12s}
-.tbl-row:hover{background:#f5f9ff}
-.cell-title{font-weight:600;color:#1e3a5f;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cell-sub{font-size:11px;color:#7b93ad;margin-top:2px}
-.cell-case{font-size:12px;color:#1a56db;font-weight:700}
-.badge{padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;display:inline-block}
+/* Header */
+.header { background: #fff; border-bottom: 1px solid #dbeafe; padding: 0 16px; display: flex; align-items: center; gap: 7px; min-height: 60px; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 8px rgba(26,86,219,.07); flex-wrap: wrap; }
+.logo { width: 36px; height: 36px; background: linear-gradient(135deg,#1a56db,#3b82f6); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; color: #fff; }
+.tab-group { display: flex; gap: 3px; background: #f0f6ff; border-radius: 8px; padding: 3px; border: 1px solid #dbeafe; }
+.tab { padding: 6px 13px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; border: none; background: transparent; color: #4b6280; transition: all .15s; font-family: inherit; }
+.tab.active { background: #1a56db; color: #fff; box-shadow: 0 2px 6px rgba(26,86,219,.3); }
 
-/* ── Modals ── */
-.overlay{display:none;position:fixed;inset:0;background:rgba(15,30,60,.5);z-index:200;align-items:center;justify-content:center;padding:14px}
-.overlay.open{display:flex}
-.modal{background:#fff;border:1px solid #dbeafe;border-radius:13px;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(26,86,219,.18);animation:slideUp .2s ease}
-.modal.wide{max-width:820px}
-@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
-.modal-body{padding:22px}
-.modal-title{font-size:16px;font-weight:700;color:#1a56db;margin-bottom:16px}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
-.span2{grid-column:1/-1}
+/* Body */
+.body { max-width: 1180px; margin: 0 auto; padding: 18px 14px; }
 
-/* ── Toast ── */
-#toast{position:fixed;top:16px;right:16px;z-index:9999;padding:11px 18px;border-radius:9px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.13);display:none;max-width:340px;line-height:1.4}
+/* Stats */
+.stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
+.stat { background: #fff; border: 1px solid #dbeafe; border-radius: 10px; padding: 13px 14px; box-shadow: 0 1px 4px rgba(26,86,219,.05); cursor: pointer; transition: all .15s; }
+.stat:hover { border-color: #1a56db; box-shadow: 0 2px 10px rgba(26,86,219,.12); }
+.stat-num { font-size: 26px; font-weight: 800; line-height: 1; }
+.stat-lbl { font-size: 11px; color: #7b93ad; margin-top: 3px; font-weight: 500; }
 
-/* ── Sync status bar ── */
-#sync-bar{background:#1a56db;color:#fff;font-size:12px;font-weight:600;text-align:center;padding:6px;display:none;align-items:center;justify-content:center;gap:8px}
-.sync-dot{width:8px;height:8px;background:#00e5a0;border-radius:50%;display:inline-block;animation:blink 1.5s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+/* Table */
+.tbl-wrap { background: #fff; border: 1px solid #dbeafe; border-radius: 11px; overflow: hidden; box-shadow: 0 1px 6px rgba(26,86,219,.05); }
+.tbl-head, .tbl-row { display: grid; grid-template-columns: 2fr 1.1fr 1.1fr 0.9fr 0.85fr 0.75fr 118px; gap: 8px; padding: 10px 14px; align-items: center; }
+.tbl-head { background: #eff6ff; font-size: 11px; color: #7b93ad; letter-spacing: .7px; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid #dbeafe; }
+.tbl-row { border-top: 1px solid #f0f6ff; cursor: pointer; transition: background .12s; }
+.tbl-row:hover { background: #f5f9ff; }
+.cell-title { font-weight: 600; color: #1e3a5f; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cell-sub { font-size: 11px; color: #7b93ad; margin-top: 2px; }
+.cell-case { font-size: 12px; color: #1a56db; font-weight: 700; }
+.badge { padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; white-space: nowrap; display: inline-block; }
 
-/* ── Login Screen ── */
-#login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px}
-.login-card{background:#fff;border-radius:16px;padding:40px 36px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(26,86,219,.15);text-align:center}
-.login-logo{width:60px;height:60px;background:linear-gradient(135deg,#1a56db,#3b82f6);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 20px}
-.login-card h1{font-size:24px;font-weight:800;color:#1e3a5f;margin-bottom:6px}
-.login-card p{font-size:14px;color:#7b93ad;margin-bottom:28px;line-height:1.5}
-.google-btn{background:#fff;color:#3c4043;border:1.5px solid #dadce0;border-radius:9px;padding:13px 20px;font-size:14px;font-weight:600;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:10px;transition:all .18s;font-family:'Segoe UI',sans-serif}
-.google-btn:hover{background:#f8f9fa;box-shadow:0 2px 10px rgba(0,0,0,.12)}
-.google-logo{width:20px;height:20px}
-.offline-btn{background:transparent;color:#4b6280;border:1.5px solid #dbeafe;border-radius:9px;padding:11px 20px;font-size:13px;font-weight:600;cursor:pointer;width:100%;margin-top:10px;font-family:'Segoe UI',sans-serif;transition:all .15s}
-.offline-btn:hover{color:#1a56db;border-color:#1a56db}
-.login-features{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:22px 0;text-align:left}
-.feat-item{display:flex;align-items:center;gap:7px;font-size:12.5px;color:#4b6280}
-.feat-icon{color:#1a56db;font-size:14px;flex-shrink:0}
+/* Modals */
+.overlay { display: none; position: fixed; inset: 0; background: rgba(15,30,60,.5); z-index: 200; align-items: center; justify-content: center; padding: 14px; }
+.overlay.open { display: flex; }
+.modal { background: #fff; border: 1px solid #dbeafe; border-radius: 13px; width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(26,86,219,.18); animation: slideUp .2s ease; }
+.modal.wide { max-width: 820px; }
+.modal.xwide { max-width: 980px; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+.modal-body { padding: 22px; }
+.modal-title { font-size: 16px; font-weight: 700; color: #1a56db; margin-bottom: 16px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+.span2 { grid-column: 1/-1; }
 
-/* ── User avatar ── */
-.user-avatar{width:30px;height:30px;border-radius:50%;border:2px solid #bfdbfe;cursor:pointer;object-fit:cover}
-.user-pill{display:flex;align-items:center;gap:7px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:4px 10px 4px 4px;cursor:pointer;font-size:12px;font-weight:600;color:#1e3a5f}
+/* Toast */
+#toast { position: fixed; top: 16px; right: 16px; z-index: 9999; padding: 11px 18px; border-radius: 9px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 20px rgba(0,0,0,.13); display: none; max-width: 340px; line-height: 1.4; }
 
-/* ── Cloud sync indicator ── */
-.cloud-icon{font-size:16px;animation:none}
-.cloud-icon.syncing{animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
+/* Sync bar */
+#sync-bar { background: #1a56db; color: #fff; font-size: 12px; font-weight: 600; text-align: center; padding: 6px; display: none; }
+.sync-dot { width: 8px; height: 8px; background: #00e5a0; border-radius: 50%; display: inline-block; animation: blink 1.5s infinite; }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 
-/* ── Print styles ── */
-.print-hdr{text-align:center;border-bottom:2px solid #1a56db;padding-bottom:10px;margin-bottom:12px}
-.print-hdr h1{font-size:18px;font-weight:800;margin:3px 0}
-.print-hdr .court-lbl{font-size:10px;font-weight:700;color:#1a56db;letter-spacing:1px;text-transform:uppercase}
-.print-foot{margin-top:18px;display:flex;justify-content:space-between;font-size:11px;color:#555;align-items:flex-end}
-.sig-line{border-top:1px solid #333;padding-top:4px;font-weight:700;margin-top:26px;text-align:right}
+/* Login */
+#login-screen { position: fixed; inset: 0; background: linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%); z-index: 500; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.login-card { background: #fff; border-radius: 16px; padding: 40px 36px; max-width: 440px; width: 100%; box-shadow: 0 20px 60px rgba(26,86,219,.15); text-align: center; }
+.login-logo { width: 60px; height: 60px; background: linear-gradient(135deg,#1a56db,#3b82f6); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 20px; }
+.login-card h1 { font-size: 24px; font-weight: 800; color: #1e3a5f; margin-bottom: 6px; }
+.login-card p { font-size: 14px; color: #7b93ad; margin-bottom: 28px; line-height: 1.5; }
+.google-btn { background: #fff; color: #3c4043; border: 1.5px solid #dadce0; border-radius: 9px; padding: 13px 20px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all .18s; font-family: 'Segoe UI', sans-serif; }
+.google-btn:hover { background: #f8f9fa; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+.offline-btn { background: transparent; color: #4b6280; border: 1.5px solid #dbeafe; border-radius: 9px; padding: 11px 20px; font-size: 13px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 10px; font-family: 'Segoe UI', sans-serif; transition: all .15s; }
+.offline-btn:hover { color: #1a56db; border-color: #1a56db; }
+.login-feats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 20px 0; text-align: left; }
+.login-feat { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: #4b6280; }
 
-/* ── Info banner ── */
-.info-banner{background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:9px 13px;margin-bottom:13px;font-size:13px;color:#4b6280}
-.search-row{display:flex;gap:10px;margin-bottom:13px;align-items:center}
-.search-row input{flex:1}
-.count-pill{background:#fff;border:1px solid #dbeafe;border-radius:8px;padding:0 13px;height:40px;display:flex;align-items:center;color:#7b93ad;font-size:12px;white-space:nowrap;font-weight:500}
-.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 18px;margin-bottom:13px}
-.detail-field{border-bottom:1px solid #dbeafe;padding-bottom:8px}
-.detail-key{font-size:11px;color:#7b93ad;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
-.detail-val{font-size:13.5px;color:#1e3a5f;margin-top:2px}
+/* User pill */
+.user-pill { display: flex; align-items: center; gap: 7px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 20px; padding: 4px 10px 4px 4px; cursor: pointer; font-size: 12px; font-weight: 600; color: #1e3a5f; }
+.user-avatar { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #bfdbfe; object-fit: cover; }
+.cloud-syncing { animation: spin .8s linear infinite; display: inline-block; }
 
-/* ── Firebase setup guide ── */
-.setup-step{background:#f8fafc;border:1px solid #dbeafe;border-radius:9px;padding:14px 16px;margin-bottom:10px}
-.setup-num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;background:#1a56db;color:#fff;border-radius:50%;font-size:12px;font-weight:700;flex-shrink:0;margin-right:8px}
-code{background:#eff6ff;color:#1a56db;padding:2px 7px;border-radius:4px;font-family:monospace;font-size:12px}
-.code-block{background:#1e2128;color:#00e5a0;padding:12px 14px;border-radius:8px;font-family:monospace;font-size:12px;line-height:1.6;overflow-x:auto;margin:8px 0;white-space:pre}
+/* Info */
+.info-banner { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 9px; padding: 9px 13px; margin-bottom: 13px; font-size: 13px; color: #4b6280; }
+.search-row { display: flex; gap: 10px; margin-bottom: 13px; align-items: center; }
+.search-row input { flex: 1; }
+.count-pill { background: #fff; border: 1px solid #dbeafe; border-radius: 8px; padding: 0 13px; height: 40px; display: flex; align-items: center; color: #7b93ad; font-size: 12px; white-space: nowrap; font-weight: 500; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 18px; margin-bottom: 13px; }
+.detail-field { border-bottom: 1px solid #dbeafe; padding-bottom: 8px; }
+.detail-key { font-size: 11px; color: #7b93ad; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+.detail-val { font-size: 13.5px; color: #1e3a5f; margin-top: 2px; }
+
+/* Setup */
+code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+.code-blk { background: #1e2128; color: #00e5a0; padding: 12px 14px; border-radius: 8px; font-family: monospace; font-size: 12px; line-height: 1.6; overflow-x: auto; margin: 8px 0; white-space: pre; }
+.s-step { background: #f8fafc; border: 1px solid #dbeafe; border-radius: 9px; padding: 14px 16px; margin-bottom: 10px; }
+.s-num { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: #1a56db; color: #fff; border-radius: 50%; font-size: 12px; font-weight: 700; flex-shrink: 0; margin-right: 8px; }
 </style>
 </head>
 <body>
 
-<!-- TOAST -->
-<div id="toast"></div>
-<!-- PRINT AREA -->
+<!-- PRINT AREA — lives outside header/body so display:none on body>* doesn't hide it -->
 <div id="print-area"></div>
+<div id="toast"></div>
 
-<!-- ══════════════════════════════════════════
-     LOGIN SCREEN
-══════════════════════════════════════════ -->
+<!-- SYNC BAR -->
+<div id="sync-bar">
+  <span class="sync-dot"></span>
+  <span id="sync-msg" style="margin-left:8px">Syncing with cloud...</span>
+</div>
+
+<!-- ═══════════════════ LOGIN SCREEN ═══════════════════ -->
 <div id="login-screen">
   <div class="login-card">
     <div class="login-logo">⚖️</div>
     <h1>LexTrack</h1>
-    <p>Advocate Case Manager with real-time cloud sync across all your devices</p>
-
-    <div class="login-features">
-      <div class="feat-item"><span class="feat-icon">☁</span> Real-time sync</div>
-      <div class="feat-item"><span class="feat-icon">🔐</span> Google login</div>
-      <div class="feat-item"><span class="feat-icon">📱</span> Any device</div>
-      <div class="feat-item"><span class="feat-icon">⚡</span> Instant updates</div>
-      <div class="feat-item"><span class="feat-icon">🔔</span> Reminders</div>
-      <div class="feat-item"><span class="feat-icon">📋</span> Cause list PDF</div>
+    <p>Advocate Case Manager with real-time cloud sync across all your devices via Google</p>
+    <div class="login-feats">
+      <div class="login-feat">☁ Real-time sync</div>
+      <div class="login-feat">🔐 Google login</div>
+      <div class="login-feat">📱 Any device</div>
+      <div class="login-feat">⚡ Instant update</div>
+      <div class="login-feat">🔔 Reminders</div>
+      <div class="login-feat">📋 PDF cause list</div>
     </div>
-
     <button class="google-btn" onclick="signInGoogle()">
-      <svg class="google-logo" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
       Sign in with Google
     </button>
-
-    <button class="offline-btn" onclick="useOffline()">Continue without Google (Offline mode)</button>
-
-    <div id="login-msg" style="margin-top:14px;font-size:13px;color:#7b93ad;display:none"></div>
-
-    <!-- Firebase not configured notice -->
-    <div id="firebase-setup-notice" style="display:none;margin-top:16px;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:12px 14px;text-align:left">
-      <div style="font-size:12px;font-weight:700;color:#d97706;margin-bottom:6px">⚠ Firebase not configured yet</div>
-      <div style="font-size:12px;color:#92400e;line-height:1.5">Google login needs your Firebase config. Click <strong>"Setup Guide"</strong> below to configure it in 5 minutes — it's free.</div>
-      <button class="btn btn-gold" style="margin-top:10px;font-size:12px;padding:7px 14px" onclick="openModal('modal-setup')">📖 Setup Guide</button>
+    <button class="offline-btn" onclick="useOffline()">Continue Offline (no sync)</button>
+    <div id="login-msg" style="margin-top:14px;font-size:13px;color:#7b93ad;min-height:20px"></div>
+    <div style="margin-top:16px;text-align:center">
+      <button class="btn btn-ghost btn-sm" onclick="openModal('modal-setup')" style="font-size:12px">⚙ Firebase Setup Guide</button>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════
-     SYNC BAR
-══════════════════════════════════════════ -->
-<div id="sync-bar">
-  <span class="sync-dot"></span>
-  <span id="sync-msg">Syncing with cloud...</span>
-</div>
-
-<!-- ══════════════════════════════════════════
-     HEADER
-══════════════════════════════════════════ -->
-<div class="header" style="display:none" id="main-header">
+<!-- ═══════════════════ HEADER ═══════════════════ -->
+<div class="header" id="main-header" style="display:none">
   <div class="logo">⚖️</div>
   <div style="margin-right:auto">
     <div style="font-size:14px;font-weight:700;color:#1e3a5f;line-height:1.2">
       LexTrack
-      <span id="sync-indicator" style="font-size:11px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:20px;padding:2px 8px;font-weight:600;vertical-align:middle;margin-left:4px">● Online</span>
+      <span id="sync-pill" style="font-size:10px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:20px;padding:2px 8px;font-weight:600;vertical-align:middle;margin-left:4px">● Online</span>
     </div>
-    <div id="hdr-user" style="font-size:10.5px;color:#7b93ad;font-weight:500">Loading...</div>
+    <div id="hdr-sub" style="font-size:10.5px;color:#7b93ad;font-weight:500">Loading...</div>
   </div>
-
   <div class="tab-group">
     <button class="tab active" id="tab-all"   onclick="switchView('all')">All</button>
     <button class="tab"        id="tab-today" onclick="switchView('today')">Today</button>
     <button class="tab"        id="tab-week"  onclick="switchView('week')">This Week</button>
     <button class="tab"        id="tab-month" onclick="switchView('month')">This Month</button>
   </div>
-
   <button class="btn btn-outline" onclick="openModal('modal-listdate')">📋 Daily List</button>
-  <button class="btn btn-gold"    onclick="openModal('modal-import')" title="Import eCourts/Excel/CSV">⬇ Import</button>
+  <button class="btn btn-gold"    onclick="openModal('modal-import')">⬇ Import</button>
   <button class="btn btn-ghost"   onclick="exportData()">⬆ Export</button>
-
-  <!-- User avatar / sign out -->
-  <div class="user-pill" onclick="openModal('modal-account')" id="user-pill" style="display:none">
-    <img id="user-photo" class="user-avatar" src="" alt=""/>
-    <span id="user-name-short"></span>
-    <span id="cloud-icon" class="cloud-icon">☁</span>
+  <div class="user-pill" id="user-pill" onclick="openModal('modal-account')" style="display:none">
+    <img id="user-photo" class="user-avatar" src="" alt="U"/>
+    <span id="user-short"></span>
+    <span id="cloud-lbl">☁</span>
   </div>
-  <button class="btn btn-ghost btn-sm" id="offline-badge" style="display:none" onclick="openModal('modal-account')">Offline Mode</button>
-
+  <span id="offline-badge" style="display:none;font-size:12px;color:#d97706;font-weight:600;padding:4px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:20px;cursor:pointer" onclick="openModal('modal-account')">Offline</span>
   <button class="btn btn-blue" onclick="openAddCase()">+ New Case</button>
 </div>
 
-<!-- ══════════════════════════════════════════
-     BODY
-══════════════════════════════════════════ -->
+<!-- ═══════════════════ BODY ═══════════════════ -->
 <div class="body" id="main-body" style="display:none">
-
-  <!-- STATS -->
   <div class="stats">
-    <div class="stat" onclick="switchView('all')">   <div class="stat-num" id="s-total"  style="color:#1a56db">0</div><div class="stat-lbl">Total Cases</div></div>
-    <div class="stat" onclick="switchView('today')"> <div class="stat-num" id="s-today"  style="color:#d97706">0</div><div class="stat-lbl">Today</div></div>
-    <div class="stat" onclick="switchView('week')">  <div class="stat-num" id="s-week"   style="color:#7c3aed">0</div><div class="stat-lbl">This Week</div></div>
-    <div class="stat" onclick="switchView('month')"> <div class="stat-num" id="s-month"  style="color:#0891b2">0</div><div class="stat-lbl">This Month</div></div>
-    <div class="stat" onclick="switchView('all')">   <div class="stat-num" id="s-active" style="color:#16a34a">0</div><div class="stat-lbl">Active</div></div>
+    <div class="stat" onclick="switchView('all')">  <div class="stat-num" id="s-total"  style="color:#1a56db">0</div><div class="stat-lbl">Total Cases</div></div>
+    <div class="stat" onclick="switchView('today')"><div class="stat-num" id="s-today"  style="color:#d97706">0</div><div class="stat-lbl">Today</div></div>
+    <div class="stat" onclick="switchView('week')"> <div class="stat-num" id="s-week"   style="color:#7c3aed">0</div><div class="stat-lbl">This Week</div></div>
+    <div class="stat" onclick="switchView('month')"><div class="stat-num" id="s-month"  style="color:#0891b2">0</div><div class="stat-lbl">This Month</div></div>
+    <div class="stat" onclick="switchView('all')">  <div class="stat-num" id="s-active" style="color:#16a34a">0</div><div class="stat-lbl">Active</div></div>
   </div>
-
-  <!-- eCourts banner -->
-  <div class="info-banner">
-    <strong style="color:#1a56db">☁ Cloud Sync Active:</strong>
-    All your cases sync in real-time across all devices. Changes appear instantly on every device logged in with the same Google account.
-    <span id="last-sync-time" style="margin-left:8px;color:#16a34a;font-weight:600"></span>
+  <div class="info-banner" id="cloud-banner">
+    <strong style="color:#1a56db">☁ Cloud Sync:</strong> Cases sync in real-time across all devices. Sign in on any device with the same Google account to access all your cases instantly.
+    <span id="last-sync" style="margin-left:8px;color:#16a34a;font-size:12px"></span>
   </div>
-
-  <!-- SEARCH -->
   <div class="search-row">
-    <input type="text" id="search-input" placeholder="Search case no., title, client, court, type..." oninput="renderTable()"/>
-    <div class="count-pill" id="count-label">0 cases</div>
+    <input type="text" id="search-input" placeholder="Search case no., title, client, court..." oninput="renderTable()"/>
+    <div class="count-pill" id="count-lbl">0 cases</div>
   </div>
-
-  <!-- TABLE -->
   <div class="tbl-wrap">
     <div class="tbl-head">
       <span>Case / Client</span><span>Case No. / CNR</span><span>Court</span>
@@ -255,111 +281,105 @@ code{background:#eff6ff;color:#1a56db;padding:2px 7px;border-radius:4px;font-fam
     </div>
     <div id="tbl-body">
       <div style="padding:52px;text-align:center;color:#7b93ad">
-        <div style="font-size:38px;margin-bottom:12px">⚖️</div>
+        <div style="font-size:36px;margin-bottom:12px">⚖️</div>
         <div style="font-size:15px;font-weight:600;color:#4b6280">No cases yet</div>
-        <div style="font-size:13px;margin-top:6px">Click "+ New Case" to add your first case</div>
+        <div style="font-size:13px;margin-top:6px">Click "+ New Case" or "⬇ Import" to get started</div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ============================================================
+<!-- ═══════════════════════════════════════
      MODALS
-============================================================ -->
+═══════════════════════════════════════ -->
 
-<!-- ADD / EDIT CASE -->
+<!-- ADD/EDIT CASE -->
 <div class="overlay" id="modal-case">
-  <div class="modal">
-    <div class="modal-body">
-      <div class="modal-title" id="case-modal-title">Add New Case</div>
-      <div class="form-grid">
-        <div class="span2"><label>Case Title / Parties *</label><input id="f-title" placeholder="e.g. Suresh Kumar vs. Tarsem Singh &amp; Others"/></div>
-        <div><label>Case Number</label><input id="f-caseNo" placeholder="e.g. CS-254-2022"/></div>
-        <div><label>CNR Number</label><input id="f-cnr" placeholder="e.g. PBPTA010012022"/></div>
-        <div><label>Court</label>
-          <select id="f-court">
-            <option value="">-- Select Court --</option>
-            <option>JMFC Rajpura</option><option>Civil Judge (Jr. Div.) Rajpura</option>
-            <option>Civil Judge (Sr. Div.) Rajpura</option><option>ACJM Rajpura</option>
-            <option>Sessions Court Patiala</option><option>Punjab &amp; Haryana High Court</option><option>Other</option>
-          </select>
-        </div>
-        <div><label>Case Type</label>
-          <select id="f-caseType">
-            <option value="">-- Select Type --</option>
-            <option>Civil Suit</option><option>Criminal Case</option><option>NI Act Sec 138</option>
-            <option>Execution Petition</option><option>Motor Accident</option><option>Family Matter</option>
-            <option>Revenue Case</option><option>Writ Petition</option><option>Appeal</option>
-            <option>Revision</option><option>Bail Application</option><option>Other</option>
-          </select>
-        </div>
-        <div><label>Client Name</label><input id="f-client" placeholder="Client / Complainant"/></div>
-        <div><label>Client Phone</label><input id="f-clientPhone" placeholder="Mobile number"/></div>
-        <div><label>Opposite Party</label><input id="f-opposite" placeholder="Accused / Defendant"/></div>
-        <div><label>Sections / Provisions</label><input id="f-sections" placeholder="e.g. Sec 138 NI Act"/></div>
-        <div><label>Next Date of Hearing</label><input type="date" id="f-nextDate"/></div>
-        <div><label>Stage / Purpose</label><input id="f-stage" placeholder="e.g. Arguments, Evidence"/></div>
-        <div><label>Status</label>
-          <select id="f-status"><option>Active</option><option>Adjourned</option><option>Decided</option><option>Stayed</option><option>Withdrawn</option><option>Closed</option></select>
-        </div>
-        <div class="span2"><label>Remarks / Notes (used for reminders)</label><textarea id="f-remarks" rows="2" placeholder="Notes, instructions, follow-ups..."></textarea></div>
+  <div class="modal"><div class="modal-body">
+    <div class="modal-title" id="case-title-lbl">Add New Case</div>
+    <div class="form-grid">
+      <div class="span2"><label>Case Title / Parties *</label><input id="f-title" placeholder="e.g. Suresh Kumar vs. Tarsem Singh & Others"/></div>
+      <div><label>Case Number</label><input id="f-caseNo" placeholder="e.g. CS-254-2022"/></div>
+      <div><label>CNR Number (eCourts)</label><input id="f-cnr" placeholder="e.g. PBPTA010012022"/></div>
+      <div><label>Court</label>
+        <select id="f-court">
+          <option value="">-- Select Court --</option>
+          <option>JMFC Rajpura</option><option>Civil Judge (Jr. Div.) Rajpura</option>
+          <option>Civil Judge (Sr. Div.) Rajpura</option><option>ACJM Rajpura</option>
+          <option>Sessions Court Patiala</option><option>Punjab &amp; Haryana High Court</option><option>Other</option>
+        </select>
       </div>
-      <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
-        <button class="btn btn-ghost" onclick="closeModal('modal-case')">Cancel</button>
-        <button class="btn btn-blue" onclick="saveCase()">Save Case</button>
+      <div><label>Case Type</label>
+        <select id="f-caseType">
+          <option value="">-- Select Type --</option>
+          <option>Civil Suit</option><option>Criminal Case</option><option>NI Act Sec 138</option>
+          <option>Execution Petition</option><option>Motor Accident</option><option>Family Matter</option>
+          <option>Revenue Case</option><option>Writ Petition</option><option>Appeal</option>
+          <option>Revision</option><option>Bail Application</option><option>Other</option>
+        </select>
       </div>
+      <div><label>Client Name</label><input id="f-client" placeholder="Client / Complainant"/></div>
+      <div><label>Client Phone</label><input id="f-clientPhone" placeholder="Mobile"/></div>
+      <div><label>Opposite Party</label><input id="f-opposite" placeholder="Accused / Defendant"/></div>
+      <div><label>Sections / Acts</label><input id="f-sections" placeholder="e.g. Sec 138 NI Act"/></div>
+      <div><label>Next Hearing Date</label><input type="date" id="f-nextDate"/></div>
+      <div><label>Stage / Purpose</label><input id="f-stage" placeholder="e.g. Arguments, Evidence"/></div>
+      <div><label>Status</label>
+        <select id="f-status"><option>Active</option><option>Adjourned</option><option>Decided</option><option>Stayed</option><option>Withdrawn</option><option>Closed</option></select>
+      </div>
+      <div class="span2"><label>Remarks / Notes (for reminders)</label><textarea id="f-remarks" rows="2" placeholder="Notes, follow-up tasks, instructions..."></textarea></div>
     </div>
-  </div>
+    <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal('modal-case')">Cancel</button>
+      <button class="btn btn-blue" onclick="saveCase()">Save Case</button>
+    </div>
+  </div></div>
 </div>
 
 <!-- CASE DETAIL -->
 <div class="overlay" id="modal-detail">
-  <div class="modal wide">
-    <div class="modal-body">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:13px">
-        <div style="flex:1;padding-right:12px">
-          <div id="d-title" style="font-size:16px;font-weight:700;color:#1e3a5f;line-height:1.35"></div>
-          <span id="d-status-badge" class="badge" style="margin-top:6px;display:inline-block"></span>
-        </div>
-        <button onclick="closeModal('modal-detail')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
+  <div class="modal wide"><div class="modal-body">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:13px">
+      <div style="flex:1;padding-right:12px">
+        <div id="d-title" style="font-size:16px;font-weight:700;color:#1e3a5f;line-height:1.35"></div>
+        <span id="d-badge" class="badge" style="margin-top:6px;display:inline-block"></span>
       </div>
-      <div class="detail-grid" id="d-fields"></div>
-      <div id="d-remarks-wrap" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 13px;margin-bottom:13px">
-        <div style="font-size:11px;color:#7b93ad;text-transform:uppercase;font-weight:600;margin-bottom:4px">Remarks</div>
-        <div id="d-remarks" style="font-size:13px;color:#4b6280;line-height:1.6"></div>
-      </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
-        <button class="btn btn-ghost" onclick="closeModal('modal-detail')">Close</button>
-        <button class="btn btn-ghost" style="border-color:#16a34a;color:#16a34a" onclick="closeModal('modal-detail');openAlertModal(detailId)">🔔 Reminder</button>
-        <button class="btn btn-outline" onclick="openSyncFromDetail()">⟳ Sync eCourts</button>
-        <button class="btn btn-blue" onclick="editFromDetail()">✏ Edit</button>
-      </div>
+      <button onclick="closeModal('modal-detail')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
     </div>
-  </div>
+    <div class="detail-grid" id="d-fields"></div>
+    <div id="d-rem-wrap" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 13px;margin-bottom:13px">
+      <div style="font-size:11px;color:#7b93ad;text-transform:uppercase;font-weight:600;margin-bottom:4px">Remarks</div>
+      <div id="d-rem" style="font-size:13px;color:#4b6280;line-height:1.6"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button class="btn btn-ghost" onclick="closeModal('modal-detail')">Close</button>
+      <button class="btn btn-ghost" style="border-color:#16a34a;color:#16a34a" onclick="closeModal('modal-detail');openReminderModal(detailId)">🔔 Reminder</button>
+      <button class="btn btn-outline" onclick="openSyncFromDetail()">⟳ Sync eCourts</button>
+      <button class="btn btn-blue" onclick="editFromDetail()">✏ Edit</button>
+    </div>
+  </div></div>
 </div>
 
-<!-- eCOURTS SYNC -->
+<!-- ECOURTS SYNC -->
 <div class="overlay" id="modal-sync">
-  <div class="modal">
-    <div class="modal-body">
-      <div class="modal-title">⟳ Sync from eCourts</div>
-      <div id="sync-info" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 13px;margin-bottom:14px;font-size:13px"></div>
-      <div style="background:#f8fafc;border:1px solid #dbeafe;border-radius:8px;padding:13px;margin-bottom:11px">
-        <div style="font-size:11px;font-weight:700;color:#1a56db;margin-bottom:8px">STEP 1 — OPEN eCOURTS</div>
-        <button class="btn btn-outline" style="width:100%;padding:10px" id="sync-open-btn" onclick="openECourts()">🌐 Open eCourts Portal</button>
-        <div style="margin-top:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 11px;font-size:12px;color:#92400e">If 404: go to services.ecourts.gov.in → Case Status → CNR Number</div>
-      </div>
-      <div style="background:#f8fafc;border:1px solid #dbeafe;border-radius:8px;padding:13px;margin-bottom:16px">
-        <div style="font-size:11px;font-weight:700;color:#1a56db;margin-bottom:10px">STEP 2 — ENTER DATE</div>
-        <div style="margin-bottom:10px"><label>Next Date of Hearing</label><input type="date" id="sync-date"/></div>
-        <div><label>Stage (optional)</label><input id="sync-stage" placeholder="e.g. Arguments, Evidence"/></div>
-      </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button class="btn btn-ghost" onclick="closeModal('modal-sync')">Cancel</button>
-        <button class="btn btn-blue" onclick="applySync()">✓ Update Date</button>
-      </div>
+  <div class="modal"><div class="modal-body">
+    <div class="modal-title">⟳ Sync from eCourts</div>
+    <div id="sync-info" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 13px;margin-bottom:14px;font-size:13px"></div>
+    <div style="background:#f8fafc;border:1px solid #dbeafe;border-radius:8px;padding:13px;margin-bottom:11px">
+      <div style="font-size:11px;font-weight:700;color:#1a56db;margin-bottom:8px">STEP 1 — OPEN eCOURTS</div>
+      <button class="btn btn-outline" style="width:100%;padding:10px" id="sync-open-btn" onclick="openECourts()">🌐 Open eCourts Portal</button>
+      <div style="margin-top:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 11px;font-size:12px;color:#92400e">If 404 error: visit services.ecourts.gov.in → Case Status → CNR Number tab → enter CNR manually</div>
     </div>
-  </div>
+    <div style="background:#f8fafc;border:1px solid #dbeafe;border-radius:8px;padding:13px;margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:#1a56db;margin-bottom:10px">STEP 2 — ENTER DATE FROM eCOURTS</div>
+      <div style="margin-bottom:10px"><label>Next Date of Hearing</label><input type="date" id="sync-date"/></div>
+      <div><label>Stage (optional)</label><input id="sync-stage" placeholder="e.g. Arguments, Evidence, Judgment"/></div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal('modal-sync')">Cancel</button>
+      <button class="btn btn-blue" onclick="applySync()">✓ Update Date</button>
+    </div>
+  </div></div>
 </div>
 
 <!-- DELETE -->
@@ -375,12 +395,12 @@ code{background:#eff6ff;color:#1a56db;padding:2px 7px;border-radius:4px;font-fam
   </div></div>
 </div>
 
-<!-- DAILY LIST DATE PICKER -->
+<!-- DAILY LIST DATE -->
 <div class="overlay" id="modal-listdate">
   <div class="modal"><div class="modal-body">
     <div class="modal-title">📋 Generate Daily Cause List</div>
-    <div style="font-size:13px;color:#4b6280;margin-bottom:16px">Select date to generate printable cause list.</div>
-    <label>Date</label>
+    <div style="font-size:13px;color:#4b6280;margin-bottom:16px">Select date to generate printable A4 cause list grouped by court.</div>
+    <label>Hearing Date</label>
     <input type="date" id="list-date" style="margin-bottom:18px"/>
     <div style="display:flex;gap:10px">
       <button class="btn btn-ghost" onclick="closeModal('modal-listdate')">Cancel</button>
@@ -394,15 +414,16 @@ code{background:#eff6ff;color:#1a56db;padding:2px 7px;border-radius:4px;font-fam
   <div class="modal wide"><div class="modal-body">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;flex-wrap:wrap;gap:8px">
       <div>
-        <div style="font-size:15px;font-weight:700;color:#1e3a5f" id="pdf-title">Cause List</div>
-        <div style="font-size:12px;color:#7b93ad" id="pdf-count"></div>
+        <div style="font-size:15px;font-weight:700;color:#1e3a5f" id="pdf-lbl">Cause List</div>
+        <div style="font-size:12px;color:#7b93ad" id="pdf-cnt"></div>
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" onclick="closeModal('modal-pdf')">Close</button>
         <button class="btn btn-blue" onclick="doPrint()">🖨 Print / Save PDF</button>
       </div>
     </div>
-    <div id="pdf-preview" style="background:#fff;border:1px solid #dbeafe;border-radius:8px;padding:20px 22px;font-family:'Times New Roman',serif;color:#111;max-width:210mm;margin:0 auto"></div>
+    <!-- on-screen preview of what will print -->
+    <div id="pdf-screen" style="background:#fff;border:1px solid #dbeafe;border-radius:8px;padding:20px 22px;font-family:'Times New Roman',serif;color:#111;max-width:210mm;margin:0 auto;min-height:100px"></div>
   </div></div>
 </div>
 
@@ -414,470 +435,338 @@ code{background:#eff6ff;color:#1a56db;padding:2px 7px;border-radius:4px;font-fam
       <button onclick="closeModal('modal-import')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
-      <label style="border:2px solid #dbeafe;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:all .15s;background:#fff;display:block" onmouseover="this.style.borderColor='#1a56db'" onmouseout="this.style.borderColor='#dbeafe'">
-        <div style="font-size:26px;margin-bottom:6px">📨</div>
-        <div style="font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:3px">eCourts File</div>
+      <label style="border:2px solid #dbeafe;border-radius:10px;padding:14px;text-align:center;cursor:pointer;display:block;transition:all .15s" onmouseover="this.style.borderColor='#1a56db'" onmouseout="this.style.borderColor='#dbeafe'">
+        <div style="font-size:24px;margin-bottom:6px">📨</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:3px">eCourts File</div>
         <div style="font-size:11px;color:#7b93ad">.txt / .pdf / .json</div>
-        <input type="file" accept=".txt,.pdf,.json" style="display:none" onchange="handleImportFile(event)"/>
+        <input type="file" accept=".txt,.pdf,.json" style="display:none" onchange="handleImport(event)"/>
       </label>
-      <label style="border:2px solid #dbeafe;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:all .15s;background:#fff;display:block" onmouseover="this.style.borderColor='#16a34a'" onmouseout="this.style.borderColor='#dbeafe'">
-        <div style="font-size:26px;margin-bottom:6px">📊</div>
-        <div style="font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:3px">Excel / CSV</div>
+      <label style="border:2px solid #dbeafe;border-radius:10px;padding:14px;text-align:center;cursor:pointer;display:block;transition:all .15s" onmouseover="this.style.borderColor='#16a34a'" onmouseout="this.style.borderColor='#dbeafe'">
+        <div style="font-size:24px;margin-bottom:6px">📊</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:3px">Excel / CSV</div>
         <div style="font-size:11px;color:#7b93ad">.xlsx / .csv</div>
-        <input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImportFile(event)"/>
+        <input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleImport(event)"/>
       </label>
-      <label style="border:2px solid #dbeafe;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:all .15s;background:#fff;display:block" onmouseover="this.style.borderColor='#0891b2'" onmouseout="this.style.borderColor='#dbeafe'">
-        <div style="font-size:26px;margin-bottom:6px">💾</div>
-        <div style="font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:3px">LexTrack Backup</div>
+      <label style="border:2px solid #dbeafe;border-radius:10px;padding:14px;text-align:center;cursor:pointer;display:block;transition:all .15s" onmouseover="this.style.borderColor='#0891b2'" onmouseout="this.style.borderColor='#dbeafe'">
+        <div style="font-size:24px;margin-bottom:6px">💾</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:3px">LexTrack Backup</div>
         <div style="font-size:11px;color:#7b93ad">.json backup</div>
-        <input type="file" accept=".json" style="display:none" onchange="handleImportFile(event)"/>
+        <input type="file" accept=".json" style="display:none" onchange="handleImport(event)"/>
       </label>
     </div>
-    <div id="import-status" style="display:none;border-radius:8px;padding:11px 14px;font-size:13px;margin-bottom:14px"></div>
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px 14px">
-      <div style="font-weight:700;color:#16a34a;font-size:13px;margin-bottom:6px">How to get eCourts email file:</div>
-      <div style="font-size:12.5px;color:#4b6280;line-height:1.7">
-        Login to <strong>services.ecourts.gov.in</strong> → Advocate → My Cases → <strong>Send to Email</strong> → Download the <strong>.txt attachment</strong> → Upload here
-      </div>
+    <div id="imp-status" style="display:none;border-radius:8px;padding:11px 14px;font-size:13px;margin-bottom:14px"></div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px 14px;font-size:13px;color:#4b6280">
+      <strong style="color:#16a34a">eCourts file:</strong> Login to services.ecourts.gov.in → Advocate → My Cases → Send to Email → Download .txt attachment → Upload here
     </div>
   </div></div>
 </div>
 
-<!-- REMINDER / ALERT -->
-<div class="overlay" id="modal-alert">
+<!-- REMINDER -->
+<div class="overlay" id="modal-reminder">
   <div class="modal"><div class="modal-body">
     <div class="modal-title">🔔 Set Reminder</div>
-    <div id="alert-case-name" style="font-size:13px;color:#4b6280;margin-bottom:14px;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-weight:600"></div>
-    <input type="hidden" id="alert-case-id"/>
+    <div id="rem-case" style="font-size:13px;color:#4b6280;margin-bottom:14px;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-weight:600"></div>
+    <input type="hidden" id="rem-id"/>
     <div style="display:grid;gap:12px">
-      <div><label>Reminder Message</label><textarea id="alert-msg" rows="2" placeholder="e.g. Prepare arguments, Collect documents, Call client..."></textarea></div>
+      <div><label>Reminder Message</label><textarea id="rem-msg" rows="2" placeholder="e.g. Prepare arguments, Collect documents from client..."></textarea></div>
       <div>
         <label>Alert Date &amp; Time</label>
-        <input type="datetime-local" id="alert-datetime"/>
-        <div style="font-size:11px;color:#7b93ad;margin-top:4px">You'll get a browser notification + in-app alert at this time.</div>
+        <input type="datetime-local" id="rem-dt"/>
+        <div style="font-size:11px;color:#7b93ad;margin-top:4px">Browser notification + in-app alert at this time.</div>
       </div>
       <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px">
         <div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:6px">Quick Set</div>
         <div style="display:flex;gap:7px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="quickAlert(0)">Today 9am</button>
-          <button class="btn btn-ghost btn-sm" onclick="quickAlert(1)">Tomorrow</button>
-          <button class="btn btn-ghost btn-sm" onclick="quickAlert(2)">2 Days</button>
-          <button class="btn btn-ghost btn-sm" onclick="quickAlert(7)">1 Week</button>
-          <button class="btn btn-ghost btn-sm" onclick="quickAlertHearing()">Day Before Hearing</button>
+          <button class="btn btn-ghost btn-sm" onclick="qAlert(0)">Today 9am</button>
+          <button class="btn btn-ghost btn-sm" onclick="qAlert(1)">Tomorrow 9am</button>
+          <button class="btn btn-ghost btn-sm" onclick="qAlert(2)">2 Days</button>
+          <button class="btn btn-ghost btn-sm" onclick="qAlert(7)">1 Week</button>
+          <button class="btn btn-ghost btn-sm" onclick="qAlertHearing()">Day Before Hearing</button>
         </div>
       </div>
     </div>
     <div style="display:flex;gap:10px;margin-top:14px;justify-content:flex-end">
-      <button class="btn btn-ghost" onclick="closeModal('modal-alert')">Cancel</button>
-      <button class="btn btn-green" onclick="saveAlert()">🔔 Set Reminder</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-reminder')">Cancel</button>
+      <button class="btn btn-green" onclick="saveReminder()">🔔 Set Reminder</button>
     </div>
   </div></div>
 </div>
 
 <!-- REMINDER FIRED -->
-<div class="overlay" id="modal-alert-fired">
+<div class="overlay" id="modal-fired">
   <div class="modal"><div class="modal-body" style="text-align:center;padding:28px 24px">
     <div style="font-size:44px;margin-bottom:12px;animation:pulse 1s infinite">🔔</div>
     <div style="font-size:18px;font-weight:700;color:#1e3a5f;margin-bottom:8px">Reminder!</div>
-    <div id="alert-fired-case" style="font-size:12px;color:#7b93ad;margin-bottom:10px"></div>
-    <div id="alert-fired-msg" style="font-size:15px;color:#1e3a5f;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:14px;line-height:1.5;margin-bottom:20px"></div>
-    <button class="btn btn-blue" style="width:100%" onclick="closeModal('modal-alert-fired')">OK, Got It</button>
+    <div id="fired-case" style="font-size:12px;color:#7b93ad;margin-bottom:10px"></div>
+    <div id="fired-msg" style="font-size:15px;color:#1e3a5f;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:14px;line-height:1.5;margin-bottom:20px"></div>
+    <button class="btn btn-blue" style="width:100%" onclick="closeModal('modal-fired')">OK, Got It</button>
   </div></div>
 </div>
 
-<!-- ACCOUNT / CLOUD -->
+<!-- ACCOUNT -->
 <div class="overlay" id="modal-account">
   <div class="modal"><div class="modal-body">
     <div class="modal-title">👤 Account &amp; Cloud Sync</div>
-    <div id="account-info" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:14px;margin-bottom:16px"></div>
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#4b6280;line-height:1.6">
-      <strong style="color:#16a34a">☁ Real-time sync is active.</strong> Your cases are stored in Firebase Firestore and sync instantly across all devices logged in with the same Google account. Open this app on any device and sign in to access all your cases.
+    <div id="acct-info" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:14px;margin-bottom:14px"></div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px 14px;font-size:13px;color:#4b6280;line-height:1.6;margin-bottom:14px">
+      ☁ Cases are stored in <strong>Firebase Firestore</strong> and sync across all devices instantly. Open this app on any phone, laptop or iPad and sign in with the same Google account to access all cases.
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
       <button class="btn btn-ghost" onclick="closeModal('modal-account')">Close</button>
       <button class="btn btn-ghost" onclick="exportData()">⬆ Export Backup</button>
-      <button class="btn btn-red" onclick="signOut()">Sign Out</button>
+      <button class="btn btn-red" onclick="doSignOut()">Sign Out</button>
     </div>
   </div></div>
 </div>
 
 <!-- FIREBASE SETUP GUIDE -->
 <div class="overlay" id="modal-setup">
-  <div class="modal wide"><div class="modal-body">
+  <div class="modal xwide"><div class="modal-body">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <div class="modal-title" style="margin-bottom:0">🔥 Firebase Setup Guide</div>
+      <div class="modal-title" style="margin-bottom:0">🔥 Firebase Setup Guide (5 minutes, free)</div>
       <button onclick="closeModal('modal-setup')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
     </div>
-
     <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#4b6280">
-      Firebase is <strong style="color:#1a56db">Google's free cloud platform</strong>. The free tier gives you <strong>50,000 reads + 20,000 writes per day</strong> — more than enough for any advocate. Takes about <strong>5 minutes</strong> to set up.
+      Firebase is Google's free cloud platform. Free tier: <strong>50,000 reads + 20,000 writes/day</strong> — more than enough. Completely free for any advocate.
     </div>
-
-    <div class="setup-step">
-      <span class="setup-num">1</span><strong>Go to Firebase Console</strong>
-      <div style="margin-top:8px;font-size:13px;color:#4b6280">Open <a href="https://console.firebase.google.com" target="_blank" style="color:#1a56db">console.firebase.google.com</a> → Sign in with your Google account → Click <strong>"Create a project"</strong></div>
-      <div style="margin-top:6px;font-size:13px;color:#4b6280">Name: <code>lextrack</code> → Disable Google Analytics (optional) → Create project</div>
+    <div class="s-step"><span class="s-num">1</span><strong>Create Firebase Project</strong>
+      <div style="margin-top:8px;font-size:13px;color:#4b6280">Go to <a href="https://console.firebase.google.com" target="_blank" style="color:#1a56db;font-weight:600">console.firebase.google.com</a> → Sign in with your Google account → Click <strong>"Add project"</strong> → Name: <code>lextrack</code> → Continue → Disable Analytics (optional) → Create project → Continue</div>
     </div>
-
-    <div class="setup-step">
-      <span class="setup-num">2</span><strong>Add a Web App</strong>
-      <div style="margin-top:8px;font-size:13px;color:#4b6280">In your project → Click <strong>"&lt;/&gt;"</strong> (Web) icon → App nickname: <code>lextrack-web</code> → Register app → <strong>Copy the firebaseConfig object shown</strong></div>
+    <div class="s-step"><span class="s-num">2</span><strong>Register Web App &amp; get config</strong>
+      <div style="margin-top:8px;font-size:13px;color:#4b6280">In project page → Click <strong>&lt;/&gt;</strong> icon (Web) → App nickname: <code>lextrack-web</code> → Register app → You'll see a <code>firebaseConfig</code> object → <strong>Copy it all</strong></div>
     </div>
-
-    <div class="setup-step">
-      <span class="setup-num">3</span><strong>Enable Google Sign-In</strong>
-      <div style="margin-top:8px;font-size:13px;color:#4b6280">Left sidebar → <strong>Authentication</strong> → Get started → Sign-in method → <strong>Google</strong> → Enable → Add your email as support email → Save</div>
+    <div class="s-step"><span class="s-num">3</span><strong>Enable Google Sign-In</strong>
+      <div style="margin-top:8px;font-size:13px;color:#4b6280">Left menu → <strong>Build → Authentication</strong> → Get started → Sign-in method tab → Click <strong>Google</strong> → Enable → Add your email → Save</div>
     </div>
-
-    <div class="setup-step">
-      <span class="setup-num">4</span><strong>Create Firestore Database</strong>
-      <div style="margin-top:8px;font-size:13px;color:#4b6280">Left sidebar → <strong>Firestore Database</strong> → Create database → Start in <strong>production mode</strong> → Choose location: <code>asia-south1</code> (Mumbai) → Done</div>
-      <div style="margin-top:8px;font-size:13px;color:#4b6280">Then go to <strong>Rules</strong> tab → Replace with:</div>
-      <div class="code-block">rules_version = '2';
+    <div class="s-step"><span class="s-num">4</span><strong>Create Firestore Database</strong>
+      <div style="margin-top:8px;font-size:13px;color:#4b6280">Left menu → <strong>Build → Firestore Database</strong> → Create database → Production mode → Location: <code>asia-south1</code> (Mumbai) → Enable</div>
+      <div style="margin-top:8px;font-size:13px;color:#4b6280">Then go to <strong>Rules</strong> tab → Replace all content with:</div>
+      <div class="code-blk">rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId}/cases/{caseId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    match /users/{userId}/alerts/{alertId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    match /users/{uid}/cases/{cid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
     }
   }
 }</div>
       <div style="font-size:12px;color:#4b6280">Click <strong>Publish</strong></div>
     </div>
-
-    <div class="setup-step">
-      <span class="setup-num">5</span><strong>Add Authorized Domain (for GitHub Pages)</strong>
-      <div style="margin-top:8px;font-size:13px;color:#4b6280">Authentication → Settings → <strong>Authorized domains</strong> → Add domain → Enter: <code>aman6539.github.io</code></div>
+    <div class="s-step"><span class="s-num">5</span><strong>Add Authorized Domain</strong>
+      <div style="margin-top:8px;font-size:13px;color:#4b6280">Authentication → Settings → <strong>Authorized domains</strong> → Add domain → Enter: <code>aman6539.github.io</code> → Add</div>
     </div>
-
-    <div class="setup-step">
-      <span class="setup-num">6</span><strong>Paste your Firebase Config below</strong>
-      <div style="margin-top:8px;font-size:13px;color:#4b6280">Copy the <code>firebaseConfig</code> from Step 2 and paste it here:</div>
-      <textarea id="fb-config-input" rows="8" style="font-family:monospace;font-size:12px;margin-top:8px;background:#1e2128;color:#00e5a0;border-color:#2a2d35" placeholder='{
-  "apiKey": "AIza...",
-  "authDomain": "lextrack-xxxxx.firebaseapp.com",
-  "projectId": "lextrack-xxxxx",
-  "storageBucket": "lextrack-xxxxx.appspot.com",
+    <div class="s-step"><span class="s-num">6</span><strong>Paste Firebase Config Here</strong>
+      <div style="margin-top:8px;font-size:13px;color:#4b6280">Paste the <code>firebaseConfig</code> object you copied in Step 2:</div>
+      <textarea id="fb-input" rows="9" style="font-family:monospace;font-size:12px;margin-top:8px;background:#1e2128;color:#00e5a0;border-color:#2a2d35" placeholder='{
+  "apiKey": "AIzaSy...",
+  "authDomain": "your-project.firebaseapp.com",
+  "projectId": "your-project",
+  "storageBucket": "your-project.appspot.com",
   "messagingSenderId": "123456789",
-  "appId": "1:123456789:web:abcdef"
+  "appId": "1:123:web:abc"
 }'></textarea>
       <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="btn btn-blue" onclick="applyFirebaseConfig()">✓ Apply Config &amp; Reload</button>
+        <button class="btn btn-blue" onclick="applyConfig()">✓ Apply Config &amp; Reload</button>
         <button class="btn btn-ghost" onclick="closeModal('modal-setup')">Cancel</button>
       </div>
-      <div id="config-msg" style="margin-top:8px;font-size:12px"></div>
+      <div id="cfg-msg" style="margin-top:8px;font-size:12px"></div>
     </div>
-
   </div></div>
 </div>
 
 <script>
-// ============================================================
-// ── FIREBASE CONFIG ──────────────────────────────────────────
-// Paste your Firebase config here OR use the Setup Guide
-// ============================================================
-var FIREBASE_CONFIG = null; // Will be loaded from localStorage or setup guide
+// ════════════════════════════════════════════════════════════
+// FIREBASE CONFIG — Stored in localStorage after setup
+// ════════════════════════════════════════════════════════════
+var CFG_KEY = 'lx_fb_config_v1';
+var LOC_KEY = 'lx_cases_offline_v1';
+var ALT_KEY = 'lx_alerts_v1';
 
-var SMETA = {
-  'Active':   {c:'#16a34a',bg:'#f0fdf4',b:'#bbf7d0'},
-  'Adjourned':{c:'#d97706',bg:'#fffbeb',b:'#fde68a'},
-  'Decided':  {c:'#4f46e5',bg:'#eef2ff',b:'#c7d2fe'},
-  'Stayed':   {c:'#0891b2',bg:'#ecfeff',b:'#a5f3fc'},
-  'Withdrawn':{c:'#dc2626',bg:'#fef2f2',b:'#fecaca'},
-  'Closed':   {c:'#64748b',bg:'#f8fafc',b:'#e2e8f0'}
-};
-
+var fbConfig = null;
+var db = null, auth = null;
+var currentUser = null;
+var isCloud = false;
+var unsub = null;
 var cases = [];
+var alerts = [];
+var alertTimers = {};
 var currentView = 'all';
 var editingId = null, syncingId = null, deletingId = null, detailId = null;
-var currentUser = null;
-var db = null, auth = null;
-var isOnline = false;
-var alertTimers = {};
-var alerts = [];
-var LOCAL_KEY = 'lextrack_offline_v1';
-var CONFIG_KEY = 'lextrack_firebase_config';
-var unsubscribeSnapshot = null;
 
-// ── INIT ──────────────────────────────────────────────────────
-window.onload = function(){
-  document.getElementById('list-date').value = todayStr();
-
-  // Try to load saved Firebase config
-  try{
-    var saved = localStorage.getItem(CONFIG_KEY);
-    if(saved) FIREBASE_CONFIG = JSON.parse(saved);
-  }catch(e){}
-
-  if(FIREBASE_CONFIG){
-    initFirebase(FIREBASE_CONFIG);
-  } else {
-    // Show setup notice
-    document.getElementById('firebase-setup-notice').style.display = 'block';
-  }
-
-  // Load local alerts
-  loadLocalAlerts();
+var SM = {
+  Active:   {c:'#16a34a',bg:'#f0fdf4',b:'#bbf7d0'},
+  Adjourned:{c:'#d97706',bg:'#fffbeb',b:'#fde68a'},
+  Decided:  {c:'#4f46e5',bg:'#eef2ff',b:'#c7d2fe'},
+  Stayed:   {c:'#0891b2',bg:'#ecfeff',b:'#a5f3fc'},
+  Withdrawn:{c:'#dc2626',bg:'#fef2f2',b:'#fecaca'},
+  Closed:   {c:'#64748b',bg:'#f8fafc',b:'#e2e8f0'}
 };
 
-// ── FIREBASE INIT ─────────────────────────────────────────────
-function initFirebase(config){
+// ════════ INIT ════════
+window.onload = function(){
+  document.getElementById('list-date').value = todayStr();
+  try{ var s=localStorage.getItem(CFG_KEY); if(s) fbConfig=JSON.parse(s); }catch(e){}
+  try{ var a=localStorage.getItem(ALT_KEY); if(a) alerts=JSON.parse(a); }catch(e){}
+  if(fbConfig){ initFB(fbConfig); }
+  else { document.getElementById('login-msg').textContent='No Firebase config yet. Use Setup Guide or continue offline.'; }
+  scheduleAllAlerts();
+  reqNotif();
+};
+
+// ════════ FIREBASE INIT ════════
+function initFB(cfg){
   try{
-    if(!firebase.apps.length){
-      firebase.initializeApp(config);
-    }
-    db   = firebase.firestore();
+    if(!firebase.apps.length) firebase.initializeApp(cfg);
+    db = firebase.firestore();
     auth = firebase.auth();
-
-    // Enable offline persistence
-    db.enablePersistence({synchronizeTabs:true}).catch(function(e){
-      console.log('Persistence:', e.code);
-    });
-
-    // Auth state listener
+    // Offline persistence
+    db.enablePersistence({synchronizeTabs:true}).catch(function(){});
+    // Auth listener
     auth.onAuthStateChanged(function(user){
-      if(user){
-        currentUser = user;
-        isOnline = true;
-        showApp(user);
-        startCloudSync(user);
-      } else {
-        currentUser = null;
-      }
+      if(user){ currentUser=user; isCloud=true; showApp(user); startSync(user); }
+      else { currentUser=null; }
     });
-
-    // Network status
-    db.collection('_ping').onSnapshot(function(){
-      updateSyncIndicator(true);
-    }, function(){
-      updateSyncIndicator(false);
-    });
-
-  }catch(e){
-    console.error('Firebase init error:', e);
-    showToast('Firebase error: '+e.message+'. Use offline mode.','error');
-  }
+  }catch(e){ console.error('FB init:',e); toast('Firebase error: '+e.message+'. Using offline mode.','error'); }
 }
 
-// ── GOOGLE SIGN IN ────────────────────────────────────────────
+// ════════ GOOGLE SIGN IN ════════
 function signInGoogle(){
-  if(!FIREBASE_CONFIG){
-    document.getElementById('firebase-setup-notice').style.display = 'block';
-    document.getElementById('login-msg').style.display = 'block';
-    document.getElementById('login-msg').textContent = 'Please configure Firebase first using the Setup Guide below.';
-    return;
-  }
-  document.getElementById('login-msg').style.display = 'block';
-  document.getElementById('login-msg').textContent = 'Opening Google sign-in...';
+  if(!fbConfig){ document.getElementById('login-msg').innerHTML='<span style="color:#dc2626">Please configure Firebase first. Click Setup Guide below.</span>'; return; }
+  document.getElementById('login-msg').textContent='Opening Google sign-in...';
   var provider = new firebase.auth.GoogleAuthProvider();
-  provider.addScope('email');
-  provider.addScope('profile');
   auth.signInWithPopup(provider).catch(function(e){
-    document.getElementById('login-msg').textContent = 'Sign-in failed: '+e.message;
-    // Try redirect as fallback
-    if(e.code === 'auth/popup-blocked'){
-      auth.signInWithRedirect(provider);
-    }
+    if(e.code==='auth/popup-blocked') auth.signInWithRedirect(provider);
+    else document.getElementById('login-msg').innerHTML='<span style="color:#dc2626">'+e.message+'</span>';
   });
 }
-
 function useOffline(){
-  isOnline = false;
-  // Load from localStorage
-  try{
-    var saved = localStorage.getItem(LOCAL_KEY);
-    if(saved) cases = JSON.parse(saved);
-  }catch(e){}
+  isCloud=false;
+  try{ var s=localStorage.getItem(LOC_KEY); if(s) cases=JSON.parse(s); }catch(e){}
   showApp(null);
 }
-
-function signOut(){
-  if(auth && currentUser){
-    if(unsubscribeSnapshot) unsubscribeSnapshot();
-    auth.signOut();
-  }
-  currentUser = null; isOnline = false; cases = [];
+function doSignOut(){
+  if(auth) auth.signOut();
+  if(unsub){ unsub(); unsub=null; }
+  currentUser=null; isCloud=false; cases=[];
   closeModal('modal-account');
-  document.getElementById('main-header').style.display = 'none';
-  document.getElementById('main-body').style.display   = 'none';
-  document.getElementById('login-screen').style.display = 'flex';
-  showToast('Signed out.','warn');
+  document.getElementById('main-header').style.display='none';
+  document.getElementById('main-body').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  toast('Signed out.','warn');
 }
 
-// ── SHOW APP ──────────────────────────────────────────────────
+// ════════ SHOW APP ════════
 function showApp(user){
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('main-header').style.display  = 'flex';
-  document.getElementById('main-body').style.display    = 'block';
-
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('main-header').style.display='flex';
+  document.getElementById('main-body').style.display='block';
   if(user){
-    document.getElementById('user-pill').style.display    = 'flex';
-    document.getElementById('offline-badge').style.display = 'none';
-    document.getElementById('user-photo').src = user.photoURL || '';
-    document.getElementById('user-name-short').textContent = user.displayName ? user.displayName.split(' ')[0] : 'User';
-    document.getElementById('hdr-user').textContent = (user.displayName||user.email)+' · Cloud Sync Active';
-
-    // Account info modal
-    document.getElementById('account-info').innerHTML =
-      '<div style="display:flex;align-items:center;gap:12px">'
-      +(user.photoURL?'<img src="'+user.photoURL+'" style="width:44px;height:44px;border-radius:50%;border:2px solid #bfdbfe"/>':'<div style="width:44px;height:44px;border-radius:50%;background:#1a56db;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px">👤</div>')
-      +'<div><div style="font-weight:700;font-size:15px;color:#1e3a5f">'+(user.displayName||'User')+'</div>'
-      +'<div style="font-size:12px;color:#7b93ad">'+user.email+'</div>'
-      +'<div style="font-size:11px;color:#16a34a;margin-top:3px">☁ Synced with Firebase Firestore</div>'
-      +'</div></div>';
+    document.getElementById('user-pill').style.display='flex';
+    document.getElementById('offline-badge').style.display='none';
+    document.getElementById('user-photo').src=user.photoURL||'';
+    document.getElementById('user-short').textContent=(user.displayName||'').split(' ')[0]||'User';
+    document.getElementById('hdr-sub').textContent=(user.displayName||user.email)+' · ☁ Cloud Sync Active';
+    document.getElementById('cloud-banner').innerHTML='<strong style="color:#1a56db">☁ Cloud Sync Active:</strong> Cases sync in real-time across all devices. Open on any device and sign in with the same Google account. <span id="last-sync" style="margin-left:8px;color:#16a34a;font-size:12px"></span>';
+    document.getElementById('acct-info').innerHTML='<div style="display:flex;align-items:center;gap:12px">'+(user.photoURL?'<img src="'+user.photoURL+'" style="width:44px;height:44px;border-radius:50%;border:2px solid #bfdbfe"/>':'<div style="width:44px;height:44px;border-radius:50%;background:#1a56db;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px">👤</div>')+'<div><div style="font-weight:700;font-size:15px;color:#1e3a5f">'+(user.displayName||'User')+'</div><div style="font-size:12px;color:#7b93ad">'+user.email+'</div><div style="font-size:11px;color:#16a34a;margin-top:3px">☁ Synced · Firebase Firestore</div></div></div>';
   } else {
-    document.getElementById('user-pill').style.display    = 'none';
-    document.getElementById('offline-badge').style.display = 'block';
-    document.getElementById('hdr-user').textContent = 'Offline mode — data saved locally';
-    document.getElementById('account-info').innerHTML =
-      '<div style="font-size:13px;color:#4b6280"><strong>Offline Mode</strong> — cases saved on this device only.<br>Sign in with Google to enable cloud sync.</div>';
+    document.getElementById('user-pill').style.display='none';
+    document.getElementById('offline-badge').style.display='inline-flex';
+    document.getElementById('hdr-sub').textContent='Offline mode — cases saved locally';
+    document.getElementById('cloud-banner').innerHTML='<strong style="color:#d97706">⚠ Offline Mode:</strong> Cases saved on this device only. Sign in with Google for real-time sync across all devices.';
+    document.getElementById('acct-info').innerHTML='<div style="font-size:13px;color:#4b6280"><strong>Offline Mode</strong> — cases saved locally. <a href="#" onclick="closeModal(\'modal-account\');openModal(\'modal-setup\')" style="color:#1a56db">Setup Firebase</a> for cloud sync.</div>';
+    renderAll();
   }
-  renderAll();
-  scheduleAllAlerts();
-  requestNotifPermission();
 }
 
-// ── CLOUD SYNC (FIRESTORE) ────────────────────────────────────
-function startCloudSync(user){
-  if(!db || !user) return;
-  if(unsubscribeSnapshot) unsubscribeSnapshot();
-  showSyncBar('Connecting to cloud...');
+// ════════ REAL-TIME FIRESTORE SYNC ════════
+function startSync(user){
+  if(!db||!user) return;
+  if(unsub){ unsub(); }
+  document.getElementById('sync-bar').style.display='block';
+  document.getElementById('sync-msg').textContent='Connecting to cloud...';
+  document.getElementById('sync-pill').textContent='⟳ Syncing';
+  document.getElementById('sync-pill').style.color='#d97706';
 
-  unsubscribeSnapshot = db.collection('users').doc(user.uid).collection('cases')
-    .onSnapshot(function(snapshot){
-      hideSyncBar();
-      updateLastSync();
-      updateSyncIndicator(true);
-
-      // Build cases from snapshot
-      var cloudCases = [];
-      snapshot.forEach(function(doc){
-        cloudCases.push(Object.assign({}, doc.data(), {id: doc.id}));
-      });
-      cases = cloudCases;
+  unsub = db.collection('users').doc(user.uid).collection('cases')
+    .onSnapshot(function(snap){
+      document.getElementById('sync-bar').style.display='none';
+      setSyncPill(true);
+      var now = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+      var el = document.getElementById('last-sync');
+      if(el) el.textContent='● Last synced: '+now;
+      cases=[];
+      snap.forEach(function(doc){ cases.push(Object.assign({},doc.data(),{id:doc.id})); });
       renderAll();
+      document.getElementById('cloud-lbl').className='';
+      document.getElementById('cloud-lbl').textContent='☁';
     }, function(err){
-      updateSyncIndicator(false);
-      showToast('Cloud sync error. Working offline.','error');
-      // Fall back to local
-      try{ var s=localStorage.getItem(LOCAL_KEY); if(s) cases=JSON.parse(s); }catch(e){}
-      renderAll();
+      setSyncPill(false);
+      toast('Sync error. Working offline.','error');
+      try{ var s=localStorage.getItem(LOC_KEY); if(s) cases=JSON.parse(s); renderAll(); }catch(e){}
     });
 }
 
-function saveCase_cloud(data){
-  if(!db || !currentUser){
-    // Offline save
-    saveLocal();
-    return;
-  }
-  showCloudIcon('syncing');
-  var ref = db.collection('users').doc(currentUser.uid).collection('cases');
-  if(data.id){
-    ref.doc(data.id).set(data, {merge:true})
-      .then(function(){ showCloudIcon('ok'); showToast('Case saved & synced to cloud.'); })
-      .catch(function(e){ showToast('Sync error: '+e.message,'error'); });
-  } else {
-    data.id = genId();
-    ref.doc(data.id).set(data)
-      .then(function(){ showCloudIcon('ok'); showToast('Case added & synced.'); })
-      .catch(function(e){ showToast('Sync error: '+e.message,'error'); });
-  }
+function setSyncPill(online){
+  var el=document.getElementById('sync-pill');
+  el.textContent=online?'● Online':'◌ Offline';
+  el.style.color=online?'#16a34a':'#d97706';
+  el.style.background=online?'#f0fdf4':'#fffbeb';
+  el.style.borderColor=online?'#bbf7d0':'#fde68a';
 }
 
-function deleteCase_cloud(id){
-  if(!db || !currentUser){
-    cases = cases.filter(function(c){return c.id!==id;});
-    saveLocal(); renderAll();
-    return;
-  }
+function cloudSave(data){
+  if(!db||!currentUser){ saveLocal(); return; }
+  document.getElementById('cloud-lbl').className='cloud-syncing';
+  document.getElementById('cloud-lbl').textContent='⟳';
+  db.collection('users').doc(currentUser.uid).collection('cases').doc(data.id).set(data,{merge:true})
+    .then(function(){
+      document.getElementById('cloud-lbl').className='';
+      document.getElementById('cloud-lbl').textContent='☁';
+    })
+    .catch(function(e){ toast('Cloud save error: '+e.message,'error'); saveLocal(); });
+}
+function cloudDelete(id){
+  if(!db||!currentUser){ saveLocal(); return; }
   db.collection('users').doc(currentUser.uid).collection('cases').doc(id).delete()
-    .then(function(){ showToast('Case deleted.','error'); })
-    .catch(function(e){ showToast('Delete error: '+e.message,'error'); });
+    .catch(function(e){ toast('Delete error: '+e.message,'error'); });
 }
+function saveLocal(){ try{ localStorage.setItem(LOC_KEY,JSON.stringify(cases)); }catch(e){} }
 
-function saveLocal(){
-  try{ localStorage.setItem(LOCAL_KEY, JSON.stringify(cases)); }catch(e){}
-}
-
-function showSyncBar(msg){
-  var bar = document.getElementById('sync-bar');
-  bar.style.display = 'flex';
-  document.getElementById('sync-msg').textContent = msg||'Syncing...';
-}
-function hideSyncBar(){
-  setTimeout(function(){ document.getElementById('sync-bar').style.display='none'; },1500);
-}
-function updateSyncIndicator(online){
-  var el = document.getElementById('sync-indicator');
-  if(!el) return;
-  el.textContent = online ? '● Online' : '◌ Offline';
-  el.style.background = online?'#f0fdf4':'#fffbeb';
-  el.style.color = online?'#16a34a':'#d97706';
-  el.style.borderColor = online?'#bbf7d0':'#fde68a';
-}
-function showCloudIcon(state){
-  var el = document.getElementById('cloud-icon');
-  if(!el) return;
-  if(state==='syncing'){ el.textContent='⟳'; el.className='cloud-icon syncing'; }
-  else { el.textContent='☁'; el.className='cloud-icon'; }
-}
-function updateLastSync(){
-  var el = document.getElementById('last-sync-time');
-  if(el) el.textContent = '● Last synced: '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
-}
-
-// ── FIREBASE CONFIG SETUP ──────────────────────────────────────
-function applyFirebaseConfig(){
-  var raw = document.getElementById('fb-config-input').value.trim();
-  var msg = document.getElementById('config-msg');
+// ════════ FIREBASE CONFIG SETUP ════════
+function applyConfig(){
+  var raw=document.getElementById('fb-input').value.trim();
+  var msgEl=document.getElementById('cfg-msg');
+  if(!raw){ msgEl.innerHTML='<span style="color:#dc2626">Paste config first.</span>'; return; }
   try{
-    // Handle both JS object and JSON
-    var cleaned = raw.replace(/(\w+):/g,'"$1":').replace(/'/g,'"');
-    // Better: just try eval-safe parse
-    var config;
-    if(raw.startsWith('{')){
-      try{ config = JSON.parse(raw); }
-      catch(e){
-        // Try removing trailing commas
-        var fixed = raw.replace(/,(\s*[}\]])/g,'$1');
-        config = JSON.parse(fixed);
-      }
-    } else {
-      msg.innerHTML = '<span style="color:#dc2626">Please paste the config object starting with {</span>';
-      return;
+    var cfg;
+    try{ cfg=JSON.parse(raw); }
+    catch(e){
+      // Try stripping trailing commas
+      var fixed=raw.replace(/,(\s*[}\]])/g,'$1');
+      cfg=JSON.parse(fixed);
     }
-    if(!config.apiKey || !config.projectId){
-      msg.innerHTML = '<span style="color:#dc2626">Invalid config — missing apiKey or projectId</span>';
-      return;
-    }
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-    FIREBASE_CONFIG = config;
-    msg.innerHTML = '<span style="color:#16a34a">✓ Config saved! Reloading...</span>';
-    setTimeout(function(){ location.reload(); }, 1200);
-  }catch(e){
-    msg.innerHTML = '<span style="color:#dc2626">Parse error: '+e.message+'<br>Make sure to paste valid JSON (use double quotes around keys)</span>';
-  }
+    if(!cfg.apiKey||!cfg.projectId){ msgEl.innerHTML='<span style="color:#dc2626">Invalid config — missing apiKey or projectId.</span>'; return; }
+    localStorage.setItem(CFG_KEY,JSON.stringify(cfg));
+    msgEl.innerHTML='<span style="color:#16a34a">✓ Config saved! Reloading in 1 second...</span>';
+    setTimeout(function(){ location.reload(); },1200);
+  }catch(e){ msgEl.innerHTML='<span style="color:#dc2626">Parse error: '+e.message+'. Make sure it is valid JSON with double quotes.</span>'; }
 }
 
-// ============================================================
+// ════════════════════════════════════════════════════════════
 // HELPERS
-// ============================================================
+// ════════════════════════════════════════════════════════════
 function genId(){ return Date.now().toString(36)+Math.random().toString(36).substr(2); }
 function todayStr(){ return new Date().toISOString().split('T')[0]; }
-function fmtDate(d){ if(!d)return'-'; var p=d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
+function fmtDate(d){ if(!d)return'—'; var p=d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function showToast(msg, type){
+function toast(msg,type){
   type=type||'ok';
   var t=document.getElementById('toast');
-  var cols={ok:{bg:'#f0fdf4',c:'#16a34a',b:'#bbf7d0'},error:{bg:'#fef2f2',c:'#dc2626',b:'#fecaca'},warn:{bg:'#fffbeb',c:'#d97706',b:'#fde68a'}};
-  var col=cols[type]||cols.ok;
-  t.style.background=col.bg; t.style.color=col.c; t.style.border='1px solid '+col.b;
-  t.style.display='block'; t.innerHTML=msg;
-  clearTimeout(t._t); t._t=setTimeout(function(){t.style.display='none';},3500);
+  var c={ok:{bg:'#f0fdf4',c:'#16a34a',b:'#bbf7d0'},error:{bg:'#fef2f2',c:'#dc2626',b:'#fecaca'},warn:{bg:'#fffbeb',c:'#d97706',b:'#fde68a'}};
+  var col=c[type]||c.ok;
+  t.style.background=col.bg;t.style.color=col.c;t.style.border='1px solid '+col.b;
+  t.style.display='block';t.innerHTML=msg;
+  clearTimeout(t._t);t._t=setTimeout(function(){t.style.display='none';},4000);
 }
 function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
@@ -885,17 +774,17 @@ document.querySelectorAll('.overlay').forEach(function(el){
   el.addEventListener('click',function(e){ if(e.target===el) el.classList.remove('open'); });
 });
 
-// ============================================================
+// ════════════════════════════════════════════════════════════
 // RENDER
-// ============================================================
+// ════════════════════════════════════════════════════════════
 function renderAll(){ renderStats(); renderTable(); }
 
 function renderStats(){
-  var today=todayStr(); var now=new Date(); var y=now.getFullYear(); var m=now.getMonth();
-  var dow=now.getDay(); var diff=dow===0?-6:1-dow;
-  var ws=new Date(now); ws.setDate(now.getDate()+diff); ws.setHours(0,0,0,0);
-  var we=new Date(ws); we.setDate(ws.getDate()+6);
-  var wss=ws.toISOString().split('T')[0]; var wes=we.toISOString().split('T')[0];
+  var today=todayStr(),now=new Date(),y=now.getFullYear(),m=now.getMonth();
+  var dow=now.getDay(),diff=dow===0?-6:1-dow;
+  var ws=new Date(now);ws.setDate(now.getDate()+diff);ws.setHours(0,0,0,0);
+  var we=new Date(ws);we.setDate(ws.getDate()+6);
+  var wss=ws.toISOString().split('T')[0],wes=we.toISOString().split('T')[0];
   document.getElementById('s-total').textContent=cases.length;
   document.getElementById('s-today').textContent=cases.filter(function(c){return c.nextDate===today;}).length;
   document.getElementById('s-week').textContent=cases.filter(function(c){return c.nextDate&&c.nextDate>=wss&&c.nextDate<=wes;}).length;
@@ -910,11 +799,11 @@ function switchView(v){
 }
 
 function getDisplayed(){
-  var today=todayStr(); var now=new Date(); var y=now.getFullYear(); var mo=now.getMonth();
-  var dow=now.getDay(); var diff=dow===0?-6:1-dow;
-  var ws=new Date(now); ws.setDate(now.getDate()+diff); ws.setHours(0,0,0,0);
-  var we=new Date(ws); we.setDate(ws.getDate()+6);
-  var wss=ws.toISOString().split('T')[0]; var wes=we.toISOString().split('T')[0];
+  var today=todayStr(),now=new Date(),y=now.getFullYear(),mo=now.getMonth();
+  var dow=now.getDay(),diff=dow===0?-6:1-dow;
+  var ws=new Date(now);ws.setDate(now.getDate()+diff);ws.setHours(0,0,0,0);
+  var we=new Date(ws);we.setDate(ws.getDate()+6);
+  var wss=ws.toISOString().split('T')[0],wes=we.toISOString().split('T')[0];
   var q=(document.getElementById('search-input').value||'').toLowerCase().trim();
   return cases.filter(function(c){
     if(currentView==='today'&&c.nextDate!==today)return false;
@@ -925,248 +814,263 @@ function getDisplayed(){
   }).sort(function(a,b){if(!a.nextDate)return 1;if(!b.nextDate)return -1;return a.nextDate.localeCompare(b.nextDate);});
 }
 
-function mkBadge(s){var sm=SMETA[s]||SMETA['Closed'];return'<span class="badge" style="background:'+sm.bg+';color:'+sm.c+';border:1px solid '+sm.b+'">'+esc(s||'-')+'</span>';}
+function mkBadge(s){var sm=SM[s]||SM.Closed;return'<span class="badge" style="background:'+sm.bg+';color:'+sm.c+';border:1px solid '+sm.b+'">'+esc(s||'—')+'</span>';}
 
 function renderTable(){
-  var today=todayStr(); var list=getDisplayed();
-  document.getElementById('count-label').textContent=list.length+' / '+cases.length+' case'+(cases.length!==1?'s':'');
+  var today=todayStr(),list=getDisplayed();
+  document.getElementById('count-lbl').textContent=list.length+' / '+cases.length+' case'+(cases.length!==1?'s':'');
   if(!list.length){
     document.getElementById('tbl-body').innerHTML='<div style="padding:50px;text-align:center;color:#7b93ad"><div style="font-size:36px;margin-bottom:11px">⚖️</div><div style="font-size:14px;font-weight:600;color:#4b6280">'+(cases.length?'No cases match':'No cases yet')+'</div></div>';
     return;
   }
   var html='';
   list.forEach(function(c){
-    var it=c.nextDate===today; var ip=c.nextDate&&c.nextDate<today;
+    var it=c.nextDate===today,ip=c.nextDate&&c.nextDate<today;
     var dc=it?'#16a34a':ip?'#dc2626':'#1e3a5f';
-    var sub=c.lastSynced?'⟳ '+new Date(c.lastSynced).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}):'';
-    var hasAlerts=getAlertsForCase(c.id).length>0;
+    var hasAlerts=alerts.some(function(a){return a.caseId===c.id&&!a.done;});
     html+='<div class="tbl-row" onclick="openDetail(\''+c.id+'\')">'
-      +'<div><div class="cell-title">'+esc(c.title||'-')+(hasAlerts?' 🔔':'' )+'</div><div class="cell-sub">'+esc(c.client||'-')+'</div></div>'
-      +'<div><div class="cell-case">'+esc(c.caseNo||'-')+'</div>'+(c.cnr?'<div class="cell-sub">CNR: '+esc(c.cnr)+'</div>':'')+'</div>'
-      +'<div style="font-size:12px;color:#4b6280;word-break:break-word">'+esc(c.court||'-')+'</div>'
+      +'<div><div class="cell-title">'+esc(c.title||'—')+(hasAlerts?' 🔔':'')+'</div><div class="cell-sub">'+esc(c.client||'—')+'</div></div>'
+      +'<div><div class="cell-case">'+esc(c.caseNo||'—')+'</div>'+(c.cnr?'<div class="cell-sub">CNR: '+esc(c.cnr)+'</div>':'')+'</div>'
+      +'<div style="font-size:12px;color:#4b6280">'+esc(c.court||'—')+'</div>'
       +'<div><div style="font-size:12px;font-weight:'+(it?'700':'500')+';color:'+dc+'">'+fmtDate(c.nextDate)+'</div>'
         +(it?'<div style="font-size:10px;color:#16a34a;font-weight:700">TODAY</div>':'')
         +(ip&&!it&&c.nextDate?'<div style="font-size:10px;color:#dc2626;font-weight:600">PAST DUE</div>':'')
-        +(sub?'<div style="font-size:10px;color:#7b93ad">'+esc(sub)+'</div>':'')
       +'</div>'
-      +'<div style="font-size:12px;color:#4b6280">'+esc(c.caseType||'-')+'</div>'
+      +'<div style="font-size:12px;color:#4b6280">'+esc(c.caseType||'—')+'</div>'
       +'<div>'+mkBadge(c.status)+'</div>'
       +'<div style="display:flex;gap:4px;justify-content:center" onclick="event.stopPropagation()">'
         +'<button class="btn btn-outline btn-sm" title="eCourts Sync" onclick="openSync(\''+c.id+'\')">⟳</button>'
         +'<button class="btn btn-sm" style="background:#fffbeb;border:1px solid #fde68a;color:#d97706" title="Edit" onclick="openEdit(\''+c.id+'\')">✏</button>'
-        +'<button class="btn btn-sm" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a" title="Reminder" onclick="openAlertModal(\''+c.id+'\')">🔔</button>'
+        +'<button class="btn btn-sm" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a" title="Reminder" onclick="openReminderModal(\''+c.id+'\')">🔔</button>'
         +'<button class="btn btn-sm" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626" title="Delete" onclick="openDelete(\''+c.id+'\')">🗑</button>'
-      +'</div>'
-      +'</div>';
+      +'</div></div>';
   });
   document.getElementById('tbl-body').innerHTML=html;
 }
 
-// ============================================================
+// ════════════════════════════════════════════════════════════
 // CASE CRUD
-// ============================================================
+// ════════════════════════════════════════════════════════════
 var FLDS=['title','caseNo','cnr','client','clientPhone','opposite','court','caseType','status','nextDate','stage','sections','remarks'];
 
-function openAddCase(){editingId=null;document.getElementById('case-modal-title').textContent='Add New Case';FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=f==='status'?'Active':'';});openModal('modal-case');}
-function openEdit(id){var c=cases.find(function(x){return x.id===id;});if(!c)return;editingId=id;document.getElementById('case-modal-title').textContent='Edit Case';FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=c[f]||'';});openModal('modal-case');}
+function openAddCase(){ editingId=null; document.getElementById('case-title-lbl').textContent='Add New Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=f==='status'?'Active':'';}); openModal('modal-case'); }
+function openEdit(id){ var c=cases.find(function(x){return x.id===id;}); if(!c)return; editingId=id; document.getElementById('case-title-lbl').textContent='Edit Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=c[f]||'';}); openModal('modal-case'); }
 
 function saveCase(){
   var title=document.getElementById('f-title').value.trim();
   var caseNo=document.getElementById('f-caseNo').value.trim();
-  if(!title&&!caseNo){alert('Please enter case title or case number.');return;}
+  if(!title&&!caseNo){alert('Enter case title or case number.');return;}
   var data={};
   FLDS.forEach(function(f){var el=document.getElementById('f-'+f);data[f]=el?el.value.trim():'';});
-  data.updatedAt = new Date().toISOString();
+  data.updatedAt=new Date().toISOString();
   if(editingId){
     data.id=editingId;
     var idx=cases.findIndex(function(c){return c.id===editingId;});
     if(idx>=0){data.createdAt=cases[idx].createdAt;data.lastSynced=cases[idx].lastSynced||null;}
-    if(isOnline && currentUser){
-      saveCase_cloud(data);
-    } else {
-      cases[idx]=data; saveLocal(); renderAll(); showToast('Case updated.');
-    }
+    if(isCloud){cloudSave(data);}else{cases[idx]=data;saveLocal();renderAll();toast('Case updated.');}
   } else {
-    data.id=genId(); data.createdAt=todayStr(); data.lastSynced=null;
-    if(isOnline && currentUser){
-      saveCase_cloud(data);
-    } else {
-      cases.push(data); saveLocal(); renderAll(); showToast('Case added.');
-    }
+    data.id=genId();data.createdAt=todayStr();data.lastSynced=null;
+    if(isCloud){cloudSave(data);}else{cases.push(data);saveLocal();renderAll();toast('Case added.');}
   }
   closeModal('modal-case');
 }
 
 function openDetail(id){
-  var c=cases.find(function(x){return x.id===id;}); if(!c)return; detailId=id;
-  document.getElementById('d-title').textContent=c.title||'-';
-  var sm=SMETA[c.status]||SMETA['Closed']; var sb=document.getElementById('d-status-badge');
-  sb.textContent=c.status||'-';sb.style.background=sm.bg;sb.style.color=sm.c;sb.style.border='1px solid '+sm.b;
-  var rows=[['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Type',c.caseType],['Client',c.client],['Phone',c.clientPhone],['Opposite',c.opposite],['Sections',c.sections],['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],['Added',fmtDate(c.createdAt)],['Cloud Sync',c.updatedAt?new Date(c.updatedAt).toLocaleString('en-IN'):null]];
-  document.getElementById('d-fields').innerHTML=rows.filter(function(r){return r[1];}).map(function(r){return'<div class="detail-field"><div class="detail-key">'+esc(r[0])+'</div><div class="detail-val" style="font-weight:'+(r[0]==='Next Hearing'?'700':'400')+'">'+esc(r[1])+'</div></div>';}).join('');
-  var rw=document.getElementById('d-remarks-wrap');
-  if(c.remarks){rw.style.display='block';document.getElementById('d-remarks').textContent=c.remarks;}else rw.style.display='none';
+  var c=cases.find(function(x){return x.id===id;});if(!c)return;detailId=id;
+  document.getElementById('d-title').textContent=c.title||'—';
+  var sm=SM[c.status]||SM.Closed;
+  var b=document.getElementById('d-badge');
+  b.textContent=c.status||'—';b.style.background=sm.bg;b.style.color=sm.c;b.style.border='1px solid '+sm.b;
+  var rows=[['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Type',c.caseType],['Client',c.client],['Phone',c.clientPhone],['Opposite',c.opposite],['Sections',c.sections],['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],['Added',fmtDate(c.createdAt)],['Last Updated',c.updatedAt?new Date(c.updatedAt).toLocaleString('en-IN'):null]];
+  document.getElementById('d-fields').innerHTML=rows.filter(function(r){return r[1];}).map(function(r){return'<div class="detail-field"><div class="detail-key">'+esc(r[0])+'</div><div class="detail-val" style="font-weight:'+(r[0]==='Next Hearing'?700:400)+'">'+esc(r[1])+'</div></div>';}).join('');
+  var rw=document.getElementById('d-rem-wrap');
+  if(c.remarks){rw.style.display='block';document.getElementById('d-rem').textContent=c.remarks;}else rw.style.display='none';
   openModal('modal-detail');
 }
 function editFromDetail(){closeModal('modal-detail');openEdit(detailId);}
 function openSyncFromDetail(){closeModal('modal-detail');openSync(detailId);}
 function openDelete(id){var c=cases.find(function(x){return x.id===id;});if(!c)return;deletingId=id;document.getElementById('del-name').textContent='"'+(c.title||c.caseNo)+'" will be permanently deleted.';openModal('modal-delete');}
-function confirmDelete(){deleteCase_cloud(deletingId);setConfirmDel(null);closeModal('modal-delete');}
-function setConfirmDel(id){deletingId=id;}
+function confirmDelete(){
+  if(isCloud){cloudDelete(deletingId);}else{cases=cases.filter(function(c){return c.id!==deletingId;});saveLocal();renderAll();}
+  closeModal('modal-delete');closeModal('modal-detail');toast('Case deleted.','error');
+}
 
-// ── eCOURTS SYNC ─────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// eCOURTS SYNC
+// ════════════════════════════════════════════════════════════
 function openSync(id){
-  var c=cases.find(function(x){return x.id===id;});if(!c)return;
-  syncingId=id;
+  var c=cases.find(function(x){return x.id===id;});if(!c)return;syncingId=id;
   document.getElementById('sync-date').value=c.nextDate||'';
   document.getElementById('sync-stage').value=c.stage||'';
   var cnr=c.cnr||'';
-  document.getElementById('sync-info').innerHTML='<strong>'+esc(c.title||'-')+'</strong><br><span style="font-size:12px;color:#4b6280">'+esc(c.caseNo||'')+(c.court?' | '+esc(c.court):'')+'</span>'+(cnr?'<br><span style="font-size:12px;color:#1a56db;font-weight:600">CNR: '+esc(cnr)+'</span>':'<br><span style="font-size:12px;color:#d97706">No CNR — add CNR in Edit to enable direct eCourts link.</span>');
+  document.getElementById('sync-info').innerHTML='<strong>'+esc(c.title||'—')+'</strong><br><span style="font-size:12px;color:#4b6280">'+esc(c.caseNo||'')+(c.court?' | '+esc(c.court):'')+'</span>'+(cnr?'<br><span style="font-size:12px;color:#1a56db;font-weight:600">CNR: '+esc(cnr)+'</span>':'<br><span style="font-size:12px;color:#d97706">No CNR — add CNR in Edit for direct eCourts link</span>');
   document.getElementById('sync-open-btn').textContent=cnr?'🌐 Open eCourts — CNR: '+cnr:'🌐 Open eCourts Services';
   openModal('modal-sync');
 }
-function openECourts(){
-  var c=cases.find(function(x){return x.id===syncingId;}); var cnr=c&&c.cnr?c.cnr.trim():'';
-  window.open(cnr?'https://services.ecourts.gov.in/ecourtindia_v6/?p=casestatus/index&searchby=2&cino='+encodeURIComponent(cnr):'https://services.ecourts.gov.in/ecourtindia_v6/','_blank');
-}
+function openECourts(){var c=cases.find(function(x){return x.id===syncingId;});var cnr=c&&c.cnr?c.cnr.trim():'';window.open(cnr?'https://services.ecourts.gov.in/ecourtindia_v6/?p=casestatus/index&searchby=2&cino='+encodeURIComponent(cnr):'https://services.ecourts.gov.in/ecourtindia_v6/','_blank');}
 function applySync(){
-  var nd=document.getElementById('sync-date').value; var ns=document.getElementById('sync-stage').value.trim();
-  if(!nd){alert('Please enter next hearing date.');return;}
+  var nd=document.getElementById('sync-date').value,ns=document.getElementById('sync-stage').value.trim();
+  if(!nd){alert('Enter next hearing date.');return;}
   var idx=cases.findIndex(function(c){return c.id===syncingId;});
-  if(idx>=0){
-    cases[idx].nextDate=nd; cases[idx].lastSynced=new Date().toISOString(); if(ns)cases[idx].stage=ns;
-    if(isOnline&&currentUser){saveCase_cloud(cases[idx]);}else{saveLocal();renderAll();}
-  }
-  closeModal('modal-sync'); showToast('Next date updated.');
+  if(idx>=0){cases[idx].nextDate=nd;cases[idx].lastSynced=new Date().toISOString();if(ns)cases[idx].stage=ns;if(isCloud)cloudSave(cases[idx]);else{saveLocal();renderAll();}}
+  closeModal('modal-sync');toast('Next date updated.');
 }
 
-// ── EXPORT / IMPORT ──────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// EXPORT / IMPORT
+// ════════════════════════════════════════════════════════════
 function exportData(){
-  if(!cases.length){showToast('No cases to export.','warn');return;}
+  if(!cases.length){toast('No cases to export.','warn');return;}
   var blob=new Blob([JSON.stringify(cases,null,2)],{type:'application/json'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='lextrack_backup_'+todayStr()+'.json';a.click();
-  showToast('Exported '+cases.length+' cases.');
+  toast('Exported '+cases.length+' cases.');
 }
 
-function handleImportFile(e){
+function handleImport(e){
   var file=e.target.files[0];if(!file)return;
-  var statusEl=document.getElementById('import-status');
-  statusEl.style.display='block';
-  statusEl.style.background='#eff6ff';statusEl.style.color='#1a56db';statusEl.style.border='1px solid #bfdbfe';
-  statusEl.innerHTML='Reading <strong>'+esc(file.name)+'</strong>...';
-
-  var processText=function(text){
-    var imported=parseECourtsText(text);
-    if(!imported||!imported.length){
-      try{
-        var d=JSON.parse(text);
-        if(Array.isArray(d)&&d.length){
-          imported=d;
-        }
-      }catch(ex){}
-    }
-    if(!imported||!imported.length){
-      statusEl.style.background='#fef2f2';statusEl.style.color='#dc2626';statusEl.style.border='1px solid #fecaca';
-      statusEl.textContent='Could not read file. Try pasting the content instead.';return;
-    }
+  var st=document.getElementById('imp-status');
+  st.style.display='block';st.style.background='#eff6ff';st.style.color='#1a56db';st.style.border='1px solid #bfdbfe';
+  st.innerHTML='Reading <strong>'+esc(file.name)+'</strong>...';
+  var go=function(text){
+    var imp=parseECourts(text);
+    if(!imp||!imp.length){try{var d=JSON.parse(text);if(Array.isArray(d)&&d.length){imp=d;}}catch(x){}}
+    if(!imp||!imp.length){st.style.background='#fef2f2';st.style.color='#dc2626';st.style.border='1px solid #fecaca';st.textContent='Could not read file. Try the LexTrack Converter tool.';return;}
     var added=0,updated=0;
-    imported.forEach(function(ic){
+    imp.forEach(function(ic){
       var idx=cases.findIndex(function(c){return ic.cnr&&c.cnr===ic.cnr;});
-      if(idx>=0){cases[idx].nextDate=ic.nextDate;cases[idx].stage=ic.stage||cases[idx].stage;cases[idx].status=ic.status;cases[idx].lastSynced=new Date().toISOString();updated++;}
-      else{cases.push(ic);added++;}
+      if(idx>=0){cases[idx].nextDate=ic.nextDate;cases[idx].stage=ic.stage||cases[idx].stage;cases[idx].status=ic.status;cases[idx].lastSynced=new Date().toISOString();updated++;if(isCloud)cloudSave(cases[idx]);}
+      else{cases.push(ic);added++;if(isCloud)cloudSave(ic);}
     });
-    if(isOnline&&currentUser){
-      imported.forEach(function(ic){saveCase_cloud(ic);});
-    } else {saveLocal();}
-    renderAll();
-    statusEl.style.background='#f0fdf4';statusEl.style.color='#16a34a';statusEl.style.border='1px solid #bbf7d0';
-    statusEl.innerHTML='✓ <strong>'+added+' added</strong>, '+updated+' updated.';
-    showToast('Import done: '+added+' added, '+updated+' updated.');
+    if(!isCloud){saveLocal();renderAll();}
+    st.style.background='#f0fdf4';st.style.color='#16a34a';st.style.border='1px solid #bbf7d0';
+    st.innerHTML='✓ <strong>'+added+' added</strong>, '+updated+' dates updated.';
+    toast('Import done: '+added+' added, '+updated+' updated.');
   };
-
   if(file.name.toLowerCase().endsWith('.pdf')){
-    var reader=new FileReader();
-    reader.onload=function(ev){
-      var bytes=new Uint8Array(ev.target.result);
-      var raw='';for(var i=0;i<bytes.length;i++){var b=bytes[i];if(b>=32||b===10||b===13)raw+=String.fromCharCode(b);}
-      processText(raw);
-    };
-    reader.readAsArrayBuffer(file);
+    var r=new FileReader();r.onload=function(ev){var bytes=new Uint8Array(ev.target.result),raw='';for(var i=0;i<bytes.length;i++){var b=bytes[i];if(b>=32||b===10||b===13)raw+=String.fromCharCode(b);}go(raw);};r.readAsArrayBuffer(file);
   } else {
-    var reader=new FileReader();
-    reader.onload=function(ev){processText(ev.target.result);};
-    reader.readAsText(file,'UTF-8');
+    var r=new FileReader();r.onload=function(ev){go(ev.target.result);};r.readAsText(file,'UTF-8');
   }
   e.target.value='';
 }
 
-// ── eCOURTS TEXT PARSER ───────────────────────────────────────
-function parseECourtsText(raw){
+function parseECourts(raw){
   var text=raw.replace(/\r?\n/g,'');
-  var getAll=function(fn){var re=new RegExp('\\\\*"'+fn+'\\\\*"\\\\*:\\\\*"([^"\\\\]+?)\\\\*"','g');var r=[],m;while((m=re.exec(text))!==null)r.push(m[1].trim());return r;};
-  var cinos=getAll('cino'),pets=getAll('petparty_name'),res=getAll('resparty_name'),dates=getAll('date_next_list'),purps=getAll('purpose_name'),courts=getAll('court_no_desg_name'),cnos=getAll('case_no');
+  var ga=function(fn){var re=new RegExp('\\\\*"'+fn+'\\\\*"\\\\*:\\\\*"([^"\\\\]+?)\\\\*"','g'),r=[],m;while((m=re.exec(text))!==null)r.push(m[1].trim());return r;};
+  var cinos=ga('cino'),pets=ga('petparty_name'),res=ga('resparty_name'),dates=ga('date_next_list'),purps=ga('purpose_name'),courts=ga('court_no_desg_name'),cnos=ga('case_no');
   if(!cinos.length)return[];
-  var n=Math.min(cinos.length,pets.length||cinos.length,res.length||cinos.length,dates.length||cinos.length);
+  var n=Math.min(cinos.length,Math.max(pets.length,1),Math.max(res.length,1),Math.max(dates.length,1));
   var today=todayStr(),out=[];
   for(var i=0;i<n;i++){
-    var nd=dates[i]||'';var dm=nd.replace(/\s/g,'').match(/^(\d{4})-(\d{2})(\d{2})$/);if(dm)nd=dm[1]+'-'+dm[2]+'-'+dm[3];
+    var nd=(dates[i]||'').replace(/\s/g,'');
+    var dm=nd.match(/^(\d{4})-(\d{2})(\d{2})$/);if(dm)nd=dm[1]+'-'+dm[2]+'-'+dm[3];
     var pet=fixN(pets[i]||''),resp=fixN(res[i]||''),ct=(courts[i]||'').replace(/\s+/g,' ').trim();
-    out.push({id:cinos[i]+'_'+i,cnr:cinos[i],caseNo:cnos[i]||'',title:pet+' vs. '+resp,client:pet,opposite:resp,court:mapCt(ct),caseType:'',nextDate:nd,stage:purps[i]||'',status:nd&&nd>=today?'Active':'Adjourned',sections:'',remarks:'Court: '+ct,createdAt:today,lastSynced:null});
+    out.push({id:cinos[i]+'_'+i,cnr:cinos[i],caseNo:cnos[i]||'',title:pet+' vs. '+resp,client:pet,opposite:resp,court:mapCourt(ct),caseType:'',nextDate:nd,stage:purps[i]||'',status:nd&&nd>=today?'Active':'Adjourned',sections:'',remarks:'Court: '+ct,createdAt:today,lastSynced:null,updatedAt:new Date().toISOString()});
   }
   return out;
 }
 function fixN(s){return s.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/\s+/g,' ').trim();}
-function mapCt(c){var u=c.toUpperCase();if(/SUB.DIV|JMFC|MAGISTRATE.*IST|MAGISTRATE.*1ST/.test(u))return'JMFC Rajpura';if(/ACJM/.test(u))return'ACJM Rajpura';if(/CIVIL.*JR|CIVIL.*JUNIOR|ADDITIONAL.*CIVIL/.test(u))return'Civil Judge (Jr. Div.) Rajpura';if(/CIVIL.*SR|CIVIL.*SENIOR/.test(u))return'Civil Judge (Sr. Div.) Rajpura';if(/SESSION/.test(u))return'Sessions Court Patiala';if(/HIGH.COURT/.test(u))return'Punjab & Haryana High Court';return c||'Other';}
+function mapCourt(c){var u=c.toUpperCase();if(/SUB.DIV|JMFC|MAGIST.*IST|MAGIST.*1ST/.test(u))return'JMFC Rajpura';if(/ACJM/.test(u))return'ACJM Rajpura';if(/CIVIL.*JR|CIVIL.*JUN|ADD.*CIVIL/.test(u))return'Civil Judge (Jr. Div.) Rajpura';if(/CIVIL.*SR|CIVIL.*SEN/.test(u))return'Civil Judge (Sr. Div.) Rajpura';if(/SESSION/.test(u))return'Sessions Court Patiala';if(/HIGH.COURT/.test(u))return'Punjab & Haryana High Court';return c||'Other';}
 
-// ── DAILY LIST / PDF ─────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// DAILY CAUSE LIST — A4 PORTRAIT PDF
+// ════════════════════════════════════════════════════════════
 function generateList(){
-  var dv=document.getElementById('list-date').value;if(!dv){alert('Please select a date.');return;}
+  var dv=document.getElementById('list-date').value;
+  if(!dv){alert('Please select a date.');return;}
   var list=cases.filter(function(c){return c.nextDate===dv;});
-  buildPDF(dv,list);closeModal('modal-listdate');openModal('modal-pdf');
+  buildPDF(dv,list);
+  closeModal('modal-listdate');
+  openModal('modal-pdf');
 }
 
 function buildPDF(dv,list){
-  document.getElementById('pdf-title').textContent='Cause List - '+fmtDate(dv);
-  document.getElementById('pdf-count').textContent=list.length+' case'+(list.length!==1?'s':'')+' on this date';
+  document.getElementById('pdf-lbl').textContent='Cause List — '+fmtDate(dv);
+  document.getElementById('pdf-cnt').textContent=list.length+' case'+(list.length!==1?'s':'')+' on this date';
+
+  var advName=(currentUser&&currentUser.displayName)?currentUser.displayName:'Amandeep Sharma';
+
+  // Group by court — natural order
   var courtOrder=[],courtMap={};
-  list.forEach(function(c){var ct=(c.court||'Other').trim();if(!courtMap[ct]){courtMap[ct]=[];courtOrder.push(ct);}courtMap[ct].push(c);});
-  var sno=0,body='';
-  if(!list.length){body='<tr><td colspan="4" style="text-align:center;padding:28px;color:#888">No cases scheduled for this date.</td></tr>';}
-  else{
+  list.forEach(function(c){
+    var ct=(c.court||'Other Court').trim();
+    if(!courtMap[ct]){courtMap[ct]=[];courtOrder.push(ct);}
+    courtMap[ct].push(c);
+  });
+
+  var sno=0;
+  var courtSections='';
+
+  if(list.length===0){
+    courtSections='<p style="text-align:center;padding:30pt 0;color:#888;font-size:11pt">No cases scheduled for this date.</p>';
+  } else {
     courtOrder.forEach(function(ct){
       var cc=courtMap[ct];
-      body+='<tr><td colspan="4" style="background:#1a56db;color:#fff;font-weight:700;font-size:10px;padding:5px 8px;letter-spacing:.6px;text-transform:uppercase;border:1px solid #1a56db">'+esc(ct)+' <span style="font-weight:400;font-size:9px;opacity:.9">('+cc.length+' case'+(cc.length!==1?'s':'')+')</span></td></tr>';
+      var rows='';
       cc.forEach(function(c){
         sno++;
-        body+='<tr><td style="text-align:center;font-weight:700;font-size:11px;vertical-align:top;width:28px">'+sno+'.</td><td style="font-size:11px;vertical-align:top"><strong>'+esc(c.title||'-')+'</strong>'+(c.client?'<br><span style="font-size:9px;color:#444">('+esc(c.client)+')</span>':'')+'</td><td style="font-size:10px;vertical-align:top;color:#333;width:80px">'+esc(c.stage||'-')+'</td><td style="text-align:center;vertical-align:top;width:72px">&nbsp;</td></tr>';
+        rows+='<tr>'
+          +'<td>'+sno+'.</td>'
+          +'<td><div class="p-title-cell">'+esc(c.title||'—')+'</div>'+(c.client?'<div class="p-client-cell">('+esc(c.client)+')</div>':'')+'</td>'
+          +'<td class="p-stage-cell">'+esc(c.stage||'—')+'</td>'
+          +'<td class="p-date-cell">&nbsp;</td>'
+          +'</tr>';
       });
+      courtSections+='<div class="p-court-section">'
+        +'<div class="p-court-hdr">'+esc(ct)+' <span style="font-weight:normal;font-size:8pt;opacity:.9">('+cc.length+' case'+(cc.length!==1?'s':'')+')</span></div>'
+        +'<table class="p-tbl">'
+        +'<thead><tr>'
+        +'<th style="width:24pt;text-align:center">S.No.</th>'
+        +'<th>Case Name / Parties</th>'
+        +'<th style="width:70pt">Stage</th>'
+        +'<th style="width:60pt;text-align:center">Next Date</th>'
+        +'</tr></thead>'
+        +'<tbody>'+rows+'</tbody>'
+        +'</table>'
+        +'</div>';
     });
   }
-  var summary=courtOrder.length>1?'<div style="margin-bottom:10px;font-size:9.5px;color:#444;border:1px solid #bfdbfe;border-radius:4px;padding:5px 10px;background:#f8fbff"><strong style="color:#1a56db">Courts today: </strong>'+courtOrder.map(function(ct){return esc(ct)+' ('+courtMap[ct].length+')';}).join(' &bull; ')+'</div>':'';
-  var table='<table style="width:100%;border-collapse:collapse;table-layout:fixed"><colgroup><col style="width:28px"/><col/><col style="width:80px"/><col style="width:72px"/></colgroup><thead><tr style="background:#eff6ff"><th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:center;font-size:10px">S.No.</th><th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:left;font-size:10px">Case Name / Parties</th><th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:left;font-size:10px">Stage</th><th style="border:1px solid #bfdbfe;padding:6px 7px;text-align:center;font-size:10px">Next Date</th></tr></thead><tbody>'+body+'</tbody></table>';
-  var advName = currentUser && currentUser.displayName ? currentUser.displayName : 'Amandeep Sharma';
-  var content='<div class="print-hdr"><div class="court-lbl">IN THE COURT AT RAJPURA, DISTRICT PATIALA, PUNJAB</div><h1>DAILY CAUSE LIST</h1><div style="font-size:12px;margin-top:3px">Date: <strong>'+fmtDate(dv)+'</strong></div><div style="font-size:10.5px;color:#444;margin-top:3px">Advocate: '+esc(advName)+' (PH/3112/2020) | Chamber No. 103, Civil Court Complex, Rajpura</div></div>'+summary+table+'<div class="print-foot"><div style="font-size:11px">Total: <strong>'+list.length+'</strong><br><span style="color:#888;font-size:10px">'+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})+'</span></div><div><div class="sig-line">'+esc(advName)+'</div><div style="font-size:9px;color:#666;text-align:right">Advocate, Rajpura</div></div></div>';
-  document.getElementById('pdf-preview').innerHTML=content;
-  document.getElementById('print-area').innerHTML=content;
+
+  // Court summary line
+  var summaryLine='';
+  if(courtOrder.length>1){
+    summaryLine='<div class="p-summary"><strong>Courts today: </strong>'+courtOrder.map(function(ct){return esc(ct)+' ('+courtMap[ct].length+')';}).join(' &bull; ')+'</div>';
+  }
+
+  var html=''
+    +'<div class="ph">'
+    +'<div class="ph-court">In the Court at Rajpura, District Patiala, Punjab</div>'
+    +'<h1>Daily Cause List</h1>'
+    +'<div class="ph-date">Date: <strong>'+fmtDate(dv)+'</strong></div>'
+    +'<div class="ph-adv">Advocate: '+esc(advName)+' (PH/3112/2020) | Chamber No. 103, Civil Court Complex, Rajpura</div>'
+    +'</div>'
+    +summaryLine
+    +courtSections
+    +'<div class="p-footer">'
+    +'<div>Total Cases: <strong>'+list.length+'</strong><br><span style="font-size:8.5pt;color:#666">Generated: '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})+'</span></div>'
+    +'<div class="p-sig"><div class="p-sig-line">'+esc(advName)+'</div><div style="font-size:8.5pt;color:#666">Advocate, Rajpura</div></div>'
+    +'</div>';
+
+  // Set both the print area AND the on-screen preview
+  document.getElementById('print-area').innerHTML = html;
+  document.getElementById('pdf-screen').innerHTML = html;
 }
 
 function doPrint(){
   var pa=document.getElementById('print-area');
-  if(!pa||!pa.innerHTML.trim()){alert('Generate a cause list first.');return;}
-  pa.style.display='block';pa.style.position='fixed';pa.style.top='0';pa.style.left='0';pa.style.width='100%';pa.style.zIndex='99999';pa.style.background='#fff';
-  setTimeout(function(){
-    window.print();
-    setTimeout(function(){pa.style.display='none';pa.style.position='absolute';pa.style.left='-9999px';},1000);
-  },200);
+  if(!pa.innerHTML.trim()){alert('Generate a cause list first.');return;}
+  // Make sure print-area is visible for print
+  pa.style.display='block';
+  window.print();
+  // hide after print dialog closes
+  setTimeout(function(){ pa.style.display='none'; },2000);
 }
 
-// ── ALERTS / REMINDERS ───────────────────────────────────────
-var ALERT_KEY='lextrack_alerts_v2';
-function loadLocalAlerts(){try{var a=localStorage.getItem(ALERT_KEY);if(a)alerts=JSON.parse(a);}catch(e){}}
-function saveLocalAlerts(){localStorage.setItem(ALERT_KEY,JSON.stringify(alerts));}
-function getAlertsForCase(cid){return alerts.filter(function(a){return a.caseId===cid&&!a.done;});}
-
-function scheduleAllAlerts(){alerts.forEach(function(a){if(!a.done)scheduleAlert(a);});}
+// ════════════════════════════════════════════════════════════
+// REMINDERS / ALERTS
+// ════════════════════════════════════════════════════════════
+function saveLocalAlerts(){ try{localStorage.setItem(ALT_KEY,JSON.stringify(alerts));}catch(e){} }
+function scheduleAllAlerts(){ alerts.forEach(function(a){if(!a.done)scheduleAlert(a);}); }
 function scheduleAlert(a){
   if(alertTimers[a.id])clearTimeout(alertTimers[a.id]);
   var delay=new Date(a.fireAt).getTime()-Date.now();
@@ -1176,41 +1080,42 @@ function scheduleAlert(a){
 function fireAlert(a){
   a.done=true;saveLocalAlerts();
   if(window.Notification&&Notification.permission==='granted'){
-    new Notification('LexTrack Reminder',{body:a.msg,icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">⚖️</text></svg>'});
+    new Notification('LexTrack Reminder',{body:a.msg,icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><text y="26" font-size="28">⚖️</text></svg>'});
   }
-  showToast('🔔 REMINDER: '+a.msg,'ok');
-  document.getElementById('alert-fired-case').textContent=a.caseTitle||'';
-  document.getElementById('alert-fired-msg').textContent=a.msg;
-  openModal('modal-alert-fired');
+  toast('🔔 REMINDER: '+a.msg,'ok');
+  document.getElementById('fired-case').textContent=a.caseTitle||'';
+  document.getElementById('fired-msg').textContent=a.msg;
+  openModal('modal-fired');
   renderTable();
 }
-function requestNotifPermission(){if(window.Notification&&Notification.permission==='default')Notification.requestPermission();}
-function openAlertModal(cid){
+function reqNotif(){ if(window.Notification&&Notification.permission==='default')Notification.requestPermission(); }
+
+function openReminderModal(cid){
   var c=cases.find(function(x){return x.id===cid;});if(!c)return;
-  document.getElementById('alert-case-name').textContent=c.title||c.caseNo||'Case';
-  document.getElementById('alert-case-id').value=cid;
-  document.getElementById('alert-msg').value=c.remarks?'Reminder: '+c.remarks.substring(0,80):'Follow up: '+(c.title||c.caseNo);
+  document.getElementById('rem-case').textContent=c.title||c.caseNo||'Case';
+  document.getElementById('rem-id').value=cid;
+  document.getElementById('rem-msg').value=c.remarks?'Reminder: '+c.remarks.substring(0,80):'Follow up: '+(c.title||c.caseNo);
   var def=new Date();
   if(c.nextDate){def=new Date(c.nextDate);def.setDate(def.getDate()-1);}
-  else{def.setDate(def.getDate()+1);}
+  else def.setDate(def.getDate()+1);
   def.setHours(9,0,0,0);
-  document.getElementById('alert-datetime').value=def.toISOString().slice(0,16);
-  openModal('modal-alert');
+  document.getElementById('rem-dt').value=def.toISOString().slice(0,16);
+  openModal('modal-reminder');
 }
-function saveAlert(){
-  var cid=document.getElementById('alert-case-id').value;
-  var msg=document.getElementById('alert-msg').value.trim();
-  var dt=document.getElementById('alert-datetime').value;
-  if(!msg){alert('Please enter a reminder message.');return;}
-  if(!dt){alert('Please select date and time.');return;}
+function saveReminder(){
+  var cid=document.getElementById('rem-id').value;
+  var msg=document.getElementById('rem-msg').value.trim();
+  var dt=document.getElementById('rem-dt').value;
+  if(!msg){alert('Enter reminder message.');return;}
+  if(!dt){alert('Select date and time.');return;}
   var c=cases.find(function(x){return x.id===cid;});
   var a={id:genId(),caseId:cid,caseTitle:c?c.title:'',msg:msg,fireAt:dt,done:false,createdAt:new Date().toISOString()};
   alerts.push(a);saveLocalAlerts();scheduleAlert(a);
-  showToast('🔔 Reminder set for '+new Date(dt).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}));
-  requestNotifPermission();closeModal('modal-alert');renderTable();
+  toast('🔔 Reminder set for '+new Date(dt).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}));
+  reqNotif();closeModal('modal-reminder');renderTable();
 }
-function quickAlert(days){var dt=new Date();if(days===0)dt.setHours(9,0,0,0);else{dt.setDate(dt.getDate()+days);dt.setHours(9,0,0,0);}document.getElementById('alert-datetime').value=dt.toISOString().slice(0,16);}
-function quickAlertHearing(){var id=document.getElementById('alert-case-id').value;var c=cases.find(function(x){return x.id===id;});if(c&&c.nextDate){var dt=new Date(c.nextDate);dt.setDate(dt.getDate()-1);dt.setHours(9,0,0,0);document.getElementById('alert-datetime').value=dt.toISOString().slice(0,16);}else showToast('No hearing date set — add it first.','warn');}
+function qAlert(days){var d=new Date();if(days===0)d.setHours(9,0,0,0);else{d.setDate(d.getDate()+days);d.setHours(9,0,0,0);}document.getElementById('rem-dt').value=d.toISOString().slice(0,16);}
+function qAlertHearing(){var id=document.getElementById('rem-id').value;var c=cases.find(function(x){return x.id===id;});if(c&&c.nextDate){var d=new Date(c.nextDate);d.setDate(d.getDate()-1);d.setHours(9,0,0,0);document.getElementById('rem-dt').value=d.toISOString().slice(0,16);}else toast('No hearing date set. Add it first.','warn');}
 </script>
 </body>
 </html>
