@@ -247,6 +247,7 @@ code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px
   <button class="btn btn-outline" onclick="openModal('modal-listdate')">📋 Daily List</button>
   <button class="btn btn-gold"    onclick="openModal('modal-import')">⬇ Import</button>
   <button class="btn btn-ghost"   onclick="exportData()">⬆ Export</button>
+  <button class="btn btn-ghost" onclick="openModal('modal-reminders')" id="btn-reminders" style="position:relative">🔔 Reminders<span id="rem-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:#dc2626;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;line-height:16px">0</span></button>
   <div class="user-pill" id="user-pill" onclick="openModal('modal-account')" style="display:none">
     <img id="user-photo" class="user-avatar" src="" alt="U"/>
     <span id="user-short"></span>
@@ -610,6 +611,7 @@ window.onload = function(){
   else { document.getElementById('login-msg').textContent='No Firebase config yet. Use Setup Guide or continue offline.'; }
   scheduleAllAlerts();
   reqNotif();
+  setTimeout(updateReminderBadge, 800);
 };
 
 // ════════ FIREBASE INIT ════════
@@ -1091,6 +1093,8 @@ function fireAlert(a){
 function reqNotif(){ if(window.Notification&&Notification.permission==='default')Notification.requestPermission(); }
 
 function openReminderModal(cid){
+  // Allow opening without a specific case (from reminders panel)
+  if(!cid){ document.getElementById('rem-case').textContent='General Reminder (no specific case)'; document.getElementById('rem-id').value=''; document.getElementById('rem-msg').value=''; var def=new Date();def.setDate(def.getDate()+1);def.setHours(9,0,0,0);document.getElementById('rem-dt').value=def.toISOString().slice(0,16); openModal('modal-reminder'); return; }
   var c=cases.find(function(x){return x.id===cid;});if(!c)return;
   document.getElementById('rem-case').textContent=c.title||c.caseNo||'Case';
   document.getElementById('rem-id').value=cid;
@@ -1116,6 +1120,230 @@ function saveReminder(){
 }
 function qAlert(days){var d=new Date();if(days===0)d.setHours(9,0,0,0);else{d.setDate(d.getDate()+days);d.setHours(9,0,0,0);}document.getElementById('rem-dt').value=d.toISOString().slice(0,16);}
 function qAlertHearing(){var id=document.getElementById('rem-id').value;var c=cases.find(function(x){return x.id===id;});if(c&&c.nextDate){var d=new Date(c.nextDate);d.setDate(d.getDate()-1);d.setHours(9,0,0,0);document.getElementById('rem-dt').value=d.toISOString().slice(0,16);}else toast('No hearing date set. Add it first.','warn');}
+
+// ════════════════════════════════════════════════════════════
+// REMINDERS PANEL
+// ════════════════════════════════════════════════════════════
+var reminderFilter = 'all';
+
+function openRemindersPanelModal(){
+  reminderFilter = 'all';
+  renderRemindersPanel();
+  openModal('modal-reminders');
+}
+
+// Override openModal for reminders to also render list
+var _origOpenModal = openModal;
+openModal = function(id){
+  _origOpenModal(id);
+  if(id === 'modal-reminders') renderRemindersPanel();
+};
+
+function filterReminders(f){
+  reminderFilter = f;
+  // Update tab styles
+  ['all','missed','upcoming','done'].forEach(function(k){
+    var el = document.getElementById('rf-'+k);
+    if(!el) return;
+    el.className = 'btn btn-sm ' + (k===f ? 'btn-blue' : 'btn-ghost');
+    if(k==='missed'&&k!==f) el.style.cssText='border-color:#dc2626;color:#dc2626';
+    else if(k==='upcoming'&&k!==f) el.style.cssText='border-color:#1a56db;color:#1a56db';
+    else if(k==='done'&&k!==f) el.style.cssText='border-color:#7b93ad;color:#7b93ad';
+    else if(k!==f) el.style.cssText='';
+  });
+  renderRemindersPanel();
+}
+
+function renderRemindersPanel(){
+  var now = new Date();
+  var nowStr = now.toISOString();
+  var list = alerts.slice(); // copy
+
+  // Apply filter
+  if(reminderFilter === 'missed'){
+    list = list.filter(function(a){ return !a.done && new Date(a.fireAt) < now; });
+  } else if(reminderFilter === 'upcoming'){
+    list = list.filter(function(a){ return !a.done && new Date(a.fireAt) >= now; });
+  } else if(reminderFilter === 'done'){
+    list = list.filter(function(a){ return a.done; });
+  }
+
+  // Sort: missed first, then upcoming, then done — within each by fireAt
+  list.sort(function(a,b){
+    var am = !a.done && new Date(a.fireAt) < now;
+    var bm = !b.done && new Date(b.fireAt) < now;
+    if(am !== bm) return am ? -1 : 1;
+    return new Date(a.fireAt) - new Date(b.fireAt);
+  });
+
+  var el = document.getElementById('reminders-list');
+  if(!el) return;
+
+  if(!list.length){
+    var msgs = {all:'No reminders yet. Add a reminder from any case using the 🔔 button.',missed:'No missed reminders.',upcoming:'No upcoming reminders.',done:'No completed reminders.'};
+    el.innerHTML = '<div style="padding:36px;text-align:center;color:#7b93ad"><div style="font-size:32px;margin-bottom:10px">🔔</div><div style="font-size:14px;font-weight:600;color:#4b6280">'+msgs[reminderFilter]+'</div></div>';
+    updateReminderBadge();
+    return;
+  }
+
+  var html = '';
+  list.forEach(function(a){
+    var isMissed = !a.done && new Date(a.fireAt) < now;
+    var isUpcoming = !a.done && new Date(a.fireAt) >= now;
+    var isDone = a.done;
+    var fireDate = new Date(a.fireAt);
+    var fireFmt = fireDate.toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+    var bgColor = isMissed ? '#fef2f2' : isUpcoming ? '#eff6ff' : '#f8fafc';
+    var borderColor = isMissed ? '#fecaca' : isUpcoming ? '#bfdbfe' : '#e2e8f0';
+    var dotColor = isMissed ? '#dc2626' : isUpcoming ? '#1a56db' : '#94a3b8';
+    var dotLabel = isMissed ? '● Missed' : isUpcoming ? '● Upcoming' : '✓ Done';
+    var timeColor = isMissed ? '#dc2626' : isUpcoming ? '#1a56db' : '#7b93ad';
+
+    html += '<div style="background:'+bgColor+';border:1px solid '+borderColor+';border-radius:10px;padding:13px 15px;margin-bottom:10px;display:flex;align-items:flex-start;gap:12px">'
+      // Left icon
+      +'<div style="font-size:22px;flex-shrink:0;margin-top:2px">'+(isMissed?'🔴':isUpcoming?'🔵':'✅')+'</div>'
+      // Content
+      +'<div style="flex:1;min-width:0">'
+        +'<div style="font-weight:600;color:#1e3a5f;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(a.msg)+'</div>'
+        +(a.caseTitle?'<div style="font-size:12px;color:#7b93ad;margin-top:2px">📁 '+esc(a.caseTitle)+'</div>':'')
+        +'<div style="font-size:12px;color:'+timeColor+';margin-top:5px;font-weight:600">⏰ '+fireFmt+'</div>'
+        +'<div style="font-size:11px;color:'+dotColor+';font-weight:700;margin-top:3px">'+dotLabel+'</div>'
+      +'</div>'
+      // Actions
+      +'<div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">'
+        +(isMissed?'<button class="btn btn-sm" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626;font-size:11px" onclick="snoozeReminder(''+a.id+'')">⏰ Snooze 1h</button>':'')
+        +(isMissed||isUpcoming?'<button class="btn btn-sm" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a;font-size:11px" onclick="markReminderDone(''+a.id+'')">✓ Mark Done</button>':'')
+        +(isDone?'<button class="btn btn-sm" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1a56db;font-size:11px" onclick="reactivateReminder(''+a.id+'')">↩ Reactivate</button>':'')
+        +'<button class="btn btn-sm" style="background:#f8fafc;border:1px solid #e2e8f0;color:#7b93ad;font-size:11px" onclick="deleteReminder(''+a.id+'')">🗑 Delete</button>'
+      +'</div>'
+      +'</div>';
+  });
+
+  el.innerHTML = html;
+  updateReminderBadge();
+}
+
+function updateReminderBadge(){
+  var now = new Date();
+  var missed = alerts.filter(function(a){ return !a.done && new Date(a.fireAt) < now; }).length;
+  var upcoming = alerts.filter(function(a){ return !a.done && new Date(a.fireAt) >= now; }).length;
+  var total = missed + upcoming;
+  var badge = document.getElementById('rem-badge');
+  if(!badge) return;
+  if(total > 0){
+    badge.style.display = 'inline-flex';
+    badge.textContent = total > 9 ? '9+' : String(total);
+    badge.style.background = missed > 0 ? '#dc2626' : '#1a56db';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function snoozeReminder(id){
+  var a = alerts.find(function(x){return x.id===id;});
+  if(!a) return;
+  var newFire = new Date(Date.now() + 60*60*1000); // +1 hour
+  a.fireAt = newFire.toISOString();
+  a.done = false;
+  saveLocalAlerts();
+  scheduleAlert(a);
+  renderRemindersPanel();
+  toast('⏰ Snoozed 1 hour — will remind at '+newFire.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}));
+}
+
+function markReminderDone(id){
+  var a = alerts.find(function(x){return x.id===id;});
+  if(!a) return;
+  a.done = true;
+  if(alertTimers[id]){ clearTimeout(alertTimers[id]); delete alertTimers[id]; }
+  saveLocalAlerts();
+  renderRemindersPanel();
+  renderTable();
+  toast('✓ Reminder marked as done.');
+}
+
+function reactivateReminder(id){
+  var a = alerts.find(function(x){return x.id===id;});
+  if(!a) return;
+  // Set to tomorrow 9am
+  var d = new Date();
+  d.setDate(d.getDate()+1);
+  d.setHours(9,0,0,0);
+  a.fireAt = d.toISOString();
+  a.done = false;
+  saveLocalAlerts();
+  scheduleAlert(a);
+  renderRemindersPanel();
+  renderTable();
+  toast('↩ Reminder reactivated for tomorrow 9am.');
+}
+
+function deleteReminder(id){
+  if(alertTimers[id]){ clearTimeout(alertTimers[id]); delete alertTimers[id]; }
+  alerts = alerts.filter(function(a){return a.id!==id;});
+  saveLocalAlerts();
+  renderRemindersPanel();
+  renderTable();
+  toast('Reminder deleted.','warn');
+}
+
+function clearDoneReminders(){
+  if(!confirm('Delete all completed reminders?')) return;
+  var doneIds = alerts.filter(function(a){return a.done;}).map(function(a){return a.id;});
+  doneIds.forEach(function(id){ if(alertTimers[id]){ clearTimeout(alertTimers[id]); delete alertTimers[id]; } });
+  alerts = alerts.filter(function(a){return !a.done;});
+  saveLocalAlerts();
+  renderRemindersPanel();
+  toast('Cleared completed reminders.');
+}
+
+// Update badge on load and after changes
+var _origScheduleAll = scheduleAllAlerts;
+scheduleAllAlerts = function(){
+  _origScheduleAll();
+  setTimeout(updateReminderBadge, 500);
+};
+// Also update badge after saving reminder
+var _origSaveRem = saveReminder;
+saveReminder = function(){
+  _origSaveRem();
+  updateReminderBadge();
+};
+
 </script>
+
+<!-- ═══════════════════ REMINDERS PANEL ═══════════════════ -->
+<div class="overlay" id="modal-reminders">
+  <div class="modal wide"><div class="modal-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div>
+        <div class="modal-title" style="margin-bottom:2px">🔔 All Reminders</div>
+        <div style="font-size:12px;color:#7b93ad">Missed, upcoming and completed reminders for all cases</div>
+      </div>
+      <button onclick="closeModal('modal-reminders')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
+    </div>
+
+    <!-- Filter tabs -->
+    <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn btn-sm btn-blue" id="rf-all"    onclick="filterReminders('all')">All</button>
+      <button class="btn btn-sm btn-ghost" id="rf-missed" onclick="filterReminders('missed')" style="border-color:#dc2626;color:#dc2626">🔴 Missed</button>
+      <button class="btn btn-sm btn-ghost" id="rf-upcoming" onclick="filterReminders('upcoming')" style="border-color:#1a56db;color:#1a56db">🔵 Upcoming</button>
+      <button class="btn btn-sm btn-ghost" id="rf-done" onclick="filterReminders('done')" style="border-color:#7b93ad;color:#7b93ad">✓ Completed</button>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn btn-sm btn-ghost" onclick="clearDoneReminders()" style="font-size:11px">Clear Completed</button>
+        <button class="btn btn-sm btn-blue" onclick="closeModal('modal-reminders');openReminderModal(null)" style="font-size:11px">+ New Reminder</button>
+      </div>
+    </div>
+
+    <!-- List -->
+    <div id="reminders-list" style="max-height:420px;overflow-y:auto"></div>
+
+    <div style="margin-top:14px;display:flex;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal('modal-reminders')">Close</button>
+    </div>
+  </div></div>
+</div>
+
 </body>
 </html>
