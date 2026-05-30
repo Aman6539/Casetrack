@@ -559,26 +559,7 @@ var SM = {
 window.onload = function(){
   try { document.getElementById('list-date').value = todayStr(); } catch(e){}
   try{ var a=localStorage.getItem(ALT_KEY); if(a) alerts=JSON.parse(a); }catch(e){}
-  // Check if we're returning from a Google sign-in redirect
-  loadFirebaseSDK(function(ok){
-    if(!ok) return;
-    try{
-      if(!firebase.apps.length) firebase.initializeApp(fbConfig);
-      db = firebase.firestore();
-      auth = firebase.auth();
-      db.enablePersistence({synchronizeTabs:true}).catch(function(){});
-      auth.getRedirectResult().then(function(result){
-        if(result && result.user){
-          currentUser=result.user; isCloud=true;
-          showApp(result.user); startSync(result.user);
-        }
-      }).catch(function(e){ console.error('redirect result:',e); });
-      auth.onAuthStateChanged(function(user){
-        if(user && !isCloud){ currentUser=user; isCloud=true; showApp(user); startSync(user); }
-        else if(!user){ currentUser=null; }
-      });
-    }catch(e){ console.error('init FB:',e); }
-  });
+  loadFirebaseSDK(function(ok){ if(ok) initFB(fbConfig); });
   try { scheduleAllAlerts(); } catch(e){}
   try { reqNotif(); } catch(e){}
   setTimeout(function(){ try{ updateReminderBadge(); }catch(e){} }, 800);
@@ -621,29 +602,24 @@ function loadFirebaseSDK(cb){
 }
 
 // ════════ FIREBASE INIT ════════
+var _fbInited = false;
 function initFB(cfg){
+  if(_fbInited) return;
+  _fbInited = true;
   try{
     if(!firebase.apps.length) firebase.initializeApp(cfg);
     db = firebase.firestore();
     auth = firebase.auth();
-    db.enablePersistence({synchronizeTabs:true}).catch(function(){});
-    // Handle redirect result when page reloads after Google sign-in
+    try{ db.enablePersistence({synchronizeTabs:true}); }catch(e){}
     auth.getRedirectResult().then(function(result){
       if(result && result.user){
         currentUser=result.user; isCloud=true;
         showApp(result.user); startSync(result.user);
       }
-    }).catch(function(e){
-      try{ document.getElementById('login-msg').innerHTML='<span style="color:#dc2626">'+e.message+'</span>'; }catch(x){}
-    });
-    // Only show app if user is already signed in (not on null)
+    }).catch(function(e){ console.error('redirect result:',e); });
     auth.onAuthStateChanged(function(user){
-      if(user && !isCloud){
-        currentUser=user; isCloud=true;
-        showApp(user); startSync(user);
-      } else if(!user){
-        currentUser=null;
-      }
+      if(user && !isCloud){ currentUser=user; isCloud=true; showApp(user); startSync(user); }
+      else if(!user){ currentUser=null; }
     });
   }catch(e){ console.error('FB init:',e); }
 }
@@ -653,20 +629,10 @@ function signInGoogle(){
   var msgEl = document.getElementById('login-msg');
   msgEl.textContent='Loading...';
   loadFirebaseSDK(function(ok){
-    if(!ok){
-      msgEl.innerHTML='<span style="color:#dc2626">No internet. Use Continue Offline.</span>';
-      return;
-    }
+    if(!ok){ msgEl.innerHTML='<span style="color:#dc2626">No internet. Use Continue Offline.</span>'; return; }
+    initFB(fbConfig);
+    msgEl.textContent='Redirecting to Google...';
     try{
-      if(!firebase.apps.length) firebase.initializeApp(fbConfig);
-      db = firebase.firestore();
-      auth = firebase.auth();
-      db.enablePersistence({synchronizeTabs:true}).catch(function(){});
-      auth.onAuthStateChanged(function(user){
-        if(user && !isCloud){ currentUser=user; isCloud=true; showApp(user); startSync(user); }
-        else if(!user){ currentUser=null; }
-      });
-      msgEl.textContent='Redirecting to Google...';
       var provider = new firebase.auth.GoogleAuthProvider();
       auth.signInWithRedirect(provider);
     }catch(e){
