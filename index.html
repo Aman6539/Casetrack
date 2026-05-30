@@ -5,10 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>LexTrack — Advocate Case Manager</title>
 
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<!-- Firebase SDK loaded dynamically only when needed -->
 
 <style>
 /* ═══════════════════════════════════════════════════════════
@@ -223,7 +220,7 @@ code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px
     <button class="offline-btn" onclick="useOffline()">Continue Offline (no sync)</button>
     <div id="login-msg" style="margin-top:14px;font-size:13px;color:#7b93ad;min-height:20px"></div>
     <div style="margin-top:16px;text-align:center">
-      <button class="btn btn-ghost btn-sm" onclick="openModal('modal-setup')" style="font-size:12px">⚙ Firebase Setup Guide</button>
+      
     </div>
   </div>
 </div>
@@ -247,6 +244,7 @@ code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px
   <button class="btn btn-outline" onclick="openModal('modal-listdate')">📋 Daily List</button>
   <button class="btn btn-gold"    onclick="openModal('modal-import')">⬇ Import</button>
   <button class="btn btn-ghost"   onclick="exportData()">⬆ Export</button>
+  <button class="btn btn-ghost" onclick="openModal('modal-reminders')" id="btn-reminders" style="position:relative">🔔 Reminders<span id="rem-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:#dc2626;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;line-height:16px">0</span></button>
   <div class="user-pill" id="user-pill" onclick="openModal('modal-account')" style="display:none">
     <img id="user-photo" class="user-avatar" src="" alt="U"/>
     <span id="user-short"></span>
@@ -519,69 +517,25 @@ code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px
   </div></div>
 </div>
 
-<!-- FIREBASE SETUP GUIDE -->
-<div class="overlay" id="modal-setup">
-  <div class="modal xwide"><div class="modal-body">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <div class="modal-title" style="margin-bottom:0">🔥 Firebase Setup Guide (5 minutes, free)</div>
-      <button onclick="closeModal('modal-setup')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
-    </div>
-    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#4b6280">
-      Firebase is Google's free cloud platform. Free tier: <strong>50,000 reads + 20,000 writes/day</strong> — more than enough. Completely free for any advocate.
-    </div>
-    <div class="s-step"><span class="s-num">1</span><strong>Create Firebase Project</strong>
-      <div style="margin-top:8px;font-size:13px;color:#4b6280">Go to <a href="https://console.firebase.google.com" target="_blank" style="color:#1a56db;font-weight:600">console.firebase.google.com</a> → Sign in with your Google account → Click <strong>"Add project"</strong> → Name: <code>lextrack</code> → Continue → Disable Analytics (optional) → Create project → Continue</div>
-    </div>
-    <div class="s-step"><span class="s-num">2</span><strong>Register Web App &amp; get config</strong>
-      <div style="margin-top:8px;font-size:13px;color:#4b6280">In project page → Click <strong>&lt;/&gt;</strong> icon (Web) → App nickname: <code>lextrack-web</code> → Register app → You'll see a <code>firebaseConfig</code> object → <strong>Copy it all</strong></div>
-    </div>
-    <div class="s-step"><span class="s-num">3</span><strong>Enable Google Sign-In</strong>
-      <div style="margin-top:8px;font-size:13px;color:#4b6280">Left menu → <strong>Build → Authentication</strong> → Get started → Sign-in method tab → Click <strong>Google</strong> → Enable → Add your email → Save</div>
-    </div>
-    <div class="s-step"><span class="s-num">4</span><strong>Create Firestore Database</strong>
-      <div style="margin-top:8px;font-size:13px;color:#4b6280">Left menu → <strong>Build → Firestore Database</strong> → Create database → Production mode → Location: <code>asia-south1</code> (Mumbai) → Enable</div>
-      <div style="margin-top:8px;font-size:13px;color:#4b6280">Then go to <strong>Rules</strong> tab → Replace all content with:</div>
-      <div class="code-blk">rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{uid}/cases/{cid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-    }
-  }
-}</div>
-      <div style="font-size:12px;color:#4b6280">Click <strong>Publish</strong></div>
-    </div>
-    <div class="s-step"><span class="s-num">5</span><strong>Add Authorized Domain</strong>
-      <div style="margin-top:8px;font-size:13px;color:#4b6280">Authentication → Settings → <strong>Authorized domains</strong> → Add domain → Enter: <code>aman6539.github.io</code> → Add</div>
-    </div>
-    <div class="s-step"><span class="s-num">6</span><strong>Paste Firebase Config Here</strong>
-      <div style="margin-top:8px;font-size:13px;color:#4b6280">Paste the <code>firebaseConfig</code> object you copied in Step 2:</div>
-      <textarea id="fb-input" rows="9" style="font-family:monospace;font-size:12px;margin-top:8px;background:#1e2128;color:#00e5a0;border-color:#2a2d35" placeholder='{
-  "apiKey": "AIzaSy...",
-  "authDomain": "your-project.firebaseapp.com",
-  "projectId": "your-project",
-  "storageBucket": "your-project.appspot.com",
-  "messagingSenderId": "123456789",
-  "appId": "1:123:web:abc"
-}'></textarea>
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="btn btn-blue" onclick="applyConfig()">✓ Apply Config &amp; Reload</button>
-        <button class="btn btn-ghost" onclick="closeModal('modal-setup')">Cancel</button>
-      </div>
-      <div id="cfg-msg" style="margin-top:8px;font-size:12px"></div>
-    </div>
-  </div></div>
-</div>
 
 <script>
 // ════════════════════════════════════════════════════════════
-// FIREBASE CONFIG — Stored in localStorage after setup
+// YOUR FIREBASE CONFIG — Replace with your project credentials
+// firebase.google.com → Project Settings → Your Apps → Config
 // ════════════════════════════════════════════════════════════
-var CFG_KEY = 'lx_fb_config_v1';
+var HARDCODED_FB_CONFIG = {
+  apiKey:            "AIzaSyC-DgKY4xoNcjEAAzsOeaGndt0-7e9Ox6U",
+  authDomain:        "lextrack1018.firebaseapp.com",
+  projectId:         "lextrack1018",
+  storageBucket:     "lextrack1018.firebasestorage.app",
+  messagingSenderId: "390533098959",
+  appId:             "1:390533098959:web:e960c8af2b5995134036ba"
+};
+
 var LOC_KEY = 'lx_cases_offline_v1';
 var ALT_KEY = 'lx_alerts_v1';
 
-var fbConfig = null;
+var fbConfig = HARDCODED_FB_CONFIG;
 var db = null, auth = null;
 var currentUser = null;
 var isCloud = false;
@@ -603,14 +557,53 @@ var SM = {
 
 // ════════ INIT ════════
 window.onload = function(){
-  document.getElementById('list-date').value = todayStr();
-  try{ var s=localStorage.getItem(CFG_KEY); if(s) fbConfig=JSON.parse(s); }catch(e){}
+  try { document.getElementById('list-date').value = todayStr(); } catch(e){}
   try{ var a=localStorage.getItem(ALT_KEY); if(a) alerts=JSON.parse(a); }catch(e){}
-  if(fbConfig){ initFB(fbConfig); }
-  else { document.getElementById('login-msg').textContent='No Firebase config yet. Use Setup Guide or continue offline.'; }
-  scheduleAllAlerts();
-  reqNotif();
+  // Auto-try Firebase on load (will silently fail if no internet; user can still go offline)
+  loadFirebaseSDK(function(ok){
+    if(ok){ initFB(fbConfig); }
+    else { document.getElementById('login-msg').textContent='No internet connection. Use "Continue Offline".'; }
+  });
+  try { scheduleAllAlerts(); } catch(e){}
+  try { reqNotif(); } catch(e){}
+  setTimeout(function(){ try{ updateReminderBadge(); }catch(e){} }, 800);
 };
+
+// ════════ DYNAMIC FIREBASE LOADER ════════
+var _fbLoading = false, _fbLoaded = false, _fbCallbacks = [];
+function loadFirebaseSDK(cb){
+  if(_fbLoaded){ cb(true); return; }
+  _fbCallbacks.push(cb);
+  if(_fbLoading) return;
+  _fbLoading = true;
+  var scripts = [
+    'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',
+    'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js',
+    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js'
+  ];
+  var loaded = 0;
+  var failed = false;
+  function onError(){
+    if(failed) return; failed = true;
+    _fbLoading = false;
+    _fbCallbacks.forEach(function(fn){ try{fn(false);}catch(e){} });
+    _fbCallbacks = [];
+  }
+  function loadNext(i){
+    if(i >= scripts.length){
+      _fbLoaded = true; _fbLoading = false;
+      _fbCallbacks.forEach(function(fn){ try{fn(true);}catch(e){} });
+      _fbCallbacks = [];
+      return;
+    }
+    var s = document.createElement('script');
+    s.src = scripts[i];
+    s.onload = function(){ loadNext(i+1); };
+    s.onerror = onError;
+    document.head.appendChild(s);
+  }
+  loadNext(0);
+}
 
 // ════════ FIREBASE INIT ════════
 function initFB(cfg){
@@ -618,9 +611,7 @@ function initFB(cfg){
     if(!firebase.apps.length) firebase.initializeApp(cfg);
     db = firebase.firestore();
     auth = firebase.auth();
-    // Offline persistence
     db.enablePersistence({synchronizeTabs:true}).catch(function(){});
-    // Auth listener
     auth.onAuthStateChanged(function(user){
       if(user){ currentUser=user; isCloud=true; showApp(user); startSync(user); }
       else { currentUser=null; }
@@ -630,18 +621,22 @@ function initFB(cfg){
 
 // ════════ GOOGLE SIGN IN ════════
 function signInGoogle(){
-  if(!fbConfig){ document.getElementById('login-msg').innerHTML='<span style="color:#dc2626">Please configure Firebase first. Click Setup Guide below.</span>'; return; }
-  document.getElementById('login-msg').textContent='Opening Google sign-in...';
-  var provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).catch(function(e){
-    if(e.code==='auth/popup-blocked') auth.signInWithRedirect(provider);
-    else document.getElementById('login-msg').innerHTML='<span style="color:#dc2626">'+e.message+'</span>';
+  document.getElementById('login-msg').textContent='Connecting...';
+  loadFirebaseSDK(function(ok){
+    if(!ok){ document.getElementById('login-msg').innerHTML='<span style="color:#dc2626">Could not load Firebase. Check your internet connection.</span>'; return; }
+    if(!auth){ initFB(fbConfig); }
+    document.getElementById('login-msg').textContent='Opening Google sign-in...';
+    var provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider).catch(function(e){
+      if(e.code==='auth/popup-blocked') auth.signInWithRedirect(provider);
+      else document.getElementById('login-msg').innerHTML='<span style="color:#dc2626">'+e.message+'</span>';
+    });
   });
 }
 function useOffline(){
   isCloud=false;
-  try{ var s=localStorage.getItem(LOC_KEY); if(s) cases=JSON.parse(s); }catch(e){}
-  showApp(null);
+  try{ var s=localStorage.getItem(LOC_KEY); if(s) cases=JSON.parse(s); }catch(e){ cases=[]; }
+  try{ showApp(null); }catch(e){ console.error('showApp error:',e); }
 }
 function doSignOut(){
   if(auth) auth.signOut();
@@ -656,6 +651,7 @@ function doSignOut(){
 
 // ════════ SHOW APP ════════
 function showApp(user){
+  try {
   document.getElementById('login-screen').style.display='none';
   document.getElementById('main-header').style.display='flex';
   document.getElementById('main-body').style.display='block';
@@ -672,9 +668,10 @@ function showApp(user){
     document.getElementById('offline-badge').style.display='inline-flex';
     document.getElementById('hdr-sub').textContent='Offline mode — cases saved locally';
     document.getElementById('cloud-banner').innerHTML='<strong style="color:#d97706">⚠ Offline Mode:</strong> Cases saved on this device only. Sign in with Google for real-time sync across all devices.';
-    document.getElementById('acct-info').innerHTML='<div style="font-size:13px;color:#4b6280"><strong>Offline Mode</strong> — cases saved locally. <a href="#" onclick="closeModal(\'modal-account\');openModal(\'modal-setup\')" style="color:#1a56db">Setup Firebase</a> for cloud sync.</div>';
+    document.getElementById('acct-info').innerHTML='<div style="font-size:13px;color:#4b6280"><strong>Offline Mode</strong> — cases saved on this device only. Sign in with Google for cloud sync across all devices.</div>';
     renderAll();
   }
+  } catch(e){ console.error('showApp error:', e); }
 }
 
 // ════════ REAL-TIME FIRESTORE SYNC ════════
@@ -731,25 +728,6 @@ function cloudDelete(id){
 }
 function saveLocal(){ try{ localStorage.setItem(LOC_KEY,JSON.stringify(cases)); }catch(e){} }
 
-// ════════ FIREBASE CONFIG SETUP ════════
-function applyConfig(){
-  var raw=document.getElementById('fb-input').value.trim();
-  var msgEl=document.getElementById('cfg-msg');
-  if(!raw){ msgEl.innerHTML='<span style="color:#dc2626">Paste config first.</span>'; return; }
-  try{
-    var cfg;
-    try{ cfg=JSON.parse(raw); }
-    catch(e){
-      // Try stripping trailing commas
-      var fixed=raw.replace(/,(\s*[}\]])/g,'$1');
-      cfg=JSON.parse(fixed);
-    }
-    if(!cfg.apiKey||!cfg.projectId){ msgEl.innerHTML='<span style="color:#dc2626">Invalid config — missing apiKey or projectId.</span>'; return; }
-    localStorage.setItem(CFG_KEY,JSON.stringify(cfg));
-    msgEl.innerHTML='<span style="color:#16a34a">✓ Config saved! Reloading in 1 second...</span>';
-    setTimeout(function(){ location.reload(); },1200);
-  }catch(e){ msgEl.innerHTML='<span style="color:#dc2626">Parse error: '+e.message+'. Make sure it is valid JSON with double quotes.</span>'; }
-}
 
 // ════════════════════════════════════════════════════════════
 // HELPERS
@@ -1091,6 +1069,8 @@ function fireAlert(a){
 function reqNotif(){ if(window.Notification&&Notification.permission==='default')Notification.requestPermission(); }
 
 function openReminderModal(cid){
+  // Allow opening without a specific case (from reminders panel)
+  if(!cid){ document.getElementById('rem-case').textContent='General Reminder (no specific case)'; document.getElementById('rem-id').value=''; document.getElementById('rem-msg').value=''; var def=new Date();def.setDate(def.getDate()+1);def.setHours(9,0,0,0);document.getElementById('rem-dt').value=def.toISOString().slice(0,16); openModal('modal-reminder'); return; }
   var c=cases.find(function(x){return x.id===cid;});if(!c)return;
   document.getElementById('rem-case').textContent=c.title||c.caseNo||'Case';
   document.getElementById('rem-id').value=cid;
@@ -1116,6 +1096,230 @@ function saveReminder(){
 }
 function qAlert(days){var d=new Date();if(days===0)d.setHours(9,0,0,0);else{d.setDate(d.getDate()+days);d.setHours(9,0,0,0);}document.getElementById('rem-dt').value=d.toISOString().slice(0,16);}
 function qAlertHearing(){var id=document.getElementById('rem-id').value;var c=cases.find(function(x){return x.id===id;});if(c&&c.nextDate){var d=new Date(c.nextDate);d.setDate(d.getDate()-1);d.setHours(9,0,0,0);document.getElementById('rem-dt').value=d.toISOString().slice(0,16);}else toast('No hearing date set. Add it first.','warn');}
+
+// ════════════════════════════════════════════════════════════
+// REMINDERS PANEL
+// ════════════════════════════════════════════════════════════
+var reminderFilter = 'all';
+
+function openRemindersPanelModal(){
+  reminderFilter = 'all';
+  renderRemindersPanel();
+  openModal('modal-reminders');
+}
+
+// Override openModal for reminders to also render list
+var _origOpenModal = openModal;
+openModal = function(id){
+  _origOpenModal(id);
+  if(id === 'modal-reminders') renderRemindersPanel();
+};
+
+function filterReminders(f){
+  reminderFilter = f;
+  // Update tab styles
+  ['all','missed','upcoming','done'].forEach(function(k){
+    var el = document.getElementById('rf-'+k);
+    if(!el) return;
+    el.className = 'btn btn-sm ' + (k===f ? 'btn-blue' : 'btn-ghost');
+    if(k==='missed'&&k!==f) el.style.cssText='border-color:#dc2626;color:#dc2626';
+    else if(k==='upcoming'&&k!==f) el.style.cssText='border-color:#1a56db;color:#1a56db';
+    else if(k==='done'&&k!==f) el.style.cssText='border-color:#7b93ad;color:#7b93ad';
+    else if(k!==f) el.style.cssText='';
+  });
+  renderRemindersPanel();
+}
+
+function renderRemindersPanel(){
+  var now = new Date();
+  var nowStr = now.toISOString();
+  var list = alerts.slice(); // copy
+
+  // Apply filter
+  if(reminderFilter === 'missed'){
+    list = list.filter(function(a){ return !a.done && new Date(a.fireAt) < now; });
+  } else if(reminderFilter === 'upcoming'){
+    list = list.filter(function(a){ return !a.done && new Date(a.fireAt) >= now; });
+  } else if(reminderFilter === 'done'){
+    list = list.filter(function(a){ return a.done; });
+  }
+
+  // Sort: missed first, then upcoming, then done — within each by fireAt
+  list.sort(function(a,b){
+    var am = !a.done && new Date(a.fireAt) < now;
+    var bm = !b.done && new Date(b.fireAt) < now;
+    if(am !== bm) return am ? -1 : 1;
+    return new Date(a.fireAt) - new Date(b.fireAt);
+  });
+
+  var el = document.getElementById('reminders-list');
+  if(!el) return;
+
+  if(!list.length){
+    var msgs = {all:'No reminders yet. Add a reminder from any case using the 🔔 button.',missed:'No missed reminders.',upcoming:'No upcoming reminders.',done:'No completed reminders.'};
+    el.innerHTML = '<div style="padding:36px;text-align:center;color:#7b93ad"><div style="font-size:32px;margin-bottom:10px">🔔</div><div style="font-size:14px;font-weight:600;color:#4b6280">'+msgs[reminderFilter]+'</div></div>';
+    updateReminderBadge();
+    return;
+  }
+
+  var html = '';
+  list.forEach(function(a){
+    var isMissed = !a.done && new Date(a.fireAt) < now;
+    var isUpcoming = !a.done && new Date(a.fireAt) >= now;
+    var isDone = a.done;
+    var fireDate = new Date(a.fireAt);
+    var fireFmt = fireDate.toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+    var bgColor = isMissed ? '#fef2f2' : isUpcoming ? '#eff6ff' : '#f8fafc';
+    var borderColor = isMissed ? '#fecaca' : isUpcoming ? '#bfdbfe' : '#e2e8f0';
+    var dotColor = isMissed ? '#dc2626' : isUpcoming ? '#1a56db' : '#94a3b8';
+    var dotLabel = isMissed ? '● Missed' : isUpcoming ? '● Upcoming' : '✓ Done';
+    var timeColor = isMissed ? '#dc2626' : isUpcoming ? '#1a56db' : '#7b93ad';
+
+    html += '<div style="background:'+bgColor+';border:1px solid '+borderColor+';border-radius:10px;padding:13px 15px;margin-bottom:10px;display:flex;align-items:flex-start;gap:12px">'
+      // Left icon
+      +'<div style="font-size:22px;flex-shrink:0;margin-top:2px">'+(isMissed?'🔴':isUpcoming?'🔵':'✅')+'</div>'
+      // Content
+      +'<div style="flex:1;min-width:0">'
+        +'<div style="font-weight:600;color:#1e3a5f;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(a.msg)+'</div>'
+        +(a.caseTitle?'<div style="font-size:12px;color:#7b93ad;margin-top:2px">📁 '+esc(a.caseTitle)+'</div>':'')
+        +'<div style="font-size:12px;color:'+timeColor+';margin-top:5px;font-weight:600">⏰ '+fireFmt+'</div>'
+        +'<div style="font-size:11px;color:'+dotColor+';font-weight:700;margin-top:3px">'+dotLabel+'</div>'
+      +'</div>'
+      // Actions
+      +'<div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">'
+        +(isMissed?'<button class="btn btn-sm" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626;font-size:11px" onclick="snoozeReminder(''+a.id+'')">⏰ Snooze 1h</button>':'')
+        +(isMissed||isUpcoming?'<button class="btn btn-sm" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a;font-size:11px" onclick="markReminderDone(''+a.id+'')">✓ Mark Done</button>':'')
+        +(isDone?'<button class="btn btn-sm" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1a56db;font-size:11px" onclick="reactivateReminder(''+a.id+'')">↩ Reactivate</button>':'')
+        +'<button class="btn btn-sm" style="background:#f8fafc;border:1px solid #e2e8f0;color:#7b93ad;font-size:11px" onclick="deleteReminder(''+a.id+'')">🗑 Delete</button>'
+      +'</div>'
+      +'</div>';
+  });
+
+  el.innerHTML = html;
+  updateReminderBadge();
+}
+
+function updateReminderBadge(){
+  var now = new Date();
+  var missed = alerts.filter(function(a){ return !a.done && new Date(a.fireAt) < now; }).length;
+  var upcoming = alerts.filter(function(a){ return !a.done && new Date(a.fireAt) >= now; }).length;
+  var total = missed + upcoming;
+  var badge = document.getElementById('rem-badge');
+  if(!badge) return;
+  if(total > 0){
+    badge.style.display = 'inline-flex';
+    badge.textContent = total > 9 ? '9+' : String(total);
+    badge.style.background = missed > 0 ? '#dc2626' : '#1a56db';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function snoozeReminder(id){
+  var a = alerts.find(function(x){return x.id===id;});
+  if(!a) return;
+  var newFire = new Date(Date.now() + 60*60*1000); // +1 hour
+  a.fireAt = newFire.toISOString();
+  a.done = false;
+  saveLocalAlerts();
+  scheduleAlert(a);
+  renderRemindersPanel();
+  toast('⏰ Snoozed 1 hour — will remind at '+newFire.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}));
+}
+
+function markReminderDone(id){
+  var a = alerts.find(function(x){return x.id===id;});
+  if(!a) return;
+  a.done = true;
+  if(alertTimers[id]){ clearTimeout(alertTimers[id]); delete alertTimers[id]; }
+  saveLocalAlerts();
+  renderRemindersPanel();
+  renderTable();
+  toast('✓ Reminder marked as done.');
+}
+
+function reactivateReminder(id){
+  var a = alerts.find(function(x){return x.id===id;});
+  if(!a) return;
+  // Set to tomorrow 9am
+  var d = new Date();
+  d.setDate(d.getDate()+1);
+  d.setHours(9,0,0,0);
+  a.fireAt = d.toISOString();
+  a.done = false;
+  saveLocalAlerts();
+  scheduleAlert(a);
+  renderRemindersPanel();
+  renderTable();
+  toast('↩ Reminder reactivated for tomorrow 9am.');
+}
+
+function deleteReminder(id){
+  if(alertTimers[id]){ clearTimeout(alertTimers[id]); delete alertTimers[id]; }
+  alerts = alerts.filter(function(a){return a.id!==id;});
+  saveLocalAlerts();
+  renderRemindersPanel();
+  renderTable();
+  toast('Reminder deleted.','warn');
+}
+
+function clearDoneReminders(){
+  if(!confirm('Delete all completed reminders?')) return;
+  var doneIds = alerts.filter(function(a){return a.done;}).map(function(a){return a.id;});
+  doneIds.forEach(function(id){ if(alertTimers[id]){ clearTimeout(alertTimers[id]); delete alertTimers[id]; } });
+  alerts = alerts.filter(function(a){return !a.done;});
+  saveLocalAlerts();
+  renderRemindersPanel();
+  toast('Cleared completed reminders.');
+}
+
+// Update badge on load and after changes
+var _origScheduleAll = scheduleAllAlerts;
+scheduleAllAlerts = function(){
+  _origScheduleAll();
+  setTimeout(updateReminderBadge, 500);
+};
+// Also update badge after saving reminder
+var _origSaveRem = saveReminder;
+saveReminder = function(){
+  _origSaveRem();
+  updateReminderBadge();
+};
+
 </script>
+
+<!-- ═══════════════════ REMINDERS PANEL ═══════════════════ -->
+<div class="overlay" id="modal-reminders">
+  <div class="modal wide"><div class="modal-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div>
+        <div class="modal-title" style="margin-bottom:2px">🔔 All Reminders</div>
+        <div style="font-size:12px;color:#7b93ad">Missed, upcoming and completed reminders for all cases</div>
+      </div>
+      <button onclick="closeModal('modal-reminders')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
+    </div>
+
+    <!-- Filter tabs -->
+    <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn btn-sm btn-blue" id="rf-all"    onclick="filterReminders('all')">All</button>
+      <button class="btn btn-sm btn-ghost" id="rf-missed" onclick="filterReminders('missed')" style="border-color:#dc2626;color:#dc2626">🔴 Missed</button>
+      <button class="btn btn-sm btn-ghost" id="rf-upcoming" onclick="filterReminders('upcoming')" style="border-color:#1a56db;color:#1a56db">🔵 Upcoming</button>
+      <button class="btn btn-sm btn-ghost" id="rf-done" onclick="filterReminders('done')" style="border-color:#7b93ad;color:#7b93ad">✓ Completed</button>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn btn-sm btn-ghost" onclick="clearDoneReminders()" style="font-size:11px">Clear Completed</button>
+        <button class="btn btn-sm btn-blue" onclick="closeModal('modal-reminders');openReminderModal(null)" style="font-size:11px">+ New Reminder</button>
+      </div>
+    </div>
+
+    <!-- List -->
+    <div id="reminders-list" style="max-height:420px;overflow-y:auto"></div>
+
+    <div style="margin-top:14px;display:flex;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal('modal-reminders')">Close</button>
+    </div>
+  </div></div>
+</div>
+
 </body>
 </html>
