@@ -559,10 +559,25 @@ var SM = {
 window.onload = function(){
   try { document.getElementById('list-date').value = todayStr(); } catch(e){}
   try{ var a=localStorage.getItem(ALT_KEY); if(a) alerts=JSON.parse(a); }catch(e){}
-  // Auto-try Firebase on load (will silently fail if no internet; user can still go offline)
+  // Check if we're returning from a Google sign-in redirect
   loadFirebaseSDK(function(ok){
-    if(ok){ initFB(fbConfig); }
-    else { document.getElementById('login-msg').textContent='No internet connection. Use "Continue Offline".'; }
+    if(!ok) return;
+    try{
+      if(!firebase.apps.length) firebase.initializeApp(fbConfig);
+      db = firebase.firestore();
+      auth = firebase.auth();
+      db.enablePersistence({synchronizeTabs:true}).catch(function(){});
+      auth.getRedirectResult().then(function(result){
+        if(result && result.user){
+          currentUser=result.user; isCloud=true;
+          showApp(result.user); startSync(result.user);
+        }
+      }).catch(function(e){ console.error('redirect result:',e); });
+      auth.onAuthStateChanged(function(user){
+        if(user && !isCloud){ currentUser=user; isCloud=true; showApp(user); startSync(user); }
+        else if(!user){ currentUser=null; }
+      });
+    }catch(e){ console.error('init FB:',e); }
   });
   try { scheduleAllAlerts(); } catch(e){}
   try { reqNotif(); } catch(e){}
@@ -612,19 +627,23 @@ function initFB(cfg){
     db = firebase.firestore();
     auth = firebase.auth();
     db.enablePersistence({synchronizeTabs:true}).catch(function(){});
-    // Handle redirect result (after Google sign-in redirect)
+    // Handle redirect result when page reloads after Google sign-in
     auth.getRedirectResult().then(function(result){
       if(result && result.user){
         currentUser=result.user; isCloud=true;
         showApp(result.user); startSync(result.user);
       }
     }).catch(function(e){
-      var msgEl=document.getElementById('login-msg');
-      if(msgEl) msgEl.innerHTML='<span style="color:#dc2626">'+e.message+'</span>';
+      try{ document.getElementById('login-msg').innerHTML='<span style="color:#dc2626">'+e.message+'</span>'; }catch(x){}
     });
+    // Only show app if user is already signed in (not on null)
     auth.onAuthStateChanged(function(user){
-      if(user){ currentUser=user; isCloud=true; showApp(user); startSync(user); }
-      else { currentUser=null; }
+      if(user && !isCloud){
+        currentUser=user; isCloud=true;
+        showApp(user); startSync(user);
+      } else if(!user){
+        currentUser=null;
+      }
     });
   }catch(e){ console.error('FB init:',e); }
 }
@@ -632,16 +651,27 @@ function initFB(cfg){
 // ════════ GOOGLE SIGN IN ════════
 function signInGoogle(){
   var msgEl = document.getElementById('login-msg');
-  msgEl.textContent='Connecting...';
+  msgEl.textContent='Loading...';
   loadFirebaseSDK(function(ok){
-    if(!ok){ msgEl.innerHTML='<span style="color:#dc2626">Could not load Firebase. Check internet connection.</span>'; return; }
-    if(!auth){ initFB(fbConfig); }
-    msgEl.textContent='Redirecting to Google...';
-    var provider = new firebase.auth.GoogleAuthProvider();
-    // Use redirect (works on Safari/iPad — no popup needed)
-    auth.signInWithRedirect(provider).catch(function(e){
-      msgEl.innerHTML='<span style="color:#dc2626">'+e.message+'</span>';
-    });
+    if(!ok){
+      msgEl.innerHTML='<span style="color:#dc2626">No internet. Use Continue Offline.</span>';
+      return;
+    }
+    try{
+      if(!firebase.apps.length) firebase.initializeApp(fbConfig);
+      db = firebase.firestore();
+      auth = firebase.auth();
+      db.enablePersistence({synchronizeTabs:true}).catch(function(){});
+      auth.onAuthStateChanged(function(user){
+        if(user && !isCloud){ currentUser=user; isCloud=true; showApp(user); startSync(user); }
+        else if(!user){ currentUser=null; }
+      });
+      msgEl.textContent='Redirecting to Google...';
+      var provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithRedirect(provider);
+    }catch(e){
+      msgEl.innerHTML='<span style="color:#dc2626">Error: '+e.message+'</span>';
+    }
   });
 }
 function useOffline(){
