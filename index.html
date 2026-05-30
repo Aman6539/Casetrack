@@ -612,31 +612,42 @@ function initFB(cfg){
     db = firebase.firestore();
     auth = firebase.auth();
     db.enablePersistence({synchronizeTabs:true}).catch(function(){});
+    // Handle redirect result (after Google sign-in redirect)
+    auth.getRedirectResult().then(function(result){
+      if(result && result.user){
+        currentUser=result.user; isCloud=true;
+        showApp(result.user); startSync(result.user);
+      }
+    }).catch(function(e){
+      var msgEl=document.getElementById('login-msg');
+      if(msgEl) msgEl.innerHTML='<span style="color:#dc2626">'+e.message+'</span>';
+    });
     auth.onAuthStateChanged(function(user){
       if(user){ currentUser=user; isCloud=true; showApp(user); startSync(user); }
       else { currentUser=null; }
     });
-  }catch(e){ console.error('FB init:',e); toast('Firebase error: '+e.message+'. Using offline mode.','error'); }
+  }catch(e){ console.error('FB init:',e); }
 }
 
 // ════════ GOOGLE SIGN IN ════════
 function signInGoogle(){
-  document.getElementById('login-msg').textContent='Connecting...';
+  var msgEl = document.getElementById('login-msg');
+  msgEl.textContent='Connecting...';
   loadFirebaseSDK(function(ok){
-    if(!ok){ document.getElementById('login-msg').innerHTML='<span style="color:#dc2626">Could not load Firebase. Check your internet connection.</span>'; return; }
+    if(!ok){ msgEl.innerHTML='<span style="color:#dc2626">Could not load Firebase. Check internet connection.</span>'; return; }
     if(!auth){ initFB(fbConfig); }
-    document.getElementById('login-msg').textContent='Opening Google sign-in...';
+    msgEl.textContent='Redirecting to Google...';
     var provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider).catch(function(e){
-      if(e.code==='auth/popup-blocked') auth.signInWithRedirect(provider);
-      else document.getElementById('login-msg').innerHTML='<span style="color:#dc2626">'+e.message+'</span>';
+    // Use redirect (works on Safari/iPad — no popup needed)
+    auth.signInWithRedirect(provider).catch(function(e){
+      msgEl.innerHTML='<span style="color:#dc2626">'+e.message+'</span>';
     });
   });
 }
 function useOffline(){
   isCloud=false;
   try{ var s=localStorage.getItem(LOC_KEY); if(s) cases=JSON.parse(s); }catch(e){ cases=[]; }
-  try{ showApp(null); }catch(e){ console.error('showApp error:',e); }
+  showApp(null);
 }
 function doSignOut(){
   if(auth) auth.signOut();
@@ -651,27 +662,26 @@ function doSignOut(){
 
 // ════════ SHOW APP ════════
 function showApp(user){
-  try {
-  document.getElementById('login-screen').style.display='none';
-  document.getElementById('main-header').style.display='flex';
-  document.getElementById('main-body').style.display='block';
+  function el(id){ return document.getElementById(id); }
+  try{ el('login-screen').style.display='none'; }catch(e){}
+  try{ el('main-header').style.display='flex'; }catch(e){}
+  try{ el('main-body').style.display='block'; }catch(e){}
   if(user){
-    document.getElementById('user-pill').style.display='flex';
-    document.getElementById('offline-badge').style.display='none';
-    document.getElementById('user-photo').src=user.photoURL||'';
-    document.getElementById('user-short').textContent=(user.displayName||'').split(' ')[0]||'User';
-    document.getElementById('hdr-sub').textContent=(user.displayName||user.email)+' · ☁ Cloud Sync Active';
-    document.getElementById('cloud-banner').innerHTML='<strong style="color:#1a56db">☁ Cloud Sync Active:</strong> Cases sync in real-time across all devices. Open on any device and sign in with the same Google account. <span id="last-sync" style="margin-left:8px;color:#16a34a;font-size:12px"></span>';
-    document.getElementById('acct-info').innerHTML='<div style="display:flex;align-items:center;gap:12px">'+(user.photoURL?'<img src="'+user.photoURL+'" style="width:44px;height:44px;border-radius:50%;border:2px solid #bfdbfe"/>':'<div style="width:44px;height:44px;border-radius:50%;background:#1a56db;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px">👤</div>')+'<div><div style="font-weight:700;font-size:15px;color:#1e3a5f">'+(user.displayName||'User')+'</div><div style="font-size:12px;color:#7b93ad">'+user.email+'</div><div style="font-size:11px;color:#16a34a;margin-top:3px">☁ Synced · Firebase Firestore</div></div></div>';
+    try{ el('user-pill').style.display='flex'; }catch(e){}
+    try{ el('offline-badge').style.display='none'; }catch(e){}
+    try{ el('user-photo').src=user.photoURL||''; }catch(e){}
+    try{ el('user-short').textContent=(user.displayName||'').split(' ')[0]||'User'; }catch(e){}
+    try{ el('hdr-sub').textContent=(user.displayName||user.email)+' · ☁ Cloud Sync Active'; }catch(e){}
+    try{ el('cloud-banner').innerHTML='<strong style="color:#1a56db">☁ Cloud Sync Active:</strong> Cases sync in real-time across all devices.'; }catch(e){}
+    try{ el('acct-info').innerHTML='<div style="font-size:14px;font-weight:600;color:#1e3a5f">'+(user.displayName||'User')+'</div><div style="font-size:12px;color:#7b93ad">'+user.email+'</div>'; }catch(e){}
   } else {
-    document.getElementById('user-pill').style.display='none';
-    document.getElementById('offline-badge').style.display='inline-flex';
-    document.getElementById('hdr-sub').textContent='Offline mode — cases saved locally';
-    document.getElementById('cloud-banner').innerHTML='<strong style="color:#d97706">⚠ Offline Mode:</strong> Cases saved on this device only. Sign in with Google for real-time sync across all devices.';
-    document.getElementById('acct-info').innerHTML='<div style="font-size:13px;color:#4b6280"><strong>Offline Mode</strong> — cases saved on this device only. Sign in with Google for cloud sync across all devices.</div>';
-    renderAll();
+    try{ el('user-pill').style.display='none'; }catch(e){}
+    try{ el('offline-badge').style.display='inline-flex'; }catch(e){}
+    try{ el('hdr-sub').textContent='Offline mode — cases saved locally'; }catch(e){}
+    try{ el('cloud-banner').innerHTML='<strong style="color:#d97706">⚠ Offline Mode:</strong> Cases saved on this device only.'; }catch(e){}
+    try{ el('acct-info').innerHTML='<div style="font-size:13px;color:#4b6280"><strong>Offline Mode</strong> — cases saved on this device only.</div>'; }catch(e){}
+    try{ renderAll(); }catch(e){ console.error('renderAll:',e); }
   }
-  } catch(e){ console.error('showApp error:', e); }
 }
 
 // ════════ REAL-TIME FIRESTORE SYNC ════════
