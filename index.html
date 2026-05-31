@@ -218,7 +218,8 @@ code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px
       Sign in with Google
     </button>
     <button class="offline-btn" id="btn-offline" onclick="useOffline()" style="cursor:pointer">Continue Offline (no sync)</button>
-    <div id="login-msg" style="margin-top:14px;font-size:13px;color:#7b93ad;min-height:20px"></div>
+    <div id="login-msg" style="margin-top:14px;font-size:13px;color:#7b93ad;min-height:20px;line-height:1.5"></div>
+  <div style="margin-top:6px;font-size:11px;color:#aaa">Domain: <span id="curdomain" style="font-family:monospace;background:#f0f6ff;padding:1px 5px;border-radius:3px;color:#1a56db"></span></div>
     <div style="margin-top:16px;text-align:center">
       
     </div>
@@ -559,7 +560,17 @@ var SM = {
 window.onload = function(){
   try { document.getElementById('list-date').value = todayStr(); } catch(e){}
   try{ var a=localStorage.getItem(ALT_KEY); if(a) alerts=JSON.parse(a); }catch(e){}
-  loadFirebaseSDK(function(ok){ if(ok) initFB(fbConfig); });
+  // Init Firebase immediately (SDKs loaded via <script> tags in <head>)
+  // This ensures onAuthStateChanged fires on page load (restores session after redirect)
+  loadFirebaseSDK(function(ok){
+    if(ok){
+      initFB(fbConfig);
+    } else {
+      // No internet — show offline notice on login
+      var lm = document.getElementById('login-msg');
+      if(lm) lm.innerHTML = 'No internet detected. <a href="#" onclick="useOffline()" style="color:#1a56db">Continue Offline</a>';
+    }
+  });
   try { scheduleAllAlerts(); } catch(e){}
   try { reqNotif(); } catch(e){}
   setTimeout(function(){ try{ updateReminderBadge(); }catch(e){} }, 800);
@@ -612,14 +623,18 @@ function initFB(cfg){
     auth = firebase.auth();
     try{ db.enablePersistence({synchronizeTabs:true}); }catch(e){}
     auth.getRedirectResult().then(function(result){
-      if(result && result.user){
-        currentUser=result.user; isCloud=true;
-        showApp(result.user); startSync(result.user);
-      }
-    }).catch(function(e){ console.error('redirect result:',e); });
+      // onAuthStateChanged handles showApp — just log here
+      if(result && result.user) console.log('Redirect sign-in OK:', result.user.email);
+    }).catch(function(e){ console.error('Redirect result error:',e.code); });
     auth.onAuthStateChanged(function(user){
-      if(user && !isCloud){ currentUser=user; isCloud=true; showApp(user); startSync(user); }
-      else if(!user){ currentUser=null; }
+      if(user){
+        // Always call showApp — handles popup, redirect, and page reload after sign-in
+        currentUser=user; isCloud=true;
+        showApp(user);
+        startSync(user);
+      } else {
+        currentUser=null; isCloud=false;
+      }
     });
   }catch(e){ console.error('FB init:',e); }
 }
@@ -627,18 +642,35 @@ function initFB(cfg){
 // ════════ GOOGLE SIGN IN ════════
 function signInGoogle(){
   var msgEl = document.getElementById('login-msg');
-  msgEl.textContent='Loading...';
-  loadFirebaseSDK(function(ok){
-    if(!ok){ msgEl.innerHTML='<span style="color:#dc2626">No internet. Use Continue Offline.</span>'; return; }
-    initFB(fbConfig);
-    msgEl.textContent='Redirecting to Google...';
-    try{
-      var provider = new firebase.auth.GoogleAuthProvider();
-      auth.signInWithRedirect(provider);
-    }catch(e){
-      msgEl.innerHTML='<span style="color:#dc2626">Error: '+e.message+'</span>';
-    }
-  });
+  msgEl.textContent = 'Connecting to Firebase...';
+  // Ensure Firebase is initialised
+  initFB(fbConfig);
+  if(!auth){
+    msgEl.innerHTML='<span style="color:#dc2626">Firebase not ready. Check internet connection and try again.</span>';
+    return;
+  }
+  var provider = new firebase.auth.GoogleAuthProvider();
+  provider.addScope('email');
+  provider.addScope('profile');
+  msgEl.textContent = 'Opening Google sign-in...';
+  auth.signInWithPopup(provider)
+    .then(function(result){
+      // onAuthStateChanged will call showApp automatically
+      msgEl.textContent = 'Signed in as ' + (result.user.displayName||result.user.email) + '...';
+    })
+    .catch(function(e){
+      console.error('Popup error:', e.code, e.message);
+      if(e.code === 'auth/popup-blocked' || e.code === 'auth/popup-closed-by-user'){
+        msgEl.textContent = 'Popup blocked — trying redirect...';
+        auth.signInWithRedirect(provider);
+      } else if(e.code === 'auth/unauthorized-domain'){
+        msgEl.innerHTML = '<span style="color:#dc2626">Domain <strong>' + location.hostname + '</strong> not authorized. Go to Firebase Console &rarr; Authentication &rarr; Settings &rarr; Authorized Domains and add this domain.</span>';
+      } else if(e.code === 'auth/network-request-failed'){
+        msgEl.innerHTML = '<span style="color:#dc2626">No internet connection. Use Continue Offline.</span>';
+      } else {
+        msgEl.innerHTML = '<span style="color:#dc2626">Error: ' + e.message + '</span>';
+      }
+    });
 }
 function useOffline(){
   isCloud=false;
@@ -676,8 +708,10 @@ function showApp(user){
     try{ el('hdr-sub').textContent='Offline mode — cases saved locally'; }catch(e){}
     try{ el('cloud-banner').innerHTML='<strong style="color:#d97706">⚠ Offline Mode:</strong> Cases saved on this device only.'; }catch(e){}
     try{ el('acct-info').innerHTML='<div style="font-size:13px;color:#4b6280"><strong>Offline Mode</strong> — cases saved on this device only.</div>'; }catch(e){}
-    try{ renderAll(); }catch(e){ console.error('renderAll:',e); }
   }
+  // Always render for both online and offline
+  try{ renderAll(); }catch(e){ console.error('renderAll:',e); }
+  try{ updateReminderBadge(); }catch(e){}
 }
 
 // ════════ REAL-TIME FIRESTORE SYNC ════════
@@ -1327,5 +1361,6 @@ saveReminder = function(){
   </div></div>
 </div>
 
+<script>try{document.getElementById("curdomain").textContent=location.hostname;}catch(e){}<\/script>
 </body>
 </html>
