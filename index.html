@@ -1116,20 +1116,33 @@ function saveAlerts(){
 
 // Start listening to reminders from Firestore
 function startRemindersSync(user){
+  var firstLoad = true;
   db.collection('users').doc(user.uid).collection('reminders')
     .onSnapshot(function(snap){
-      snap.docChanges().forEach(function(change){
-        var a = change.doc.data();
-        if(change.type==='removed'){
-          alerts = alerts.filter(function(x){return x.id!==a.id;});
-          if(alertTimers[a.id]){ clearTimeout(alertTimers[a.id]); delete alertTimers[a.id]; }
-        } else {
-          var idx = alerts.findIndex(function(x){return x.id===a.id;});
-          if(idx>=0){ alerts[idx]=a; } else { alerts.push(a); }
+      if(firstLoad){
+        firstLoad = false;
+        Object.keys(alertTimers).forEach(function(id){ clearTimeout(alertTimers[id]); delete alertTimers[id]; });
+        alerts = [];
+        snap.forEach(function(doc){
+          var a = doc.data();
+          alerts.push(a);
           if(!a.done) scheduleAlert(a);
-        }
-      });
-      saveAlerts();
+        });
+      } else {
+        snap.docChanges().forEach(function(change){
+          var a = change.doc.data();
+          if(change.type==='removed'){
+            alerts = alerts.filter(function(x){return x.id!==a.id;});
+            if(alertTimers[a.id]){ clearTimeout(alertTimers[a.id]); delete alertTimers[a.id]; }
+          } else {
+            var idx = alerts.findIndex(function(x){return x.id===a.id;});
+            if(idx>=0){ alerts[idx]=a; } else { alerts.push(a); }
+            if(!a.done) scheduleAlert(a);
+            else if(alertTimers[a.id]){ clearTimeout(alertTimers[a.id]); delete alertTimers[a.id]; }
+          }
+        });
+      }
+      saveLocalAlerts();
       try{ renderRemindersPanel(); }catch(e){}
       try{ updateReminderBadge(); }catch(e){}
       try{ renderTable(); }catch(e){}
