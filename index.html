@@ -1078,13 +1078,66 @@ function buildPDF(dv,list){
 }
 
 function doPrint(){
-  var pa=document.getElementById('print-area');
-  if(!pa.innerHTML.trim()){alert('Generate a cause list first.');return;}
-  // Make sure print-area is visible for print
-  pa.style.display='block';
-  window.print();
-  // hide after print dialog closes
-  setTimeout(function(){ pa.style.display='none'; },2000);
+  var pa = document.getElementById('print-area');
+  if(!pa || !pa.innerHTML.trim()){ alert('Generate a cause list first.'); return; }
+
+  // Open in new window — works better on Safari iPad for Save to PDF
+  var win = window.open('','_blank','width=900,height=700');
+  if(!win){ 
+    // Popup blocked — fall back to window.print()
+    pa.style.display = 'block';
+    window.print();
+    setTimeout(function(){ pa.style.display='none'; }, 3000);
+    return;
+  }
+
+  // Get all print CSS from the page
+  var printCSS = '';
+  var sheets = document.styleSheets;
+  try{
+    for(var i=0;i<sheets.length;i++){
+      try{
+        var rules = sheets[i].cssRules || sheets[i].rules;
+        for(var j=0;j<rules.length;j++){
+          printCSS += rules[j].cssText + '\n';
+        }
+      }catch(e){}
+    }
+  }catch(e){}
+
+  win.document.write(
+    '<!DOCTYPE html><html><head>'+
+    '<meta charset="UTF-8"/>'+
+    '<title>Cause List — LexTrack</title>'+
+    '<style>'+
+    'body{font-family:"Times New Roman",serif;color:#000;background:#fff;padding:10mm;}'+
+    '.ph{text-align:center;border-bottom:2pt solid #000;padding-bottom:6pt;margin-bottom:10pt;}'+
+    '.ph .ph-court{font-size:9pt;font-weight:bold;letter-spacing:1pt;text-transform:uppercase;}'+
+    '.ph h1{font-size:16pt;font-weight:bold;margin:3pt 0;letter-spacing:1pt;}'+
+    '.ph .ph-date{font-size:11pt;margin:2pt 0;}'+
+    '.ph .ph-adv{font-size:9pt;color:#333;margin-top:2pt;}'+
+    '.p-summary{font-size:9pt;border:0.5pt solid #aaa;padding:4pt 6pt;margin-bottom:8pt;background:#f5f5f5;}'+
+    '.p-court-hdr{background:#1a56db;color:#fff;font-size:9pt;font-weight:bold;padding:4pt 6pt;letter-spacing:0.5pt;text-transform:uppercase;}'+
+    'table.p-tbl{width:100%;border-collapse:collapse;margin-bottom:6pt;}'+
+    'table.p-tbl th{background:#e8f0fe;font-size:9pt;font-weight:bold;padding:4pt 5pt;border:0.5pt solid #666;text-align:left;}'+
+    'table.p-tbl td{font-size:9.5pt;padding:4pt 5pt;border:0.5pt solid #bbb;vertical-align:top;word-wrap:break-word;}'+
+    'table.p-tbl td:first-child{text-align:center;font-weight:bold;width:24pt;}'+
+    'table.p-tbl tr:nth-child(even) td{background:#fafcff;}'+
+    '.p-title-cell{font-weight:bold;font-size:10pt;}'+
+    '.p-client-cell{font-size:8.5pt;color:#444;margin-top:1pt;}'+
+    '.p-stage-cell{font-size:9pt;}'+
+    '.p-date-cell{font-size:9pt;text-align:center;min-width:56pt;}'+
+    '.p-footer{margin-top:10pt;display:flex;justify-content:space-between;font-size:9pt;color:#444;border-top:0.5pt solid #aaa;padding-top:6pt;align-items:flex-end;}'+
+    '.p-sig{text-align:right;}'+
+    '.p-sig-line{border-top:0.5pt solid #000;padding-top:3pt;font-weight:bold;margin-top:24pt;}'+
+    '.p-court-section{page-break-inside:avoid;}'+
+    '@media print{@page{size:A4 portrait;margin:12mm 10mm;}body{padding:0;}}'+
+    '</style></head><body>'+
+    pa.innerHTML+
+    '<script>window.onload=function(){window.print();}<\/script>'+
+    '</body></html>'
+  );
+  win.document.close();
 }
 
 // ════════════════════════════════════════════════════════════
