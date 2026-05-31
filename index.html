@@ -740,6 +740,9 @@ function startSync(user){
       toast('Sync error. Working offline.','error');
       try{ var s=localStorage.getItem(LOC_KEY); if(s) cases=JSON.parse(s); renderAll(); }catch(e){}
     });
+
+  // Also sync reminders
+  startRemindersSync(user);
 }
 
 function setSyncPill(online){
@@ -1088,6 +1091,50 @@ function doPrint(){
 // REMINDERS / ALERTS
 // ════════════════════════════════════════════════════════════
 function saveLocalAlerts(){ try{localStorage.setItem(ALT_KEY,JSON.stringify(alerts));}catch(e){} }
+
+// Save a single alert to Firestore (when online)
+function cloudSaveAlert(a){
+  if(!isCloud||!db||!currentUser) return;
+  db.collection('users').doc(currentUser.uid).collection('reminders').doc(a.id).set(a,{merge:true})
+    .catch(function(e){ console.error('cloudSaveAlert:',e); });
+}
+
+// Delete a single alert from Firestore (when online)
+function cloudDeleteAlert(id){
+  if(!isCloud||!db||!currentUser) return;
+  db.collection('users').doc(currentUser.uid).collection('reminders').doc(id).delete()
+    .catch(function(e){ console.error('cloudDeleteAlert:',e); });
+}
+
+// Save locally + sync to cloud
+function saveAlerts(){
+  saveAlerts();
+  if(isCloud&&db&&currentUser){
+    alerts.forEach(function(a){ cloudSaveAlert(a); });
+  }
+}
+
+// Start listening to reminders from Firestore
+function startRemindersSync(user){
+  db.collection('users').doc(user.uid).collection('reminders')
+    .onSnapshot(function(snap){
+      snap.docChanges().forEach(function(change){
+        var a = change.doc.data();
+        if(change.type==='removed'){
+          alerts = alerts.filter(function(x){return x.id!==a.id;});
+          if(alertTimers[a.id]){ clearTimeout(alertTimers[a.id]); delete alertTimers[a.id]; }
+        } else {
+          var idx = alerts.findIndex(function(x){return x.id===a.id;});
+          if(idx>=0){ alerts[idx]=a; } else { alerts.push(a); }
+          if(!a.done) scheduleAlert(a);
+        }
+      });
+      saveAlerts();
+      try{ renderRemindersPanel(); }catch(e){}
+      try{ updateReminderBadge(); }catch(e){}
+      try{ renderTable(); }catch(e){}
+    }, function(e){ console.error('reminders sync error:',e); });
+}
 function scheduleAllAlerts(){ alerts.forEach(function(a){if(!a.done)scheduleAlert(a);}); }
 function scheduleAlert(a){
   if(alertTimers[a.id])clearTimeout(alertTimers[a.id]);
@@ -1096,7 +1143,7 @@ function scheduleAlert(a){
   alertTimers[a.id]=setTimeout(function(){fireAlert(a);},delay);
 }
 function fireAlert(a){
-  a.done=true;saveLocalAlerts();
+  a.done=true;saveAlerts();
   if(window.Notification&&Notification.permission==='granted'){
     new Notification('LexTrack Reminder',{body:a.msg,icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><text y="26" font-size="28">⚖️</text></svg>'});
   }
@@ -1130,7 +1177,7 @@ function saveReminder(){
   if(!dt){alert('Select date and time.');return;}
   var c=cases.find(function(x){return x.id===cid;});
   var a={id:genId(),caseId:cid,caseTitle:c?c.title:'',msg:msg,fireAt:dt,done:false,createdAt:new Date().toISOString()};
-  alerts.push(a);saveLocalAlerts();scheduleAlert(a);
+  alerts.push(a);saveAlerts();scheduleAlert(a);
   toast('🔔 Reminder set for '+new Date(dt).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}));
   reqNotif();closeModal('modal-reminder');renderTable();
 }
@@ -1262,7 +1309,7 @@ function snoozeReminder(id){
   var newFire = new Date(Date.now() + 60*60*1000); // +1 hour
   a.fireAt = newFire.toISOString();
   a.done = false;
-  saveLocalAlerts();
+  saveAlerts();
   scheduleAlert(a);
   renderRemindersPanel();
   toast('⏰ Snoozed 1 hour — will remind at '+newFire.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}));
@@ -1273,7 +1320,7 @@ function markReminderDone(id){
   if(!a) return;
   a.done = true;
   if(alertTimers[id]){ clearTimeout(alertTimers[id]); delete alertTimers[id]; }
-  saveLocalAlerts();
+  saveAlerts();
   renderRemindersPanel();
   renderTable();
   toast('✓ Reminder marked as done.');
@@ -1288,7 +1335,7 @@ function reactivateReminder(id){
   d.setHours(9,0,0,0);
   a.fireAt = d.toISOString();
   a.done = false;
-  saveLocalAlerts();
+  saveAlerts();
   scheduleAlert(a);
   renderRemindersPanel();
   renderTable();
@@ -1299,6 +1346,7 @@ function deleteReminder(id){
   if(alertTimers[id]){ clearTimeout(alertTimers[id]); delete alertTimers[id]; }
   alerts = alerts.filter(function(a){return a.id!==id;});
   saveLocalAlerts();
+  cloudDeleteAlert(id);
   renderRemindersPanel();
   renderTable();
   toast('Reminder deleted.','warn');
@@ -1307,7 +1355,10 @@ function deleteReminder(id){
 function clearDoneReminders(){
   if(!confirm('Delete all completed reminders?')) return;
   var doneIds = alerts.filter(function(a){return a.done;}).map(function(a){return a.id;});
-  doneIds.forEach(function(id){ if(alertTimers[id]){ clearTimeout(alertTimers[id]); delete alertTimers[id]; } });
+  doneIds.forEach(function(id){
+    if(alertTimers[id]){ clearTimeout(alertTimers[id]); delete alertTimers[id]; }
+    cloudDeleteAlert(id);
+  });
   alerts = alerts.filter(function(a){return !a.done;});
   saveLocalAlerts();
   renderRemindersPanel();
