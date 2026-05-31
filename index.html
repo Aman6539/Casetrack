@@ -218,7 +218,9 @@ code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px
       Sign in with Google
     </button>
     <button class="offline-btn" id="btn-offline" onclick="useOffline()" style="cursor:pointer">Continue Offline (no sync)</button>
-    <div id="login-msg" style="margin-top:14px;font-size:13px;color:#7b93ad;min-height:20px"></div>
+    <div id="login-msg" style="margin-top:14px;font-size:13px;color:#7b93ad;min-height:20px;line-height:1.5"></div>
+  <div style="margin-top:8px;font-size:11px;color:#7b93ad">Domain: <code id="cur-domain" style="font-family:monospace;font-size:11px;background:#f0f6ff;padding:2px 6px;border-radius:3px"></code></div>
+  <script>try{document.getElementById('cur-domain').textContent=location.hostname;}catch(e){}<\/script>
     <div style="margin-top:16px;text-align:center">
       
     </div>
@@ -559,7 +561,13 @@ var SM = {
 window.onload = function(){
   try { document.getElementById('list-date').value = todayStr(); } catch(e){}
   try{ var a=localStorage.getItem(ALT_KEY); if(a) alerts=JSON.parse(a); }catch(e){}
-  loadFirebaseSDK(function(ok){ if(ok) initFB(fbConfig); });
+  // Load Firebase SDK first, then init
+  loadFirebaseSDK(function(ok){
+    if(ok){ initFB(fbConfig); }
+    else {
+      try{ document.getElementById('login-msg').textContent='Offline — use Continue Offline below.'; }catch(e){}
+    }
+  });
   try { scheduleAllAlerts(); } catch(e){}
   try { reqNotif(); } catch(e){}
   setTimeout(function(){ try{ updateReminderBadge(); }catch(e){} }, 800);
@@ -608,36 +616,58 @@ function initFB(cfg){
   _fbInited = true;
   try{
     if(!firebase.apps.length) firebase.initializeApp(cfg);
-    db = firebase.firestore();
+    db   = firebase.firestore();
     auth = firebase.auth();
     try{ db.enablePersistence({synchronizeTabs:true}); }catch(e){}
+    // Handle redirect result — fires when page reloads after Google redirect
     auth.getRedirectResult().then(function(result){
-      if(result && result.user){
+      if(result && result.user && !isCloud){
         currentUser=result.user; isCloud=true;
         showApp(result.user); startSync(result.user);
       }
-    }).catch(function(e){ console.error('redirect result:',e); });
-    auth.onAuthStateChanged(function(user){
-      if(user && !isCloud){ currentUser=user; isCloud=true; showApp(user); startSync(user); }
-      else if(!user){ currentUser=null; }
+    }).catch(function(e){
+      if(e.code !== 'auth/no-auth-event'){
+        try{ document.getElementById('login-msg').innerHTML='<span style="color:#dc2626">'+e.message+'</span>'; }catch(x){}
+      }
     });
-  }catch(e){ console.error('FB init:',e); }
+    // Auth state — fires on page load if user already signed in
+    auth.onAuthStateChanged(function(user){
+      if(user && !isCloud){
+        currentUser=user; isCloud=true;
+        showApp(user); startSync(user);
+      } else if(!user){
+        currentUser=null; isCloud=false;
+      }
+    });
+  }catch(e){ console.error('FB init error:',e); }
 }
 
 // ════════ GOOGLE SIGN IN ════════
 function signInGoogle(){
   var msgEl = document.getElementById('login-msg');
-  msgEl.textContent='Loading...';
+  msgEl.textContent = 'Loading Firebase...';
   loadFirebaseSDK(function(ok){
-    if(!ok){ msgEl.innerHTML='<span style="color:#dc2626">No internet. Use Continue Offline.</span>'; return; }
-    initFB(fbConfig);
-    msgEl.textContent='Redirecting to Google...';
-    try{
-      var provider = new firebase.auth.GoogleAuthProvider();
-      auth.signInWithRedirect(provider);
-    }catch(e){
-      msgEl.innerHTML='<span style="color:#dc2626">Error: '+e.message+'</span>';
+    if(!ok){
+      msgEl.innerHTML = '<span style="color:#dc2626">No internet. Please use Continue Offline.</span>';
+      return;
     }
+    initFB(fbConfig);
+    if(!auth){
+      msgEl.innerHTML = '<span style="color:#dc2626">Firebase not ready. Try again.</span>';
+      return;
+    }
+    msgEl.textContent = 'Redirecting to Google...';
+    var provider = new firebase.auth.GoogleAuthProvider();
+    provider.addScope('email');
+    provider.addScope('profile');
+    // Redirect only — popup is blocked on Safari/iPad
+    auth.signInWithRedirect(provider).catch(function(e){
+      if(e.code === 'auth/unauthorized-domain'){
+        msgEl.innerHTML = '<span style="color:#dc2626">Add <strong>' + location.hostname + '</strong> to Firebase → Authentication → Authorized Domains.</span>';
+      } else {
+        msgEl.innerHTML = '<span style="color:#dc2626">' + e.message + '</span>';
+      }
+    });
   });
 }
 function useOffline(){
@@ -659,39 +689,44 @@ function doSignOut(){
 // ════════ SHOW APP ════════
 function showApp(user){
   function el(id){ return document.getElementById(id); }
-  try{ el('login-screen').style.display='none'; }catch(e){}
-  try{ el('main-header').style.display='flex'; }catch(e){}
-  try{ el('main-body').style.display='block'; }catch(e){}
+  // ── Always: hide login, reveal app ──
+  var ls=el('login-screen'); if(ls) ls.style.display='none';
+  var mh=el('main-header');  if(mh) mh.style.display='flex';
+  var mb=el('main-body');    if(mb) mb.style.display='block';
+
   if(user){
-    try{ el('user-pill').style.display='flex'; }catch(e){}
-    try{ el('offline-badge').style.display='none'; }catch(e){}
-    try{ el('user-photo').src=user.photoURL||''; }catch(e){}
-    try{ el('user-short').textContent=(user.displayName||'').split(' ')[0]||'User'; }catch(e){}
-    try{ el('hdr-sub').textContent=(user.displayName||user.email)+' · ☁ Cloud Sync Active'; }catch(e){}
-    try{ el('cloud-banner').innerHTML='<strong style="color:#1a56db">☁ Cloud Sync Active:</strong> Cases sync in real-time across all devices.'; }catch(e){}
-    try{ el('acct-info').innerHTML='<div style="font-size:14px;font-weight:600;color:#1e3a5f">'+(user.displayName||'User')+'</div><div style="font-size:12px;color:#7b93ad">'+user.email+'</div>'; }catch(e){}
+    var pp=el('user-pill');    if(pp) pp.style.display='flex';
+    var ob=el('offline-badge');if(ob) ob.style.display='none';
+    var ph=el('user-photo');   if(ph) ph.src=user.photoURL||'';
+    var us=el('user-short');   if(us) us.textContent=(user.displayName||'').split(' ')[0]||'User';
+    var hs=el('hdr-sub');      if(hs) hs.textContent=(user.displayName||user.email)+' · ☁ Cloud Sync Active';
+    var sp=el('sync-pill');    if(sp){sp.textContent='● Online';sp.style.color='#16a34a';sp.style.background='#f0fdf4';sp.style.borderColor='#bbf7d0';}
+    var cb=el('cloud-banner'); if(cb) cb.innerHTML='<strong style="color:#1a56db">☁ Cloud Sync Active</strong> — Cases sync across all devices. <span id="last-sync" style="color:#16a34a;font-size:12px;margin-left:8px"></span>';
+    var ai=el('acct-info');    if(ai) ai.innerHTML='<div style="display:flex;align-items:center;gap:12px">'+(user.photoURL?'<img src="'+user.photoURL+'" style="width:40px;height:40px;border-radius:50%;border:2px solid #bfdbfe"/>':'<div style="width:40px;height:40px;border-radius:50%;background:#1a56db;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px">👤</div>')+'<div><div style="font-weight:700;font-size:15px;color:#1e3a5f">'+(user.displayName||'User')+'</div><div style="font-size:12px;color:#7b93ad">'+user.email+'</div><div style="font-size:11px;color:#16a34a;margin-top:2px">☁ Firebase cloud sync active</div></div></div>';
   } else {
-    try{ el('user-pill').style.display='none'; }catch(e){}
-    try{ el('offline-badge').style.display='inline-flex'; }catch(e){}
-    try{ el('hdr-sub').textContent='Offline mode — cases saved locally'; }catch(e){}
-    try{ el('cloud-banner').innerHTML='<strong style="color:#d97706">⚠ Offline Mode:</strong> Cases saved on this device only.'; }catch(e){}
-    try{ el('acct-info').innerHTML='<div style="font-size:13px;color:#4b6280"><strong>Offline Mode</strong> — cases saved on this device only.</div>'; }catch(e){}
-    try{ renderAll(); }catch(e){ console.error('renderAll:',e); }
+    var pp2=el('user-pill');    if(pp2) pp2.style.display='none';
+    var ob2=el('offline-badge');if(ob2) ob2.style.display='inline-flex';
+    var hs2=el('hdr-sub');      if(hs2) hs2.textContent='Offline mode — cases saved locally';
+    var sp2=el('sync-pill');    if(sp2){sp2.textContent='◌ Offline';sp2.style.color='#d97706';sp2.style.background='#fffbeb';sp2.style.borderColor='#fde68a';}
+    var cb2=el('cloud-banner'); if(cb2) cb2.innerHTML='<strong style="color:#d97706">⚠ Offline Mode</strong> — Cases saved on this device only.';
+    var ai2=el('acct-info');    if(ai2) ai2.innerHTML='<div style="font-size:13px;color:#4b6280"><strong>Offline Mode</strong> — cases saved on this device only.</div>';
   }
+  // ── Always render table and stats ──
+  try{ renderAll(); }catch(e){ console.error('renderAll:',e); }
+  try{ updateReminderBadge(); }catch(e){}
 }
 
 // ════════ REAL-TIME FIRESTORE SYNC ════════
 function startSync(user){
   if(!db||!user) return;
   if(unsub){ unsub(); }
-  document.getElementById('sync-bar').style.display='block';
-  document.getElementById('sync-msg').textContent='Connecting to cloud...';
-  document.getElementById('sync-pill').textContent='⟳ Syncing';
-  document.getElementById('sync-pill').style.color='#d97706';
+  var sbe=document.getElementById('sync-bar');if(sbe)sbe.style.display='block';
+  var sme=document.getElementById('sync-msg');if(sme)sme.textContent='Connecting to cloud...';
+  var spe=document.getElementById('sync-pill');if(spe){spe.textContent='⟳ Syncing';spe.style.color='#d97706';}
 
   unsub = db.collection('users').doc(user.uid).collection('cases')
     .onSnapshot(function(snap){
-      document.getElementById('sync-bar').style.display='none';
+      var sbe2=document.getElementById('sync-bar');if(sbe2)sbe2.style.display='none';
       setSyncPill(true);
       var now = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
       var el = document.getElementById('last-sync');
@@ -699,8 +734,8 @@ function startSync(user){
       cases=[];
       snap.forEach(function(doc){ cases.push(Object.assign({},doc.data(),{id:doc.id})); });
       renderAll();
-      document.getElementById('cloud-lbl').className='';
-      document.getElementById('cloud-lbl').textContent='☁';
+      try{updateReminderBadge();}catch(e){}
+      var clbl=document.getElementById('cloud-lbl');if(clbl){clbl.className='';clbl.textContent='☁';}
     }, function(err){
       setSyncPill(false);
       toast('Sync error. Working offline.','error');
