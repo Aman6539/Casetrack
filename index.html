@@ -1108,7 +1108,7 @@ function cloudDeleteAlert(id){
 
 // Save locally + sync to cloud
 function saveAlerts(){
-  saveAlerts();
+  saveLocalAlerts();
   if(isCloud&&db&&currentUser){
     alerts.forEach(function(a){ cloudSaveAlert(a); });
   }
@@ -1180,6 +1180,7 @@ function saveReminder(){
   alerts.push(a);saveAlerts();scheduleAlert(a);
   toast('🔔 Reminder set for '+new Date(dt).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}));
   reqNotif();closeModal('modal-reminder');renderTable();
+  try{ updateReminderBadge(); }catch(e){}
 }
 function qAlert(days){var d=new Date();if(days===0)d.setHours(9,0,0,0);else{d.setDate(d.getDate()+days);d.setHours(9,0,0,0);}document.getElementById('rem-dt').value=d.toISOString().slice(0,16);}
 function qAlertHearing(){var id=document.getElementById('rem-id').value;var c=cases.find(function(x){return x.id===id;});if(c&&c.nextDate){var d=new Date(c.nextDate);d.setDate(d.getDate()-1);d.setHours(9,0,0,0);document.getElementById('rem-dt').value=d.toISOString().slice(0,16);}else toast('No hearing date set. Add it first.','warn');}
@@ -1370,12 +1371,6 @@ var _origScheduleAll = scheduleAllAlerts;
 scheduleAllAlerts = function(){
   _origScheduleAll();
   setTimeout(updateReminderBadge, 500);
-};
-// Also update badge after saving reminder
-var _origSaveRem = saveReminder;
-saveReminder = function(){
-  _origSaveRem();
-  updateReminderBadge();
 };
 
 </script>
