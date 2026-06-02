@@ -298,6 +298,15 @@ code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px
   .form-grid { grid-template-columns: 1fr 1fr; }
   .modal.xwide { max-width: 95vw; }
 }
+
+.cf-sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:7px;margin-bottom:14px}
+.cf-sb{padding:8px 10px;border-radius:8px;border:1.5px solid #dbeafe;background:#fff;cursor:pointer;font-size:12px;font-weight:600;color:#4b6280;transition:all .15s;text-align:left;font-family:inherit;line-height:1.3}
+.cf-sb:hover,.cf-sb.on{border-color:#7c3aed;color:#7c3aed;background:#f5f3ff}
+.cf-result{background:#f5f3ff;border:2px solid #7c3aed;border-radius:11px;padding:16px;text-align:center;margin-top:14px}
+.cf-big{font-size:32px;font-weight:800;color:#7c3aed;line-height:1}
+.cf-lbl{font-size:12px;color:#6d28d9;margin-top:4px}
+.cf-box{background:#f8fafc;border:1px solid #dbeafe;border-radius:9px;padding:12px;margin-bottom:12px}
+.cf-boxtitle{font-size:11px;font-weight:700;color:#1a56db;letter-spacing:.5px;text-transform:uppercase;margin-bottom:9px}
 </style>
 </head>
 <body>
@@ -356,6 +365,7 @@ code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px
     <button class="tab"        id="tab-month" onclick="switchView('month')">This Month</button>
   </div>
   <button class="btn btn-outline" onclick="openModal('modal-listdate')">📋 Daily List</button>
+  <button class="btn btn-ghost" onclick="openModal('modal-courtfee');initCF()" style="border-color:#7c3aed;color:#7c3aed">⚖ Court Fee</button>
   <button class="btn btn-gold"    onclick="openModal('modal-import')">⬇ Import</button>
   <button class="btn btn-ghost"   onclick="exportData()">⬆ Export</button>
   <button class="btn btn-ghost" onclick="openModal('modal-reminders')" id="btn-reminders" style="position:relative">🔔 Reminders<span id="rem-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:#dc2626;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;line-height:16px">0</span></button>
@@ -1253,6 +1263,320 @@ function doPrint(){
   win.document.close();
 }
 
+var cfState=null, cfType=null;
+var CFD={
+ 'Punjab':{t:[
+  {id:'money',l:'Money / Recovery Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.07,mn:30},{u:5000,r:.06},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:250000,r:.03},{u:500000,r:.025},{u:1000000,r:.02},{u:Infinity,r:.015,mx:75000}],
+   pf:'Process fee: ₹100 per defendant (ordinary). ₹200 RPAD.'},
+  {id:'immov',l:'Immovable Property',inp:'Market Value (₹)',
+   s:[{u:1000,r:.07,mn:30},{u:5000,r:.06},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:250000,r:.03},{u:500000,r:.025},{u:1000000,r:.02},{u:Infinity,r:.015,mx:75000}]},
+  {id:'inj',l:'Injunction',inp:'Value of Relief (₹)',
+   s:[{u:5000,r:.05,mn:50},{u:10000,r:.04},{u:50000,r:.03},{u:100000,r:.025},{u:Infinity,r:.02,mx:10000}]},
+  {id:'div',l:'Matrimonial / Divorce',flat:200,pf:'Process fee: ₹100 per respondent.'},
+  {id:'appeal',l:'First Appeal / Revision',inp:'Value in Appeal (₹)',
+   s:[{u:1000,r:.07,mn:30},{u:5000,r:.06},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.015,mx:75000}]},
+  {id:'probate',l:'Probate / Administration',inp:'Value of Estate (₹)',
+   s:[{u:10000,r:.02,mn:50},{u:50000,r:.015},{u:100000,r:.01},{u:Infinity,r:.0075,mx:50000}]},
+  {id:'fixed',l:'Fixed Fee Matters',fl:[{n:'Caveat',f:100},{n:'Execution Petition',f:50},{n:'Misc Application',f:50},{n:'Review',f:100},{n:'Criminal Complaint',f:0},{n:'Bail Application',f:0},{n:'Habeas Corpus',f:0}]}
+ ]},
+ 'Haryana':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.07,mn:30},{u:5000,r:.06},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:250000,r:.03},{u:Infinity,r:.02,mx:75000}],pf:'Process fee: ₹100 per defendant.'},
+  {id:'immov',l:'Immovable Property',inp:'Market Value (₹)',
+   s:[{u:10000,r:.05,mn:30},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.025,mx:75000}]},
+  {id:'inj',l:'Injunction',flat:200},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Caveat',f:100},{n:'Execution',f:50},{n:'Misc Application',f:50},{n:'Review',f:100},{n:'Bail Application',f:0}]}
+ ]},
+ 'Delhi':{t:[
+  {id:'money',l:'Money / Recovery',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:20},{u:5000,r:.05},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:500000,r:.03},{u:2000000,r:.025},{u:Infinity,r:.02,mx:100000}],
+   pf:'Process fee: ₹200 per defendant (ordinary). ₹500 RPAD.'},
+  {id:'immov',l:'Immovable Property',inp:'Circle Rate / Market Value (₹)',
+   s:[{u:10000,r:.05,mn:20},{u:100000,r:.04},{u:500000,r:.03},{u:2000000,r:.025},{u:Infinity,r:.02,mx:100000}]},
+  {id:'inj',l:'Permanent Injunction',inp:'Value of Property/Relief (₹)',
+   s:[{u:100000,r:.02,mn:200},{u:500000,r:.015},{u:Infinity,r:.01,mx:25000}]},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Caveat',f:200},{n:'Execution',f:100},{n:'Misc Application',f:100},{n:'Review',f:200},{n:'Written Statement',f:0},{n:'Vakalatnama',f:0},{n:'Bail Application',f:0}]}
+ ]},
+ 'Uttar Pradesh':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:500,fl:10},{u:1000,fl:20},{u:5000,r:.05},{u:10000,r:.045},{u:50000,r:.04},{u:100000,r:.035},{u:500000,r:.03},{u:Infinity,r:.025,mx:50000}],
+   pf:'Process fee: ₹50 per defendant.'},
+  {id:'immov',l:'Immovable Property',inp:'Market Value (₹)',
+   s:[{u:10000,r:.04,mn:20},{u:50000,r:.035},{u:100000,r:.03},{u:Infinity,r:.025,mx:50000}]},
+  {id:'div',l:'Matrimonial',flat:150},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:30},{n:'Misc Application',f:30},{n:'Review',f:50},{n:'Caveat',f:50}]}
+ ]},
+ 'Maharashtra':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:500,fl:25},{u:1000,fl:40},{u:5000,r:.06},{u:10000,r:.055},{u:50000,r:.05},{u:100000,r:.04},{u:500000,r:.035},{u:1000000,r:.03},{u:Infinity,r:.025,mx:200000}],
+   pf:'Process fee: ₹250 per defendant.'},
+  {id:'immov',l:'Immovable Property',inp:'Stamp Duty / Market Value (₹)',
+   s:[{u:10000,r:.05,mn:50},{u:50000,r:.045},{u:100000,r:.04},{u:500000,r:.035},{u:Infinity,r:.03,mx:200000}]},
+  {id:'inj',l:'Injunction',inp:'Value of Relief (₹)',
+   s:[{u:100000,r:.02,mn:200},{u:Infinity,r:.015,mx:50000}]},
+  {id:'div',l:'Matrimonial',flat:500},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Caveat',f:500},{n:'Execution',f:200},{n:'Misc Application',f:200},{n:'Review',f:500}]}
+ ]},
+ 'Karnataka':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:25},{u:5000,r:.05},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.025,mx:100000}],
+   pf:'Process fee: ₹200 per defendant.'},
+  {id:'immov',l:'Immovable Property',inp:'Guidance Value (₹)',
+   s:[{u:10000,r:.05,mn:25},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:100000}]},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Caveat',f:200},{n:'Execution',f:100},{n:'Misc',f:100},{n:'Review',f:200}]}
+ ]},
+ 'Rajasthan':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.06,mn:20},{u:5000,r:.055},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:75000}],
+   pf:'Process fee: ₹100 per defendant.'},
+  {id:'immov',l:'Immovable Property',inp:'Circle Rate Value (₹)',
+   s:[{u:10000,r:.05,mn:20},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:75000}]},
+  {id:'div',l:'Matrimonial',flat:150},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:30},{n:'Misc Application',f:30},{n:'Review',f:50},{n:'Caveat',f:50}]}
+ ]},
+ 'Gujarat':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:25},{u:5000,r:.05},{u:10000,r:.05},{u:100000,r:.04},{u:500000,r:.035},{u:Infinity,r:.03,mx:100000}],
+   pf:'Process fee: ₹200 per defendant.'},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:75},{n:'Misc',f:75},{n:'Review',f:150},{n:'Caveat',f:200}]}
+ ]},
+ 'Tamil Nadu':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:500,fl:20},{u:1000,fl:30},{u:5000,r:.05},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.025,mx:150000}],
+   pf:'Process fee: ₹200 per defendant.'},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:75},{n:'Misc',f:75},{n:'Review',f:150}]}
+ ]},
+ 'Madhya Pradesh':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:20},{u:5000,r:.05},{u:10000,r:.045},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:50000}]},
+  {id:'div',l:'Matrimonial',flat:100},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:25},{n:'Misc',f:25},{n:'Review',f:50}]}
+ ]},
+ 'Andhra Pradesh':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:20},{u:5000,r:.05},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:500000,r:.03},{u:Infinity,r:.025,mx:100000}],
+   pf:'Process fee: ₹200 per defendant.'},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:50},{n:'Misc',f:50},{n:'Review',f:100}]}
+ ]},
+ 'Telangana':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:20},{u:5000,r:.05},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:500000,r:.03},{u:Infinity,r:.025,mx:100000}],
+   pf:'Process fee: ₹200 per defendant.'},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:50},{n:'Misc',f:50},{n:'Review',f:100}]}
+ ]},
+ 'West Bengal':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,fl:30},{u:5000,r:.05},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:100000}]},
+  {id:'div',l:'Matrimonial',flat:150},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:50},{n:'Misc',f:50},{n:'Review',f:100}]}
+ ]},
+ 'Bihar':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.04,mn:15},{u:5000,r:.04},{u:10000,r:.04},{u:50000,r:.035},{u:100000,r:.03},{u:Infinity,r:.025,mx:50000}]},
+  {id:'div',l:'Matrimonial',flat:100},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:20},{n:'Misc',f:20},{n:'Review',f:40}]}
+ ]},
+ 'Kerala':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.06,mn:20},{u:5000,r:.055},{u:10000,r:.05},{u:50000,r:.045},{u:100000,r:.04},{u:500000,r:.035},{u:Infinity,r:.03,mx:150000}],
+   pf:'Process fee: ₹200 per defendant.'},
+  {id:'div',l:'Matrimonial',flat:250},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:100},{n:'Misc',f:100},{n:'Review',f:200}]}
+ ]},
+ 'Himachal Pradesh':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.07,mn:30},{u:5000,r:.06},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:50000}]},
+  {id:'div',l:'Matrimonial',flat:150},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:30},{n:'Misc',f:30},{n:'Review',f:60}]}
+ ]},
+ 'Uttarakhand':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.07,mn:25},{u:5000,r:.06},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:50000}]},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:30},{n:'Misc',f:30}]}
+ ]},
+ 'Odisha':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:20},{u:10000,r:.045},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:50000}]},
+  {id:'div',l:'Matrimonial',flat:100},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:25},{n:'Misc',f:25}]}
+ ]},
+ 'Assam':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.04,mn:15},{u:5000,r:.04},{u:10000,r:.04},{u:50000,r:.035},{u:100000,r:.03},{u:Infinity,r:.025,mx:40000}]},
+  {id:'div',l:'Matrimonial',flat:100},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:20},{n:'Misc',f:20}]}
+ ]},
+ 'Jharkhand':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.04,mn:15},{u:10000,r:.04},{u:50000,r:.035},{u:100000,r:.03},{u:Infinity,r:.025,mx:40000}]},
+  {id:'div',l:'Matrimonial',flat:100},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:20},{n:'Misc',f:20}]}
+ ]},
+ 'Chhattisgarh':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:20},{u:5000,r:.05},{u:10000,r:.045},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:40000}]},
+  {id:'div',l:'Matrimonial',flat:100},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:20},{n:'Misc',f:20}]}
+ ]},
+ 'Goa':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:5000,r:.05,mn:25},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:75000}]},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:50},{n:'Misc',f:50},{n:'Review',f:100}]}
+ ]}
+};
+
+function initCF(){
+  if(document.getElementById('cf-states').innerHTML) return;
+  var states=Object.keys(CFD).sort();
+  var h='';
+  states.forEach(function(s){
+    h+='<button class="cf-sb" onclick="cfPickState(\''+s+'\')" id="cfs-'+s.replace(/ /g,'-')+'">'+s+'</button>';
+  });
+  document.getElementById('cf-states').innerHTML=h;
+}
+
+function cfPickState(s){
+  cfState=s; cfType=null;
+  document.querySelectorAll('.cf-sb').forEach(function(b){b.classList.remove('on');});
+  var sb=document.getElementById('cfs-'+s.replace(/ /g,'-')); if(sb) sb.classList.add('on');
+  var h='';
+  CFD[s].t.forEach(function(t){
+    h+='<button class="cf-sb" onclick="cfPickType(\''+t.id+'\')" id="cft-'+t.id+'">'+t.l+'</button>';
+  });
+  document.getElementById('cf-types').innerHTML=h;
+  document.getElementById('cf-types-box').style.display='block';
+  document.getElementById('cf-amt-box').style.display='none';
+  document.getElementById('cf-result-box').style.display='none';
+  document.getElementById('cf-fixedlist').style.display='none';
+  document.getElementById('cf-amt').value='';
+}
+
+function cfPickType(id){
+  cfType=id;
+  document.querySelectorAll('#cf-types .cf-sb').forEach(function(b){b.classList.remove('on');});
+  var tb=document.getElementById('cft-'+id); if(tb) tb.classList.add('on');
+  var t=CFD[cfState].t.find(function(x){return x.id===id;});
+  if(!t) return;
+  document.getElementById('cf-result-box').style.display='none';
+  document.getElementById('cf-fixedlist').style.display='none';
+  document.getElementById('cf-amt-box').style.display='none';
+  document.getElementById('cf-amt').value='';
+  if(t.fl){
+    var h='';
+    t.fl.forEach(function(item){
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 13px;border:1px solid #dbeafe;border-radius:8px;margin-bottom:7px;background:#fff">'
+        +'<span style="font-size:13px;font-weight:600;color:#1e3a5f">'+item.n+'</span>'
+        +'<span style="font-size:15px;font-weight:800;color:#7c3aed">'+(item.f===0?'<span style="color:#16a34a;font-size:13px">No Court Fee</span>':'&#8377;'+item.f.toLocaleString('en-IN'))+'</span>'
+        +'</div>';
+    });
+    document.getElementById('cf-fl-detail').innerHTML=h;
+    document.getElementById('cf-fixedlist').style.display='block';
+  } else if(t.flat){
+    cfShowResult(t.flat,t.l,'Flat Fee',t.pf||'','');
+  } else {
+    document.getElementById('cf-amt-lbl').textContent=t.inp||'Enter Amount (&#8377;)';
+    document.getElementById('cf-amt-box').style.display='block';
+    cfCalc();
+  }
+}
+
+function cfCalc(){
+  var amt=parseFloat(document.getElementById('cf-amt').value);
+  if(!cfState||!cfType||isNaN(amt)||amt<=0){document.getElementById('cf-result-box').style.display='none';return;}
+  var t=CFD[cfState].t.find(function(x){return x.id===cfType;});
+  if(!t||!t.s) return;
+  var fee=0,bd=[],rem=amt,prev=0;
+  t.s.forEach(function(slab){
+    if(rem<=0) return;
+    var cap=slab.u===Infinity?rem:slab.u-prev;
+    var chunk=Math.min(rem,cap);
+    if(chunk<=0){prev=slab.u;return;}
+    var sf=slab.fl!==undefined?slab.fl:(chunk*slab.r);
+    fee+=sf;
+    bd.push({from:prev+1,to:prev+chunk,rate:slab.fl!==undefined?'Flat':'('+(slab.r*100).toFixed(1)+'%)',fee:sf});
+    rem-=chunk;
+    prev=slab.u===Infinity?amt:slab.u;
+  });
+  if(t.s[0]&&t.s[0].mn&&fee<t.s[0].mn) fee=t.s[0].mn;
+  var last=t.s[t.s.length-1]; if(last&&last.mx&&fee>last.mx) fee=last.mx;
+  fee=Math.ceil(fee/5)*5;
+  var bh='';
+  if(bd.length>1){
+    bd.forEach(function(b){
+      bh+='<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid #f0f6ff">'
+        +'<span style="color:#4b6280">&#8377;'+Math.round(b.from).toLocaleString('en-IN')+' &ndash; &#8377;'+Math.round(b.to).toLocaleString('en-IN')+' @ '+b.rate+'</span>'
+        +'<span style="font-weight:600;color:#7c3aed">&#8377;'+Math.ceil(b.fee).toLocaleString('en-IN')+'</span></div>';
+    });
+    bh+='<div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;padding:6px 0"><span>Total</span><span style="color:#7c3aed">&#8377;'+fee.toLocaleString('en-IN')+'</span></div>';
+  }
+  cfShowResult(fee,t.l,'Claim: &#8377;'+amt.toLocaleString('en-IN'),t.pf||'',bh);
+}
+
+function cfShowResult(fee,lbl,sub,pf,bd){
+  document.getElementById('cf-rlbl').textContent=lbl;
+  document.getElementById('cf-ramt').innerHTML='&#8377;'+fee.toLocaleString('en-IN');
+  document.getElementById('cf-rsub').innerHTML=sub;
+  document.getElementById('cf-result-box').style.display='block';
+  var bw=document.getElementById('cf-breakdown');
+  if(bd){document.getElementById('cf-bd-detail').innerHTML=bd;bw.style.display='block';}
+  else bw.style.display='none';
+  var pfe=document.getElementById('cf-procfee');
+  if(pf){pfe.textContent=pf;pfe.style.display='block';}else pfe.style.display='none';
+}
+// ═══════════════════════════════════════════════════════════════
+
+</script>
+
+<div class="overlay" id="modal-courtfee">
+ <div class="modal" style="max-width:680px"><div class="modal-body">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+   <div><div class="modal-title" style="margin-bottom:2px">⚖ Court Fee Calculator</div>
+   <div style="font-size:12px;color:#7b93ad">All Indian states — Court Fees Act schedules</div></div>
+   <button onclick="closeModal('modal-courtfee')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
+  </div>
+  <div class="cf-box"><div class="cf-boxtitle">Select State</div><div class="cf-sgrid" id="cf-states"></div></div>
+  <div class="cf-box" id="cf-types-box" style="display:none"><div class="cf-boxtitle">Type of Suit</div><div class="cf-sgrid" id="cf-types"></div></div>
+  <div class="cf-box" id="cf-amt-box" style="display:none">
+   <div class="cf-boxtitle" id="cf-amt-lbl">Enter Amount (₹)</div>
+   <input type="number" id="cf-amt" placeholder="Enter amount in rupees" oninput="cfCalc()" style="font-size:16px;font-weight:600"/>
+  </div>
+  <div id="cf-result-box" style="display:none">
+   <div class="cf-result">
+    <div class="cf-lbl" id="cf-rlbl"></div>
+    <div class="cf-big" id="cf-ramt">₹0</div>
+    <div id="cf-rsub" style="font-size:12px;color:#6d28d9;margin-top:4px"></div>
+   </div>
+   <div id="cf-breakdown" style="background:#fff;border:1px solid #dbeafe;border-radius:9px;padding:12px;margin-top:10px;display:none">
+    <div style="font-size:11px;font-weight:700;color:#1a56db;margin-bottom:8px">CALCULATION BREAKDOWN</div>
+    <div id="cf-bd-detail"></div>
+   </div>
+   <div id="cf-procfee" style="display:none;margin-top:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 13px;font-size:13px;color:#92400e"></div>
+  </div>
+  <div id="cf-fixedlist" style="display:none">
+   <div style="font-size:11px;font-weight:700;color:#1a56db;margin-bottom:8px">FIXED FEE SCHEDULE</div>
+   <div id="cf-fl-detail"></div>
+  </div>
+  <div style="margin-top:14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 13px;font-size:12px;color:#4b6280">
+   <strong style="color:#1a56db">Note:</strong> Based on Court Fees Act schedules. Verify with latest official notification before filing. Process fee is additional.
+  </div>
+ </div></div>
+</div>
+
+</body></html>'
+  );
+  win.document.close();
+}
+
 // ════════════════════════════════════════════════════════════
 // REMINDERS / ALERTS
 // ════════════════════════════════════════════════════════════
@@ -1552,40 +1876,181 @@ scheduleAllAlerts = function(){
   setTimeout(updateReminderBadge, 500);
 };
 
-</script>
 
-<!-- ═══════════════════ REMINDERS PANEL ═══════════════════ -->
-<div class="overlay" id="modal-reminders">
-  <div class="modal wide"><div class="modal-body">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
-      <div>
-        <div class="modal-title" style="margin-bottom:2px">🔔 All Reminders</div>
-        <div style="font-size:12px;color:#7b93ad">Missed, upcoming and completed reminders for all cases</div>
-      </div>
-      <button onclick="closeModal('modal-reminders')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
-    </div>
-
-    <!-- Filter tabs -->
-    <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
-      <button class="btn btn-sm btn-blue" id="rf-all"    onclick="filterReminders('all')">All</button>
-      <button class="btn btn-sm btn-ghost" id="rf-missed" onclick="filterReminders('missed')" style="border-color:#dc2626;color:#dc2626">🔴 Missed</button>
-      <button class="btn btn-sm btn-ghost" id="rf-upcoming" onclick="filterReminders('upcoming')" style="border-color:#1a56db;color:#1a56db">🔵 Upcoming</button>
-      <button class="btn btn-sm btn-ghost" id="rf-done" onclick="filterReminders('done')" style="border-color:#7b93ad;color:#7b93ad">✓ Completed</button>
-      <div style="margin-left:auto;display:flex;gap:6px">
-        <button class="btn btn-sm btn-ghost" onclick="clearDoneReminders()" style="font-size:11px">Clear Completed</button>
-        <button class="btn btn-sm btn-blue" onclick="closeModal('modal-reminders');openReminderModal(null)" style="font-size:11px">+ New Reminder</button>
-      </div>
-    </div>
-
-    <!-- List -->
-    <div id="reminders-list" style="max-height:420px;overflow-y:auto"></div>
-
-    <div style="margin-top:14px;display:flex;justify-content:flex-end">
-      <button class="btn btn-ghost" onclick="closeModal('modal-reminders')">Close</button>
-    </div>
-  </div></div>
+// ═══════════════════ COURT FEE CALCULATOR ═══════════════════
+var cfState=null, cfType=null;
+var CFD={
+ 'Punjab':{t:[
+  {id:'money',l:'Money / Recovery Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.07,mn:30},{u:5000,r:.06},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:250000,r:.03},{u:500000,r:.025},{u:1000000,r:.02},{u:Infinity,r:.015,mx:75000}],
+   pf:'Process fee: ₹100 per defendant (ordinary). ₹200 RPAD.'},
+  {id:'immov',l:'Immovable Property',inp:'Market Value (₹)',
+   s:[{u:1000,r:.07,mn:30},{u:5000,r:.06},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:250000,r:.03},{u:500000,r:.025},{u:1000000,r:.02},{u:Infinity,r:.015,mx:75000}]},
+  {id:'inj',l:'Injunction',inp:'Value of Relief (₹)',
+   s:[{u:5000,r:.05,mn:50},{u:10000,r:.04},{u:50000,r:.03},{u:100000,r:.025},{u:Infinity,r:.02,mx:10000}]},
+  {id:'div',l:'Matrimonial / Divorce',flat:200,pf:'Process fee: ₹100 per respondent.'},
+  {id:'appeal',l:'First Appeal / Revision',inp:'Value in Appeal (₹)',
+   s:[{u:1000,r:.07,mn:30},{u:5000,r:.06},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.015,mx:75000}]},
+  {id:'probate',l:'Probate / Administration',inp:'Value of Estate (₹)',
+   s:[{u:10000,r:.02,mn:50},{u:50000,r:.015},{u:100000,r:.01},{u:Infinity,r:.0075,mx:50000}]},
+  {id:'fixed',l:'Fixed Fee Matters',fl:[{n:'Caveat',f:100},{n:'Execution Petition',f:50},{n:'Misc Application',f:50},{n:'Review',f:100},{n:'Criminal Complaint',f:0},{n:'Bail Application',f:0},{n:'Habeas Corpus',f:0}]}
+ ]},
+ 'Haryana':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.07,mn:30},{u:5000,r:.06},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:250000,r:.03},{u:Infinity,r:.02,mx:75000}],pf:'Process fee: ₹100 per defendant.'},
+  {id:'immov',l:'Immovable Property',inp:'Market Value (₹)',
+   s:[{u:10000,r:.05,mn:30},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.025,mx:75000}]},
+  {id:'inj',l:'Injunction',flat:200},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Caveat',f:100},{n:'Execution',f:50},{n:'Misc Application',f:50},{n:'Review',f:100},{n:'Bail Application',f:0}]}
+ ]},
+ 'Delhi':{t:[
+  {id:'money',l:'Money / Recovery',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:20},{u:5000,r:.05},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:500000,r:.03},{u:2000000,r:.025},{u:Infinity,r:.02,mx:100000}],
+   pf:'Process fee: ₹200 per defendant (ordinary). ₹500 RPAD.'},
+  {id:'immov',l:'Immovable Property',inp:'Circle Rate / Market Value (₹)',
+   s:[{u:10000,r:.05,mn:20},{u:100000,r:.04},{u:500000,r:.03},{u:2000000,r:.025},{u:Infinity,r:.02,mx:100000}]},
+  {id:'inj',l:'Permanent Injunction',inp:'Value of Property/Relief (₹)',
+   s:[{u:100000,r:.02,mn:200},{u:500000,r:.015},{u:Infinity,r:.01,mx:25000}]},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Caveat',f:200},{n:'Execution',f:100},{n:'Misc Application',f:100},{n:'Review',f:200},{n:'Written Statement',f:0},{n:'Vakalatnama',f:0},{n:'Bail Application',f:0}]}
+ ]},
+ 'Uttar Pradesh':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:500,fl:10},{u:1000,fl:20},{u:5000,r:.05},{u:10000,r:.045},{u:50000,r:.04},{u:100000,r:.035},{u:500000,r:.03},{u:Infinity,r:.025,mx:50000}],
+   pf:'Process fee: ₹50 per defendant.'},
+  {id:'immov',l:'Immovable Property',inp:'Market Value (₹)',
+   s:[{u:10000,r:.04,mn:20},{u:50000,r:.035},{u:100000,r:.03},{u:Infinity,r:.025,mx:50000}]},
+  {id:'div',l:'Matrimonial',flat:150},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:30},{n:'Misc Application',f:30},{n:'Review',f:50},{n:'Caveat',f:50}]}
+ ]},
+ 'Maharashtra':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:500,fl:25},{u:1000,fl:40},{u:5000,r:.06},{u:10000,r:.055},{u:50000,r:.05},{u:100000,r:.04},{u:500000,r:.035},{u:1000000,r:.03},{u:Infinity,r:.025,mx:200000}],
+   pf:'Process fee: ₹250 per defendant.'},
+  {id:'immov',l:'Immovable Property',inp:'Stamp Duty / Market Value (₹)',
+   s:[{u:10000,r:.05,mn:50},{u:50000,r:.045},{u:100000,r:.04},{u:500000,r:.035},{u:Infinity,r:.03,mx:200000}]},
+  {id:'inj',l:'Injunction',inp:'Value of Relief (₹)',
+   s:[{u:100000,r:.02,mn:200},{u:Infinity,r:.015,mx:50000}]},
+  {id:'div',l:'Matrimonial',flat:500},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Caveat',f:500},{n:'Execution',f:200},{n:'Misc Application',f:200},{n:'Review',f:500}]}
+ ]},
+ 'Karnataka':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:25},{u:5000,r:.05},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.025,mx:100000}],
+   pf:'Process fee: ₹200 per defendant.'},
+  {id:'immov',l:'Immovable Property',inp:'Guidance Value (₹)',
+   s:[{u:10000,r:.05,mn:25},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:100000}]},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Caveat',f:200},{n:'Execution',f:100},{n:'Misc',f:100},{n:'Review',f:200}]}
+ ]},
+ 'Rajasthan':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.06,mn:20},{u:5000,r:.055},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:75000}],
+   pf:'Process fee: ₹100 per defendant.'},
+  {id:'immov',l:'Immovable Property',inp:'Circle Rate Value (₹)',
+   s:[{u:10000,r:.05,mn:20},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:75000}]},
+  {id:'div',l:'Matrimonial',flat:150},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:30},{n:'Misc Application',f:30},{n:'Review',f:50},{n:'Caveat',f:50}]}
+ ]},
+ 'Gujarat':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:25},{u:5000,r:.05},{u:10000,r:.05},{u:100000,r:.04},{u:500000,r:.035},{u:Infinity,r:.03,mx:100000}],
+   pf:'Process fee: ₹200 per defendant.'},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:75},{n:'Misc',f:75},{n:'Review',f:150},{n:'Caveat',f:200}]}
+ ]},
+ 'Tamil Nadu':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:500,fl:20},{u:1000,fl:30},{u:5000,r:.05},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.025,mx:150000}],
+   pf:'Process fee: ₹200 per defendant.'},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:75},{n:'Misc',f:75},{n:'Review',f:150}]}
+ ]},
+ 'Madhya Pradesh':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:20},{u:5000,r:.05},{u:10000,r:.045},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:50000}]},
+  {id:'div',l:'Matrimonial',flat:100},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:25},{n:'Misc',f:25},{n:'Review',f:50}]}
+ ]},
+ 'Andhra Pradesh':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:20},{u:5000,r:.05},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:500000,r:.03},{u:Infinity,r:.025,mx:100000}],
+   pf:'Process fee: ₹200 per defendant.'},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:50},{n:'Misc',f:50},{n:'Review',f:100}]}
+ ]},
+ 'Telangana':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:20},{u:5000,r:.05},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:500000,r:.03},{u:Infinity,r:.025,mx:100000}],
+   pf:'Process fee: ₹200 per defendant.'},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:50},{n:'Misc',f:50},{n:'Review',f:100}]}
+ ]},
+ 'West Bengal':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,fl:30},{u:5000,r:.05},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:100000}]},
+  {id:'div',l:'Matrimonial',flat:150},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:50},{n:'Misc',f:50},{n:'Review',f:100}]}
+ ]},
+ 'Bihar':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.04,mn:15},{u:5000,r:.04},{u:10000,r:.04},{u:50000,r:.035},{u:100000,r:.03},{u:Infinity,r:.025,mx:50000}]},
+  {id:'div',l:'Matrimonial',flat:100},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:20},{n:'Misc',f:20},{n:'Review',f:40}]}
+ ]},
+ 'Kerala':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.06,mn:20},{u:5000,r:.055},{u:10000,r:.05},{u:50000,r:.045},{u:100000,r:.04},{u:500000,r:.035},{u:Infinity,r:.03,mx:150000}],
+   pf:'Process fee: ₹200 per defendant.'},
+  {id:'div',l:'Matrimonial',flat:250},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:100},{n:'Misc',f:100},{n:'Review',f:200}]}
+ ]},
+ 'Himachal Pradesh':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.07,mn:30},{u:5000,r:.06},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:50000}]},
+  {id:'div',l:'Matrimonial',flat:150},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:30},{n:'Misc',f:30},{n:'Review',f:60}]}
+ ]},
+ 'Uttarakhand':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.07,mn:25},{u:5000,r:.06},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:50000}]},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:30},{n:'Misc',f:30}]}
+ ]},
+ 'Odisha':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:20},{u:10000,r:.045},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:50000}]},
+  {id:'div',l:'Matrimonial',flat:100},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:25},{n:'Misc',f:25}]}
+ ]},
+ 'Assam':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.04,mn:15},{u:5000,r:.04},{u:10000,r:.04},{u:50000,r:.035},{u:100000,r:.03},{u:Infinity,r:.025,mx:40000}]},
+  {id:'div',l:'Matrimonial',flat:100},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:20},{n:'Misc',f:20}]}
+ ]},
+ 'Jharkhand':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.04,mn:15},{u:10000,r:.04},{u:50000,r:.035},{u:100000,r:.03},{u:Infinity,r:.025,mx:40000}]},
+  {id:'div',l:'Matrimonial',flat:100},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:20},{n:'Misc',f:20}]}
+ ]},
+ 'Chhattisgarh':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:1000,r:.05,mn:20},{u:5000,r:.05},{u:10000,r:.045},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:40000}]},
+  {id:'div',l:'Matrimonial',flat:100},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:20},{n:'Misc',f:20}]}
+ ]},
+ 'Goa':{t:[
+  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
+   s:[{u:5000,r:.05,mn:25},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.03,mx:75000}]},
+  {id:'div',l:'Matrimonial',flat:200},
+  {id:'fixed',l:'Fixed Fee',fl:[{n:'Execution',f:50},{n:'Misc',f:50},{n:'Review',f:100}]}
+ ]}
+};
 </div>
 
-<script>try{document.getElementById("curdomain").textContent=location.hostname;}catch(e){}<\/script>
+<script>try{document.getElementById("curdomain").textContent=location.hostname;}catch(e){}</script>
 </body>
 </html>
