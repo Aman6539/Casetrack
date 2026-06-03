@@ -1598,47 +1598,7 @@ function cfShowResult(fee,lbl,sub,pf,bd){
 }
 // ═══════════════════════════════════════════════════════════════
 
-</script>
 
-<div class="overlay" id="modal-courtfee">
- <div class="modal" style="max-width:680px"><div class="modal-body">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-   <div><div class="modal-title" style="margin-bottom:2px">⚖ Court Fee Calculator</div>
-   <div style="font-size:12px;color:#7b93ad">All Indian states — Court Fees Act schedules</div></div>
-   <button onclick="closeModal('modal-courtfee')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
-  </div>
-  <div class="cf-box"><div class="cf-boxtitle">Select State</div><div class="cf-sgrid" id="cf-states"></div></div>
-  <div class="cf-box" id="cf-types-box" style="display:none"><div class="cf-boxtitle">Type of Suit</div><div class="cf-sgrid" id="cf-types"></div></div>
-  <div class="cf-box" id="cf-amt-box" style="display:none">
-   <div class="cf-boxtitle" id="cf-amt-lbl">Enter Amount (₹)</div>
-   <input type="number" id="cf-amt" placeholder="Enter amount in rupees" oninput="cfCalc()" style="font-size:16px;font-weight:600"/>
-  </div>
-  <div id="cf-result-box" style="display:none">
-   <div class="cf-result">
-    <div class="cf-lbl" id="cf-rlbl"></div>
-    <div class="cf-big" id="cf-ramt">₹0</div>
-    <div id="cf-rsub" style="font-size:12px;color:#6d28d9;margin-top:4px"></div>
-   </div>
-   <div id="cf-breakdown" style="background:#fff;border:1px solid #dbeafe;border-radius:9px;padding:12px;margin-top:10px;display:none">
-    <div style="font-size:11px;font-weight:700;color:#1a56db;margin-bottom:8px">CALCULATION BREAKDOWN</div>
-    <div id="cf-bd-detail"></div>
-   </div>
-   <div id="cf-procfee" style="display:none;margin-top:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 13px;font-size:13px;color:#92400e"></div>
-  </div>
-  <div id="cf-fixedlist" style="display:none">
-   <div style="font-size:11px;font-weight:700;color:#1a56db;margin-bottom:8px">FIXED FEE SCHEDULE</div>
-   <div id="cf-fl-detail"></div>
-  </div>
-  <div style="margin-top:14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 13px;font-size:12px;color:#4b6280">
-   <strong style="color:#1a56db">Note:</strong> Based on Court Fees Act schedules. Verify with latest official notification before filing. Process fee is additional.
-  </div>
- </div></div>
-</div>
-
-</body></html>'
-  );
-  win.document.close();
-}
 
 // ════════════════════════════════════════════════════════════
 // REMINDERS / ALERTS
@@ -1938,6 +1898,45 @@ scheduleAllAlerts = function(){
   _origScheduleAll();
   setTimeout(updateReminderBadge, 500);
 };
+
+
+
+</script>
+
+<div class="overlay" id="modal-courtfee">
+ <div class="modal" style="max-width:680px"><div class="modal-body">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+   <div><div class="modal-title" style="margin-bottom:2px">⚖ Court Fee Calculator</div>
+   <div style="font-size:12px;color:#7b93ad">All Indian states — Court Fees Act schedules</div></div>
+   <button onclick="closeModal('modal-courtfee')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
+  </div>
+  <div class="cf-box"><div class="cf-boxtitle">Select State</div><div class="cf-sgrid" id="cf-states"></div></div>
+  <div class="cf-box" id="cf-types-box" style="display:none"><div class="cf-boxtitle">Type of Suit</div><div class="cf-sgrid" id="cf-types"></div></div>
+  <div class="cf-box" id="cf-amt-box" style="display:none">
+   <div class="cf-boxtitle" id="cf-amt-lbl">Enter Amount (₹)</div>
+   <input type="number" id="cf-amt" placeholder="Enter amount in rupees" oninput="cfCalc()" style="font-size:16px;font-weight:600"/>
+  </div>
+  <div id="cf-result-box" style="display:none">
+   <div class="cf-result">
+    <div class="cf-lbl" id="cf-rlbl"></div>
+    <div class="cf-big" id="cf-ramt">₹0</div>
+    <div id="cf-rsub" style="font-size:12px;color:#6d28d9;margin-top:4px"></div>
+   </div>
+   <div id="cf-breakdown" style="background:#fff;border:1px solid #dbeafe;border-radius:9px;padding:12px;margin-top:10px;display:none">
+    <div style="font-size:11px;font-weight:700;color:#1a56db;margin-bottom:8px">CALCULATION BREAKDOWN</div>
+    <div id="cf-bd-detail"></div>
+   </div>
+   <div id="cf-procfee" style="display:none;margin-top:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 13px;font-size:13px;color:#92400e"></div>
+  </div>
+  <div id="cf-fixedlist" style="display:none">
+   <div style="font-size:11px;font-weight:700;color:#1a56db;margin-bottom:8px">FIXED FEE SCHEDULE</div>
+   <div id="cf-fl-detail"></div>
+  </div>
+  <div style="margin-top:14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 13px;font-size:12px;color:#4b6280">
+   <strong style="color:#1a56db">Note:</strong> Based on Court Fees Act schedules. Verify with latest official notification before filing. Process fee is additional.
+  </div>
+ </div></div>
+</div>
 
 
 
