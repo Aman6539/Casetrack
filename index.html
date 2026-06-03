@@ -424,11 +424,43 @@ code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px
       <div><label>Case Number</label><input id="f-caseNo" placeholder="e.g. CS-254-2022"/></div>
       <div><label>CNR Number (eCourts)</label><input id="f-cnr" placeholder="e.g. PBPTA010012022"/></div>
       <div><label>Court</label>
-        <select id="f-court">
+        <select id="f-court" onchange="updateJudgeList()">
           <option value="">-- Select Court --</option>
-          <option>JMFC Rajpura</option><option>Civil Judge (Jr. Div.) Rajpura</option>
-          <option>Civil Judge (Sr. Div.) Rajpura</option><option>ACJM Rajpura</option>
-          <option>Sessions Court Patiala</option><option>Punjab &amp; Haryana High Court</option><option>Other</option>
+          <optgroup label="Rajpura Courts">
+            <option>JMFC Rajpura</option>
+            <option>Civil Judge (Jr. Div.) Rajpura</option>
+            <option>Civil Judge (Sr. Div.) Rajpura</option>
+            <option>ACJM Rajpura</option>
+          </optgroup>
+          <optgroup label="Patiala District Court">
+            <option>District &amp; Sessions Court Patiala</option>
+            <option>Additional District &amp; Sessions Court Patiala</option>
+            <option>Fast Track Court Patiala</option>
+            <option>Family Court Patiala</option>
+            <option>Industrial Tribunal Patiala</option>
+            <option>Civil Judge (Sr. Div.) Patiala</option>
+            <option>Additional Civil Judge (Sr. Div.) Patiala</option>
+            <option>Civil Judge (Jr. Div.) Patiala</option>
+            <option>Chief Judicial Magistrate Patiala</option>
+            <option>JMFC Patiala</option>
+          </optgroup>
+          <optgroup label="Sub-Division Courts">
+            <option>Civil Judge (Jr. Div.) Nabha</option>
+            <option>Civil Judge (Sr. Div.) Nabha</option>
+            <option>Civil Judge (Jr. Div.) Samana</option>
+            <option>Civil Judge (Sr. Div.) Samana</option>
+          </optgroup>
+          <optgroup label="Higher Courts">
+            <option>Sessions Court Patiala</option>
+            <option>Punjab &amp; Haryana High Court</option>
+            <option>Supreme Court of India</option>
+          </optgroup>
+          <option>Other</option>
+        </select>
+      </div>
+      <div><label>Judge / Presiding Officer</label>
+        <select id="f-judge">
+          <option value="">-- Select Court First --</option>
         </select>
       </div>
       <div><label>Case Type</label>
@@ -995,10 +1027,104 @@ function renderTable(){
 // ════════════════════════════════════════════════════════════
 // CASE CRUD
 // ════════════════════════════════════════════════════════════
-var FLDS=['title','caseNo','cnr','client','clientPhone','opposite','court','caseType','status','nextDate','stage','sections','remarks'];
+var FLDS=['title','caseNo','cnr','client','clientPhone','opposite','court','judge','caseType','status','nextDate','stage','sections','remarks'];
+
+// ════════ JUDGES DIRECTORY — District Patiala (as of Jun 2026) ════════
+var JUDGES_BY_COURT = {
+  'District & Sessions Court Patiala':      ['Sh. Avtar Singh (District & Sessions Judge)'],
+  'Additional District & Sessions Court Patiala': [
+    'Sh. Harjeet Singh (Addl. DSJ, Room 5)',
+    'Sh. Varun Nagpal (Addl. DSJ, Room 11)',
+    'Ms. Amandeep Kaur (Addl. DSJ, Room 13)',
+    'Sh. Ravi Gulati (Addl. DSJ, Room 9)',
+    'Ms. Sucheta Ashish Dev (Addl. DSJ, Room 12)',
+    'Sh. Kamaldeep Singh (Addl. DSJ, Room 19)',
+    'Sh. Amrish Kumar (Addl. DSJ, Room 17)'
+  ],
+  'Fast Track Court Patiala': [
+    'Sh. Mahesh Grover (Addl. DSJ Fast Track POCSO, Room 8)'
+  ],
+  'Industrial Tribunal Patiala': [
+    'Ms. Anjana K. Singh (Addl. DSJ-cum-PO Industrial Tribunal, Room 22)'
+  ],
+  'Family Court Patiala': [
+    'Sh. Sandeep Kumar Singla (Principal Judge Family Court, Room 10)',
+    'Sh. Kapil Aggarwal (Addl. Principal Judge Family Court, Room 7)',
+    'Sh. Kapil Dev Singla (Addl. Principal Judge Family Court, Room 6)'
+  ],
+  'Civil Judge (Sr. Div.) Patiala': [
+    'Dr. Shilpi Gupta (Civil Judge Sr. Div., Room 2)'
+  ],
+  'Additional Civil Judge (Sr. Div.) Patiala': [
+    'Ms. Rajbinder Kaur (Addl. CJ Sr. Div., Room 28)'
+  ],
+  'Chief Judicial Magistrate Patiala': [
+    'Ms. Ekta Sahota (CJM, Room 3)'
+  ],
+  'Civil Judge (Jr. Div.) Patiala': [
+    'Ms. Damandeep Kamal Heera (Room 20)',
+    'Ms. Prabha Prashar (Room 16)',
+    'Sh. Ravinder Singh Rana (Room 21)',
+    'Ms. Mehak Puri (Room 14)',
+    'Sh. Jaspreet Singh Minhas (Room 15)',
+    'Sh. Kunal Lamba (Room 14A)',
+    'Ms. Parminder Pindu (Room 25)',
+    'Ms. Simran (Room 18A)',
+    'Sh. Parveen Singh (Room 27)',
+    'Sh. Divanshu Aggarwal (Room 8A)',
+    'Ms. Amanpreet Kaur-I (Room 13A)',
+    'Ms. Aesha Duvedi (Room 24A)',
+    'Sh. Harwinder Singh (Room 26)',
+    'Ms. Keyuri Kataria (Room 23)',
+    'Ms. Niharika Singla (Room 18)',
+    'Sh. Gurmanak Pal Singh (Room 28A)',
+    'Ms. Divya Nanda (Room 28B)'
+  ],
+  'Civil Judge (Jr. Div.) Rajpura': [
+    'Ms. Khushdeep Kaur (Room 5)',
+    'Ms. Simranpreet Kaur (Room G)',
+    'Sh. Kanwal Jit Singh (Room 2)',
+    'Sh. Mayank Marwaha (Room 3)',
+    'Ms. Anubha Jindal (Room 4)'
+  ],
+  'Civil Judge (Sr. Div.) Rajpura': [
+    'Sh. Manmohan Bhatti (Addl. CJ Sr. Div., Room 1)'
+  ],
+  'Civil Judge (Jr. Div.) Nabha': [
+    'Ms. Moonak Garg (Room 2)',
+    'Ms. Harshdeep Kaur (Room 7)',
+    'Ms. Jiya Garg (Room 6)'
+  ],
+  'Civil Judge (Sr. Div.) Nabha': [
+    'Sh. Varinder Kumar (Addl. CJ Sr. Div., Room 1)'
+  ],
+  'Civil Judge (Jr. Div.) Samana': [
+    'Dr. Rajwinder Kaur-II (Room 5)',
+    'Ms. Shaweta (Room 3)',
+    'Ms. Jasleen Kaur Baweja (Room M4)',
+    'Ms. Mohini Goyal (Room M2)',
+    'Ms. Dimple Garg (Room M3)'
+  ],
+  'Civil Judge (Sr. Div.) Samana': [
+    'Sh. Mandeep Singh (Addl. CJ Sr. Div., Room 1)'
+  ]
+};
+
+function updateJudgeList(){
+  var court = document.getElementById('f-court').value;
+  var sel = document.getElementById('f-judge');
+  var current = sel.value;
+  sel.innerHTML = '<option value="">-- Select Judge --</option><option value="other">Other / Not Listed</option>';
+  var judges = JUDGES_BY_COURT[court] || [];
+  judges.forEach(function(j){
+    sel.innerHTML += '<option value="'+j+'">'+j+'</option>';
+  });
+  // Re-select if still available
+  if(current) sel.value = current;
+}
 
 function openAddCase(){ editingId=null; document.getElementById('case-title-lbl').textContent='Add New Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=f==='status'?'Active':'';}); openModal('modal-case'); }
-function openEdit(id){ var c=cases.find(function(x){return x.id===id;}); if(!c)return; editingId=id; document.getElementById('case-title-lbl').textContent='Edit Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=c[f]||'';}); openModal('modal-case'); }
+function openEdit(id){ var c=cases.find(function(x){return x.id===id;}); if(!c)return; editingId=id; document.getElementById('case-title-lbl').textContent='Edit Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=c[f]||'';}); updateJudgeList(); document.getElementById('f-judge').value=c.judge||''; openModal('modal-case'); }
 
 function saveCase(){
   var title=document.getElementById('f-title').value.trim();
@@ -1025,7 +1151,7 @@ function openDetail(id){
   var sm=SM[c.status]||SM.Closed;
   var b=document.getElementById('d-badge');
   b.textContent=c.status||'—';b.style.background=sm.bg;b.style.color=sm.c;b.style.border='1px solid '+sm.b;
-  var rows=[['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Type',c.caseType],['Client',c.client],['Phone',c.clientPhone],['Opposite',c.opposite],['Sections',c.sections],['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],['Added',fmtDate(c.createdAt)],['Last Updated',c.updatedAt?new Date(c.updatedAt).toLocaleString('en-IN'):null]];
+  var rows=[['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Judge',c.judge],['Type',c.caseType],['Client',c.client],['Phone',c.clientPhone],['Opposite',c.opposite],['Sections',c.sections],['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],['Added',fmtDate(c.createdAt)],['Last Updated',c.updatedAt?new Date(c.updatedAt).toLocaleString('en-IN'):null]];
   document.getElementById('d-fields').innerHTML=rows.filter(function(r){return r[1];}).map(function(r){return'<div class="detail-field"><div class="detail-key">'+esc(r[0])+'</div><div class="detail-val" style="font-weight:'+(r[0]==='Next Hearing'?700:400)+'">'+esc(r[1])+'</div></div>';}).join('');
   var rw=document.getElementById('d-rem-wrap');
   if(c.remarks){rw.style.display='block';document.getElementById('d-rem').textContent=c.remarks;}else rw.style.display='none';
