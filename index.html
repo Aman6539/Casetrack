@@ -806,6 +806,7 @@ function initFB(cfg){
 function signInGoogle(){
   var msgEl = document.getElementById('login-msg');
   msgEl.textContent = 'Connecting to Firebase...';
+  // Ensure Firebase is initialised
   initFB(fbConfig);
   if(!auth){
     msgEl.innerHTML='<span style="color:#dc2626">Firebase not ready. Check internet connection and try again.</span>';
@@ -814,17 +815,11 @@ function signInGoogle(){
   var provider = new firebase.auth.GoogleAuthProvider();
   provider.addScope('email');
   provider.addScope('profile');
-  // Request Google Calendar access at sign-in
-  provider.addScope('https://www.googleapis.com/auth/calendar.events');
   msgEl.textContent = 'Opening Google sign-in...';
   auth.signInWithPopup(provider)
     .then(function(result){
+      // onAuthStateChanged will call showApp automatically
       msgEl.textContent = 'Signed in as ' + (result.user.displayName||result.user.email) + '...';
-      // Store OAuth token for Calendar API calls
-      if(result.credential && result.credential.accessToken){
-        window._gcalToken = result.credential.accessToken;
-        localStorage.setItem('lx_gcal_token', result.credential.accessToken);
-      }
     })
     .catch(function(e){
       console.error('Popup error:', e.code, e.message);
@@ -929,8 +924,6 @@ function cloudSave(data){
     .then(function(){
       document.getElementById('cloud-lbl').className='';
       document.getElementById('cloud-lbl').textContent='☁';
-      // Auto-sync to Google Calendar
-      try{ autoSyncToCalendar(data); }catch(e){}
     })
     .catch(function(e){ toast('Cloud save error: '+e.message,'error'); saveLocal(); });
 }
@@ -938,17 +931,8 @@ function cloudDelete(id){
   if(!db||!currentUser){ saveLocal(); return; }
   db.collection('users').doc(currentUser.uid).collection('cases').doc(id).delete()
     .catch(function(e){ toast('Delete error: '+e.message,'error'); });
-  // Remove from calendar
-  try{ deleteCalendarEvent(id); }catch(e){}
 }
-function saveLocal(){
-  try{ localStorage.setItem(LOC_KEY,JSON.stringify(cases)); }catch(e){}
-  // Auto-sync last saved case to calendar (offline mode)
-  try{
-    var last = cases[cases.length-1];
-    if(last && last.nextDate) autoSyncToCalendar(last);
-  }catch(e){}
-}
+function saveLocal(){ try{ localStorage.setItem(LOC_KEY,JSON.stringify(cases)); }catch(e){} }
 
 
 // ════════════════════════════════════════════════════════════
@@ -1185,140 +1169,55 @@ function openDetail(id){
   openModal('modal-detail');
 }
 
-// ════════ GOOGLE CALENDAR AUTO-SYNC ════════
-var _gcalToken = null;
-
-function getGcalToken(){
-  if(window._gcalToken) return window._gcalToken;
-  try{ return localStorage.getItem('lx_gcal_token'); }catch(e){ return null; }
-}
-
-// Called automatically whenever a case is saved or updated
-function autoSyncToCalendar(c){
-  if(!c || !c.nextDate) return;
-  var token = getGcalToken();
-  if(!token){ return; } // Not signed in with Calendar scope — skip silently
-  // Check if event already exists for this case
-  var storedId = null;
-  try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); storedId=m[c.id]; }catch(e){}
-  if(storedId){
-    updateCalendarEvent(token, storedId, c);
-  } else {
-    createCalendarEvent(token, c);
-  }
-}
-
-function buildEventBody(c){
-  var d = c.nextDate; // YYYY-MM-DD
-  var dt = new Date(d); dt.setDate(dt.getDate()+1);
-  var dend = dt.toISOString().split('T')[0];
-  return {
-    summary: (c.title||'Case Hearing') + (c.caseNo?' ['+c.caseNo+']':''),
-    location: c.court||'',
-    description: [
-      'Case: '+(c.title||'—'),
-      'Case No.: '+(c.caseNo||'—'),
-      c.cnr?'CNR: '+c.cnr:'',
-      'Court: '+(c.court||'—'),
-      c.judge?'Judge: '+c.judge:'',
-      'Client: '+(c.client||'—'),
-      c.stage?'Stage: '+c.stage:'',
-      c.status?'Status: '+c.status:'',
-      '',
-      'Synced from LexTrack'
-    ].filter(Boolean).join('\n'),
-    start: { date: d },
-    end:   { date: dend },
-    colorId: '6', // Cyan/teal for court hearings
-    reminders: {
-      useDefault: false,
-      overrides: [
-        { method: 'popup',  minutes: 60 },   // 1 hour before
-        { method: 'email',  minutes: 1440 }  // 1 day before
-      ]
-    }
-  };
-}
-
-function createCalendarEvent(token, c){
-  fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer '+token, 'Content-Type': 'application/json' },
-    body: JSON.stringify(buildEventBody(c))
-  }).then(function(r){ return r.json(); }).then(function(ev){
-    if(ev.id){
-      try{
-        var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}');
-        m[c.id]=ev.id;
-        localStorage.setItem('lx_gcal_ids', JSON.stringify(m));
-      }catch(e){}
-      console.log('Calendar event created:', ev.id);
-    } else if(ev.error && ev.error.code === 401){
-      // Token expired — clear it
-      window._gcalToken = null;
-      try{ localStorage.removeItem('lx_gcal_token'); }catch(e){}
-    }
-  }).catch(function(e){ console.error('Calendar create error:', e); });
-}
-
-function updateCalendarEvent(token, eventId, c){
-  fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+eventId, {
-    method: 'PUT',
-    headers: { 'Authorization': 'Bearer '+token, 'Content-Type': 'application/json' },
-    body: JSON.stringify(buildEventBody(c))
-  }).then(function(r){
-    if(r.status === 404){ createCalendarEvent(token, c); } // event deleted — recreate
-    else if(r.status === 401){ window._gcalToken=null; try{localStorage.removeItem('lx_gcal_token');}catch(e){} }
-    else { console.log('Calendar event updated:', eventId); }
-  }).catch(function(e){ console.error('Calendar update error:', e); });
-}
-
-function deleteCalendarEvent(caseId){
-  var token = getGcalToken();
-  if(!token) return;
-  var storedId = null;
-  try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); storedId=m[caseId]; }catch(e){}
-  if(!storedId) return;
-  fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+storedId, {
-    method: 'DELETE',
-    headers: { 'Authorization': 'Bearer '+token }
-  }).then(function(){
-    try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); delete m[caseId]; localStorage.setItem('lx_gcal_ids',JSON.stringify(m)); }catch(e){}
-  }).catch(function(e){ console.error('Calendar delete error:', e); });
-}
-
-// Bulk sync all cases with hearing dates
-function syncAllCasesToCalendar(){
-  var token = getGcalToken();
-  if(!token){ toast('Sign in with Google first to enable Calendar sync.','warn'); return; }
-  var withDates = cases.filter(function(c){ return c.nextDate; });
-  if(!withDates.length){ toast('No cases with hearing dates to sync.','warn'); return; }
-  withDates.forEach(function(c,i){
-    setTimeout(function(){ autoSyncToCalendar(c); }, i*200);
-  });
-  toast('Syncing '+withDates.length+' hearings to Google Calendar...','success');
-}
-
-// Called from detail view for single case
+// ════════ GOOGLE CALENDAR ════════
 function addToGoogleCalendar(){
   var c=cases.find(function(x){return x.id===detailId;});
   if(!c||!c.nextDate){toast('No hearing date set for this case.','warn');return;}
-  var token = getGcalToken();
-  if(token){
-    autoSyncToCalendar(c);
-    toast('Syncing to Google Calendar...');
-  } else {
-    // Fallback: open Google Calendar URL
-    var title=encodeURIComponent((c.title||'Case Hearing')+(c.caseNo?' ['+c.caseNo+']':''));
-    var details=encodeURIComponent('Case: '+(c.title||'—')+'\nCourt: '+(c.court||'—')+'\nClient: '+(c.client||'—'));
-    var d=c.nextDate.replace(/-/g,'');
-    var dt=new Date(c.nextDate);dt.setDate(dt.getDate()+1);
-    var dend=dt.toISOString().split('T')[0].replace(/-/g,'');
-    window.open('https://calendar.google.com/calendar/render?action=TEMPLATE&text='+title+'&dates='+d+'/'+dend+'&details='+details+'&location='+encodeURIComponent(c.court||''),'_blank');
-  }
+  // Build event details
+  var title = encodeURIComponent((c.title||'Case Hearing')+(c.caseNo?' ['+c.caseNo+']':''));
+  var details = encodeURIComponent(
+    'Case: '+(c.title||'—')+'\n'+
+    'Case No.: '+(c.caseNo||'—')+'\n'+
+    (c.cnr?'CNR: '+c.cnr+'\n':'')+
+    'Court: '+(c.court||'—')+'\n'+
+    (c.judge?'Judge: '+c.judge+'\n':'')+
+    'Client: '+(c.client||'—')+'\n'+
+    (c.stage?'Stage: '+c.stage+'\n':'')+
+    '\nAdded from LexTrack'
+  );
+  var location = encodeURIComponent(c.court||'');
+  // Format date as YYYYMMDD for Google Calendar (all-day event)
+  var d = c.nextDate.replace(/-/g,'');
+  // Next day for end date
+  var dt = new Date(c.nextDate);
+  dt.setDate(dt.getDate()+1);
+  var dend = dt.toISOString().split('T')[0].replace(/-/g,'');
+  var url = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+    +'&text='+title
+    +'&dates='+d+'/'+dend
+    +'&details='+details
+    +'&location='+location;
+  window.open(url,'_blank');
+  toast('Opening Google Calendar...');
 }
 
-function addAllHearingsToCalendar(){ syncAllCasesToCalendar(); }
+// Add all case hearings to Google Calendar at once
+function addAllHearingsToCalendar(){
+  var upcoming = cases.filter(function(c){return c.nextDate && c.nextDate >= todayStr();});
+  if(!upcoming.length){toast('No upcoming hearings found.','warn');return;}
+  // Open each one with a small delay to avoid popup blocking
+  upcoming.forEach(function(c,i){
+    setTimeout(function(){
+      var title = encodeURIComponent((c.title||'Case Hearing')+(c.caseNo?' ['+c.caseNo+']':''));
+      var details = encodeURIComponent('Case: '+(c.title||'—')+'\nCase No.: '+(c.caseNo||'—')+'\nCourt: '+(c.court||'—')+'\nClient: '+(c.client||'—'));
+      var d = c.nextDate.replace(/-/g,'');
+      var dt = new Date(c.nextDate); dt.setDate(dt.getDate()+1);
+      var dend = dt.toISOString().split('T')[0].replace(/-/g,'');
+      window.open('https://calendar.google.com/calendar/render?action=TEMPLATE&text='+title+'&dates='+d+'/'+dend+'&details='+details+'&location='+encodeURIComponent(c.court||''),'_blank');
+    }, i*300);
+  });
+  toast('Opening '+upcoming.length+' calendar events...');
+}
 function editFromDetail(){closeModal('modal-detail');openEdit(detailId);}
 function openSyncFromDetail(){closeModal('modal-detail');openSync(detailId);}
 function openDelete(id){var c=cases.find(function(x){return x.id===id;});if(!c)return;deletingId=id;document.getElementById('del-name').textContent='"'+(c.title||c.caseNo)+'" will be permanently deleted.';openModal('modal-delete');}
