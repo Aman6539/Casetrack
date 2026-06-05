@@ -366,6 +366,10 @@ code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px
   </div>
   <button class="btn btn-outline" onclick="openModal('modal-listdate')">📋 Daily List</button>
   <button class="btn btn-ghost" onclick="openModal('modal-courtfee');initCF()" style="border-color:#7c3aed;color:#7c3aed">⚖ Court Fee</button>
+  <button class="btn btn-ghost" onclick="addAllHearingsToCalendar()" style="border-color:#1a73e8;color:#1a73e8;background:#f0f6ff" title="Add all upcoming hearings to Google Calendar">
+    <svg width="13" height="13" viewBox="0 0 24 24" style="margin-right:3px"><path fill="#4285F4" d="M19 4h-1V2h-2v2H8V2H6v2H5C3.9 4 3 4.9 3 6v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg>
+    📅 Calendar
+  </button>
   <button class="btn btn-gold"    onclick="openModal('modal-import')">⬇ Import</button>
   <button class="btn btn-ghost"   onclick="exportData()">⬆ Export</button>
   <button class="btn btn-ghost" onclick="openModal('modal-reminders')" id="btn-reminders" style="position:relative">🔔 Reminders<span id="rem-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:#dc2626;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;line-height:16px">0</span></button>
@@ -509,6 +513,10 @@ code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px
       <button class="btn btn-ghost" onclick="closeModal('modal-detail')">Close</button>
       <button class="btn btn-ghost" style="border-color:#16a34a;color:#16a34a" onclick="closeModal('modal-detail');openReminderModal(detailId)">🔔 Reminder</button>
       <button class="btn btn-outline" onclick="openSyncFromDetail()">⟳ Sync eCourts</button>
+      <button class="btn btn-ghost" id="d-gcal-btn" style="display:none;border-color:#1a73e8;color:#1a73e8;background:#f0f6ff" onclick="addToGoogleCalendar()">
+        <svg width="14" height="14" viewBox="0 0 24 24" style="margin-right:4px"><path fill="#4285F4" d="M19 4h-1V2h-2v2H8V2H6v2H5C3.9 4 3 4.9 3 6v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg>
+        Add to Calendar
+      </button>
       <button class="btn btn-blue" onclick="editFromDetail()">✏ Edit</button>
     </div>
   </div></div>
@@ -798,7 +806,6 @@ function initFB(cfg){
 function signInGoogle(){
   var msgEl = document.getElementById('login-msg');
   msgEl.textContent = 'Connecting to Firebase...';
-  // Ensure Firebase is initialised
   initFB(fbConfig);
   if(!auth){
     msgEl.innerHTML='<span style="color:#dc2626">Firebase not ready. Check internet connection and try again.</span>';
@@ -807,10 +814,10 @@ function signInGoogle(){
   var provider = new firebase.auth.GoogleAuthProvider();
   provider.addScope('email');
   provider.addScope('profile');
+  // Note: Calendar scope removed — using Google Calendar URL method instead (no verification needed)
   msgEl.textContent = 'Opening Google sign-in...';
   auth.signInWithPopup(provider)
     .then(function(result){
-      // onAuthStateChanged will call showApp automatically
       msgEl.textContent = 'Signed in as ' + (result.user.displayName||result.user.email) + '...';
     })
     .catch(function(e){
@@ -916,6 +923,8 @@ function cloudSave(data){
     .then(function(){
       document.getElementById('cloud-lbl').className='';
       document.getElementById('cloud-lbl').textContent='☁';
+      // Auto-sync to Google Calendar
+      try{ autoSyncToCalendar(data); }catch(e){}
     })
     .catch(function(e){ toast('Cloud save error: '+e.message,'error'); saveLocal(); });
 }
@@ -923,8 +932,17 @@ function cloudDelete(id){
   if(!db||!currentUser){ saveLocal(); return; }
   db.collection('users').doc(currentUser.uid).collection('cases').doc(id).delete()
     .catch(function(e){ toast('Delete error: '+e.message,'error'); });
+  // Remove from calendar
+  try{ deleteCalendarEvent(id); }catch(e){}
 }
-function saveLocal(){ try{ localStorage.setItem(LOC_KEY,JSON.stringify(cases)); }catch(e){} }
+function saveLocal(){
+  try{ localStorage.setItem(LOC_KEY,JSON.stringify(cases)); }catch(e){}
+  // Auto-sync last saved case to calendar (offline mode)
+  try{
+    var last = cases[cases.length-1];
+    if(last && last.nextDate) autoSyncToCalendar(last);
+  }catch(e){}
+}
 
 
 // ════════════════════════════════════════════════════════════
@@ -1155,8 +1173,91 @@ function openDetail(id){
   document.getElementById('d-fields').innerHTML=rows.filter(function(r){return r[1];}).map(function(r){return'<div class="detail-field"><div class="detail-key">'+esc(r[0])+'</div><div class="detail-val" style="font-weight:'+(r[0]==='Next Hearing'?700:400)+'">'+esc(r[1])+'</div></div>';}).join('');
   var rw=document.getElementById('d-rem-wrap');
   if(c.remarks){rw.style.display='block';document.getElementById('d-rem').textContent=c.remarks;}else rw.style.display='none';
+  // Show/hide Google Calendar button
+  var gcBtn=document.getElementById('d-gcal-btn');
+  if(gcBtn){ gcBtn.style.display=c.nextDate?'inline-flex':'none'; }
   openModal('modal-detail');
 }
+
+// ════════ GOOGLE CALENDAR — URL METHOD (No API key or verification needed) ════════
+
+function buildGcalUrl(c){
+  if(!c || !c.nextDate) return null;
+  var title = encodeURIComponent((c.title||'Case Hearing')+(c.caseNo?' ['+c.caseNo+']':''));
+  var details = encodeURIComponent([
+    'Case: '+(c.title||'—'),
+    'Case No.: '+(c.caseNo||'—'),
+    c.cnr?'CNR: '+c.cnr:'',
+    'Court: '+(c.court||'—'),
+    c.judge?'Judge: '+c.judge:'',
+    'Client: '+(c.client||'—'),
+    c.stage?'Stage: '+c.stage:'',
+    c.status?'Status: '+c.status:'',
+    '',
+    'Synced from LexTrack'
+  ].filter(Boolean).join('\n'));
+  var d = c.nextDate.replace(/-/g,'');
+  var dt = new Date(c.nextDate); dt.setDate(dt.getDate()+1);
+  var dend = dt.toISOString().split('T')[0].replace(/-/g,'');
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+    +'&text='+title
+    +'&dates='+d+'/'+dend
+    +'&details='+details
+    +'&location='+encodeURIComponent(c.court||'');
+}
+
+// Called from case detail view — single case
+function addToGoogleCalendar(){
+  var c = cases.find(function(x){return x.id===detailId;});
+  if(!c||!c.nextDate){toast('No hearing date set for this case.','warn');return;}
+  var url = buildGcalUrl(c);
+  if(url){ window.open(url,'_blank'); toast('Opening Google Calendar...'); }
+}
+
+// Auto-sync called when case is saved — opens Google Calendar URL
+function autoSyncToCalendar(c){
+  if(!c || !c.nextDate) return;
+  var url = buildGcalUrl(c);
+  if(url){ window.open(url,'_blank'); }
+}
+
+// Bulk — add all upcoming hearings at once using a combined ICS download
+function addAllHearingsToCalendar(){
+  var withDates = cases.filter(function(c){ return c.nextDate && c.nextDate >= todayStr(); });
+  if(!withDates.length){toast('No upcoming hearings to add.','warn');return;}
+  // Build ICS file content (works with Google Calendar, Apple Calendar, Outlook)
+  var ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//LexTrack//Advocate Case Manager//EN','CALSCALE:GREGORIAN'];
+  withDates.forEach(function(c){
+    var d = c.nextDate.replace(/-/g,'');
+    var dt = new Date(c.nextDate); dt.setDate(dt.getDate()+1);
+    var dend = dt.toISOString().split('T')[0].replace(/-/g,'');
+    var uid = (c.id||Math.random().toString(36))+'@lextrack';
+    ics.push('BEGIN:VEVENT');
+    ics.push('UID:'+uid);
+    ics.push('DTSTART;VALUE=DATE:'+d);
+    ics.push('DTEND;VALUE=DATE:'+dend);
+    ics.push('SUMMARY:'+(c.title||'Case Hearing')+(c.caseNo?' ['+c.caseNo+']':''));
+    ics.push('LOCATION:'+(c.court||''));
+    ics.push('DESCRIPTION:Case: '+(c.title||'')+'\\nCase No: '+(c.caseNo||'')+'\\nClient: '+(c.client||'')+'\\nJudge: '+(c.judge||'')+'\\nStage: '+(c.stage||''));
+    ics.push('BEGIN:VALARM');
+    ics.push('TRIGGER:-PT60M');
+    ics.push('ACTION:DISPLAY');
+    ics.push('DESCRIPTION:Hearing Reminder - '+(c.title||''));
+    ics.push('END:VALARM');
+    ics.push('END:VEVENT');
+  });
+  ics.push('END:VCALENDAR');
+  // Download as .ics file — user imports into Google Calendar in one tap
+  var blob = new Blob([ics.join('\r\n')], {type:'text/calendar;charset=utf-8'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'LexTrack_Hearings_'+todayStr()+'.ics';
+  a.click();
+  toast('Downloaded '+withDates.length+' hearings as calendar file. Open it to import into Google Calendar.');
+}
+
+function deleteCalendarEvent(caseId){ /* URL method — no delete needed */ }
+function getGcalToken(){ return null; }
 function editFromDetail(){closeModal('modal-detail');openEdit(detailId);}
 function openSyncFromDetail(){closeModal('modal-detail');openSync(detailId);}
 function openDelete(id){var c=cases.find(function(x){return x.id===id;});if(!c)return;deletingId=id;document.getElementById('del-name').textContent='"'+(c.title||c.caseNo)+'" will be permanently deleted.';openModal('modal-delete');}
@@ -1455,13 +1556,52 @@ var CFD={
   ]}
  ]},
  'Haryana':{t:[
-  {id:'money',l:'Money Suit',inp:'Amount Claimed (₹)',
-   s:[{u:1000,r:.07,mn:30},{u:5000,r:.06},{u:10000,r:.05},{u:50000,r:.04},{u:100000,r:.035},{u:250000,r:.03},{u:Infinity,r:.02,mx:75000}],pf:'Process fee: ₹100 per defendant.'},
-  {id:'immov',l:'Immovable Property',inp:'Market Value (₹)',
-   s:[{u:10000,r:.05,mn:30},{u:50000,r:.04},{u:100000,r:.035},{u:Infinity,r:.025,mx:75000}]},
-  {id:'inj',l:'Injunction',flat:200},
-  {id:'div',l:'Matrimonial',flat:200},
-  {id:'fixed',l:'Fixed Fee',fl:[{n:'Caveat',f:100},{n:'Execution',f:50},{n:'Misc Application',f:50},{n:'Review',f:100},{n:'Bail Application',f:0}]}
+  // Exact slabs from Haryana Court Fees Act (image provided)
+  {id:'money',l:'Recovery / Money Suit',inp:'Amount Claimed (Rs.)',
+   s:[
+    {u:15000,   r:0.025, base:0,      prev:1},
+    {u:27000,   r:0.035, base:375,    prev:15000},
+    {u:39000,   r:0.045, base:795,    prev:27000},
+    {u:51000,   r:0.055, base:1335,   prev:39000},
+    {u:63000,   r:0.065, base:1995,   prev:51000},
+    {u:75000,   r:0.075, base:2775,   prev:63000},
+    {u:500000,  r:0.065, base:3675,   prev:75000},
+    {u:1000000, r:0.055, base:31300,  prev:500000},
+    {u:2000000, r:0.045, base:58800,  prev:1000000},
+    {u:3000000, r:0.035, base:103800, prev:2000000},
+    {u:4500000, r:0.025, base:138000, prev:3000000},
+    {u:6000000, r:0.015, base:176300, prev:4500000},
+    {u:7500000, r:0.005, base:198800, prev:6000000},
+    {u:Infinity,r:0.005, base:198800, prev:6000000}
+   ],
+   pf:'Process fee additional. Wakalatnama: Rs.10.',
+   note:'Haryana Court Fees Act. Slab structure as per official schedule.'},
+  {id:'immov',l:'Immovable Property Suit',inp:'Market Value (Rs.)',
+   s:[
+    {u:15000,   r:0.025, base:0,      prev:1},
+    {u:27000,   r:0.035, base:375,    prev:15000},
+    {u:39000,   r:0.045, base:795,    prev:27000},
+    {u:51000,   r:0.055, base:1335,   prev:39000},
+    {u:63000,   r:0.065, base:1995,   prev:51000},
+    {u:75000,   r:0.075, base:2775,   prev:63000},
+    {u:500000,  r:0.065, base:3675,   prev:75000},
+    {u:1000000, r:0.055, base:31300,  prev:500000},
+    {u:2000000, r:0.045, base:58800,  prev:1000000},
+    {u:3000000, r:0.035, base:103800, prev:2000000},
+    {u:4500000, r:0.025, base:138000, prev:3000000},
+    {u:6000000, r:0.015, base:176300, prev:4500000},
+    {u:7500000, r:0.005, base:198800, prev:6000000},
+    {u:Infinity,r:0.005, base:198800, prev:6000000}
+   ],
+   note:'Haryana Court Fees Act. Same schedule as money suits.'},
+  {id:'inj',l:'Injunction / Declaration',fl:[{n:'Permanent Injunction',f:200},{n:'Temporary Injunction',f:100},{n:'Declaration Suit',f:200}]},
+  {id:'div',l:'Matrimonial',fl:[{n:'Divorce Petition',f:200},{n:'Restitution of Conjugal Rights',f:200},{n:'Judicial Separation',f:200}]},
+  {id:'fixed',l:'Fixed Fee Matters',fl:[
+   {n:'Caveat Petition',f:100},{n:'Execution Petition',f:50},
+   {n:'Misc Civil Application',f:50},{n:'Review Petition',f:100},
+   {n:'Criminal Complaint',f:50},{n:'Bail Application',f:0},
+   {n:'Anticipatory Bail',f:0},{n:'Wakalatnama',f:10}
+  ]}
  ]},
  'Delhi':{t:[
   {id:'money',l:'Money / Recovery',inp:'Amount Claimed (₹)',
