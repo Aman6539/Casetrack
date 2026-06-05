@@ -814,11 +814,15 @@ function signInGoogle(){
   var provider = new firebase.auth.GoogleAuthProvider();
   provider.addScope('email');
   provider.addScope('profile');
-  // Note: Calendar scope removed — using Google Calendar URL method instead (no verification needed)
+  provider.addScope('https://www.googleapis.com/auth/calendar.events');
   msgEl.textContent = 'Opening Google sign-in...';
   auth.signInWithPopup(provider)
     .then(function(result){
       msgEl.textContent = 'Signed in as ' + (result.user.displayName||result.user.email) + '...';
+      if(result.credential && result.credential.accessToken){
+        window._gcalToken = result.credential.accessToken;
+        try{ localStorage.setItem('lx_gcal_token', result.credential.accessToken); }catch(e){}
+      }
     })
     .catch(function(e){
       console.error('Popup error:', e.code, e.message);
@@ -1179,85 +1183,143 @@ function openDetail(id){
   openModal('modal-detail');
 }
 
-// ════════ GOOGLE CALENDAR — URL METHOD (No API key or verification needed) ════════
+// ════════ GOOGLE CALENDAR AUTO-SYNC ════════
+var _gcalToken = null;
 
-function buildGcalUrl(c){
-  if(!c || !c.nextDate) return null;
-  var title = encodeURIComponent((c.title||'Case Hearing')+(c.caseNo?' ['+c.caseNo+']':''));
-  var details = encodeURIComponent([
-    'Case: '+(c.title||'—'),
-    'Case No.: '+(c.caseNo||'—'),
-    c.cnr?'CNR: '+c.cnr:'',
-    'Court: '+(c.court||'—'),
-    c.judge?'Judge: '+c.judge:'',
-    'Client: '+(c.client||'—'),
-    c.stage?'Stage: '+c.stage:'',
-    c.status?'Status: '+c.status:'',
-    '',
-    'Synced from LexTrack'
-  ].filter(Boolean).join('\n'));
-  var d = c.nextDate.replace(/-/g,'');
-  var dt = new Date(c.nextDate); dt.setDate(dt.getDate()+1);
-  var dend = dt.toISOString().split('T')[0].replace(/-/g,'');
-  return 'https://calendar.google.com/calendar/render?action=TEMPLATE'
-    +'&text='+title
-    +'&dates='+d+'/'+dend
-    +'&details='+details
-    +'&location='+encodeURIComponent(c.court||'');
+function getGcalToken(){
+  if(window._gcalToken) return window._gcalToken;
+  try{ return localStorage.getItem('lx_gcal_token'); }catch(e){ return null; }
 }
 
-// Called from case detail view — single case
-function addToGoogleCalendar(){
-  var c = cases.find(function(x){return x.id===detailId;});
-  if(!c||!c.nextDate){toast('No hearing date set for this case.','warn');return;}
-  var url = buildGcalUrl(c);
-  if(url){ window.open(url,'_blank'); toast('Opening Google Calendar...'); }
+function buildEventBody(c){
+  var d = c.nextDate;
+  var dt = new Date(d); dt.setDate(dt.getDate()+1);
+  var dend = dt.toISOString().split('T')[0];
+  return {
+    summary: (c.title||'Case Hearing')+(c.caseNo?' ['+c.caseNo+']':''),
+    location: c.court||'',
+    description: [
+      'Case: '+(c.title||'—'),
+      'Case No.: '+(c.caseNo||'—'),
+      c.cnr?'CNR: '+c.cnr:'',
+      'Court: '+(c.court||'—'),
+      c.judge?'Judge: '+c.judge:'',
+      'Client: '+(c.client||'—'),
+      c.stage?'Stage: '+c.stage:'',
+      c.status?'Status: '+c.status:'',
+      '','Synced from LexTrack'
+    ].filter(Boolean).join('\n'),
+    start:{ date:d }, end:{ date:dend },
+    colorId:'6',
+    reminders:{
+      useDefault:false,
+      overrides:[
+        {method:'popup', minutes:60},
+        {method:'email', minutes:1440}
+      ]
+    }
+  };
 }
 
-// Auto-sync called when case is saved — opens Google Calendar URL
 function autoSyncToCalendar(c){
-  if(!c || !c.nextDate) return;
-  var url = buildGcalUrl(c);
-  if(url){ window.open(url,'_blank'); }
+  if(!c||!c.nextDate) return;
+  var token = getGcalToken();
+  if(!token) return; // Not signed in with calendar scope
+  var storedId = null;
+  try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); storedId=m[c.id]; }catch(e){}
+  if(storedId){ updateCalendarEvent(token, storedId, c); }
+  else { createCalendarEvent(token, c); }
 }
 
-// Bulk — add all upcoming hearings at once using a combined ICS download
+function createCalendarEvent(token, c){
+  fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events',{
+    method:'POST',
+    headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+    body:JSON.stringify(buildEventBody(c))
+  }).then(function(r){return r.json();}).then(function(ev){
+    if(ev.id){
+      try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); m[c.id]=ev.id; localStorage.setItem('lx_gcal_ids',JSON.stringify(m)); }catch(e){}
+      toast('📅 Hearing added to Google Calendar');
+    } else if(ev.error&&ev.error.code===401){
+      window._gcalToken=null; try{localStorage.removeItem('lx_gcal_token');}catch(e){}
+    }
+  }).catch(function(e){ console.error('Calendar create:',e); });
+}
+
+function updateCalendarEvent(token, eventId, c){
+  fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+eventId,{
+    method:'PUT',
+    headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+    body:JSON.stringify(buildEventBody(c))
+  }).then(function(r){
+    if(r.status===404){ createCalendarEvent(token,c); }
+    else if(r.status===401){ window._gcalToken=null; try{localStorage.removeItem('lx_gcal_token');}catch(e){} }
+    else{ toast('📅 Calendar event updated'); }
+  }).catch(function(e){ console.error('Calendar update:',e); });
+}
+
+function deleteCalendarEvent(caseId){
+  var token = getGcalToken();
+  if(!token) return;
+  var storedId = null;
+  try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); storedId=m[caseId]; }catch(e){}
+  if(!storedId) return;
+  fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+storedId,{
+    method:'DELETE', headers:{'Authorization':'Bearer '+token}
+  }).then(function(){
+    try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); delete m[caseId]; localStorage.setItem('lx_gcal_ids',JSON.stringify(m)); }catch(e){}
+  }).catch(function(e){ console.error('Calendar delete:',e); });
+}
+
+function addToGoogleCalendar(){
+  var c=cases.find(function(x){return x.id===detailId;});
+  if(!c||!c.nextDate){toast('No hearing date set.','warn');return;}
+  var token=getGcalToken();
+  if(token){ autoSyncToCalendar(c); }
+  else {
+    // Fallback to URL if not signed in with calendar scope
+    var url='https://calendar.google.com/calendar/render?action=TEMPLATE'
+      +'&text='+encodeURIComponent((c.title||'Case Hearing')+(c.caseNo?' ['+c.caseNo+']':''))
+      +'&dates='+c.nextDate.replace(/-/g,'')+'/'+(function(){var dt=new Date(c.nextDate);dt.setDate(dt.getDate()+1);return dt.toISOString().split('T')[0].replace(/-/g,'');})()
+      +'&details='+encodeURIComponent('Court: '+(c.court||'')+'  Client: '+(c.client||''))
+      +'&location='+encodeURIComponent(c.court||'');
+    window.open(url,'_blank');
+  }
+}
+
 function addAllHearingsToCalendar(){
-  var withDates = cases.filter(function(c){ return c.nextDate && c.nextDate >= todayStr(); });
-  if(!withDates.length){toast('No upcoming hearings to add.','warn');return;}
-  // Build ICS file content (works with Google Calendar, Apple Calendar, Outlook)
-  var ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//LexTrack//Advocate Case Manager//EN','CALSCALE:GREGORIAN'];
-  withDates.forEach(function(c){
-    var d = c.nextDate.replace(/-/g,'');
-    var dt = new Date(c.nextDate); dt.setDate(dt.getDate()+1);
-    var dend = dt.toISOString().split('T')[0].replace(/-/g,'');
-    var uid = (c.id||Math.random().toString(36))+'@lextrack';
-    ics.push('BEGIN:VEVENT');
-    ics.push('UID:'+uid);
-    ics.push('DTSTART;VALUE=DATE:'+d);
-    ics.push('DTEND;VALUE=DATE:'+dend);
-    ics.push('SUMMARY:'+(c.title||'Case Hearing')+(c.caseNo?' ['+c.caseNo+']':''));
-    ics.push('LOCATION:'+(c.court||''));
-    ics.push('DESCRIPTION:Case: '+(c.title||'')+'\\nCase No: '+(c.caseNo||'')+'\\nClient: '+(c.client||'')+'\\nJudge: '+(c.judge||'')+'\\nStage: '+(c.stage||''));
-    ics.push('BEGIN:VALARM');
-    ics.push('TRIGGER:-PT60M');
-    ics.push('ACTION:DISPLAY');
-    ics.push('DESCRIPTION:Hearing Reminder - '+(c.title||''));
-    ics.push('END:VALARM');
-    ics.push('END:VEVENT');
-  });
-  ics.push('END:VCALENDAR');
-  // Download as .ics file — user imports into Google Calendar in one tap
-  var blob = new Blob([ics.join('\r\n')], {type:'text/calendar;charset=utf-8'});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'LexTrack_Hearings_'+todayStr()+'.ics';
-  a.click();
-  toast('Downloaded '+withDates.length+' hearings as calendar file. Open it to import into Google Calendar.');
+  var token = getGcalToken();
+  if(!token){
+    // Download ICS as fallback
+    var withDates=cases.filter(function(c){return c.nextDate&&c.nextDate>=todayStr();});
+    if(!withDates.length){toast('No upcoming hearings.','warn');return;}
+    var ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//LexTrack//EN','CALSCALE:GREGORIAN'];
+    withDates.forEach(function(c){
+      var d=c.nextDate.replace(/-/g,'');
+      var dt=new Date(c.nextDate);dt.setDate(dt.getDate()+1);
+      var dend=dt.toISOString().split('T')[0].replace(/-/g,'');
+      ics.push('BEGIN:VEVENT','UID:'+c.id+'@lextrack',
+        'DTSTART;VALUE=DATE:'+d,'DTEND;VALUE=DATE:'+dend,
+        'SUMMARY:'+(c.title||'Case')+(c.caseNo?' ['+c.caseNo+']':''),
+        'LOCATION:'+(c.court||''),
+        'DESCRIPTION:Client: '+(c.client||'')+'\\nJudge: '+(c.judge||''),
+        'END:VEVENT');
+    });
+    ics.push('END:VCALENDAR');
+    var blob=new Blob([ics.join('\r\n')],{type:'text/calendar'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='LexTrack_Hearings.ics';
+    a.click();
+    toast('Downloaded '+withDates.length+' hearings. Open file to import into Google Calendar.');
+    return;
+  }
+  // API sync all
+  var withDates=cases.filter(function(c){return c.nextDate;});
+  if(!withDates.length){toast('No cases with hearing dates.','warn');return;}
+  withDates.forEach(function(c,i){ setTimeout(function(){autoSyncToCalendar(c);},i*300); });
+  toast('Syncing '+withDates.length+' hearings to Google Calendar...');
 }
-
-function deleteCalendarEvent(caseId){ /* URL method — no delete needed */ }
-function getGcalToken(){ return null; }
 function editFromDetail(){closeModal('modal-detail');openEdit(detailId);}
 function openSyncFromDetail(){closeModal('modal-detail');openSync(detailId);}
 function openDelete(id){var c=cases.find(function(x){return x.id===id;});if(!c)return;deletingId=id;document.getElementById('del-name').textContent='"'+(c.title||c.caseNo)+'" will be permanently deleted.';openModal('modal-delete');}
