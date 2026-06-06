@@ -359,10 +359,32 @@ code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px
     <div id="hdr-sub" style="font-size:10.5px;color:#7b93ad;font-weight:500">Loading...</div>
   </div>
   <div class="tab-group">
-    <button class="tab active" id="tab-all"   onclick="switchView('all')">All</button>
-    <button class="tab"        id="tab-today" onclick="switchView('today')">Today</button>
-    <button class="tab"        id="tab-week"  onclick="switchView('week')">This Week</button>
-    <button class="tab"        id="tab-month" onclick="switchView('month')">This Month</button>
+    <button class="tab active" id="tab-all"    onclick="switchView('all')">All</button>
+    <button class="tab"        id="tab-today"  onclick="switchView('today')">Today</button>
+    <button class="tab"        id="tab-week"   onclick="switchView('week')">This Week</button>
+    <button class="tab"        id="tab-month"  onclick="switchView('month')">This Month</button>
+    <button class="tab"        id="tab-custom" onclick="switchView('custom')">📅 Custom</button>
+  </div>
+  <!-- Custom date range picker — shown only when Custom tab active -->
+  <div id="custom-range-bar" style="display:none;flex-wrap:wrap;align-items:center;gap:8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;margin-top:6px">
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span style="font-size:12px;font-weight:600;color:#1a56db">From</span>
+      <input type="date" id="custom-from" onchange="renderTable()" style="padding:5px 8px;border:1.5px solid #bfdbfe;border-radius:7px;font-size:13px;color:#1e3a5f"/>
+      <span style="font-size:12px;font-weight:600;color:#1a56db">To</span>
+      <input type="date" id="custom-to" onchange="renderTable()" style="padding:5px 8px;border:1.5px solid #bfdbfe;border-radius:7px;font-size:13px;color:#1e3a5f"/>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span style="font-size:12px;font-weight:600;color:#7b93ad">or Month</span>
+      <input type="month" id="custom-month" onchange="setCustomMonth()" style="padding:5px 8px;border:1.5px solid #bfdbfe;border-radius:7px;font-size:13px;color:#1e3a5f"/>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-sm" style="background:#e0f2fe;border:1px solid #bae6fd;color:#0369a1" onclick="setQuickRange('thismonth')">This Month</button>
+      <button class="btn btn-sm" style="background:#e0f2fe;border:1px solid #bae6fd;color:#0369a1" onclick="setQuickRange('nextmonth')">Next Month</button>
+      <button class="btn btn-sm" style="background:#e0f2fe;border:1px solid #bae6fd;color:#0369a1" onclick="setQuickRange('next7')">Next 7 Days</button>
+      <button class="btn btn-sm" style="background:#e0f2fe;border:1px solid #bae6fd;color:#0369a1" onclick="setQuickRange('next30')">Next 30 Days</button>
+      <button class="btn btn-sm" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626" onclick="clearCustomRange()">✕ Clear</button>
+    </div>
+    <div id="custom-count-lbl" style="font-size:12px;font-weight:600;color:#1a56db;margin-left:4px"></div>
   </div>
   <button class="btn btn-outline" onclick="openModal('modal-listdate')">📋 Daily List</button>
   <button class="btn btn-ghost" onclick="openModal('modal-courtfee');initCF()" style="border-color:#7c3aed;color:#7c3aed">⚖ Court Fee</button>
@@ -992,7 +1014,53 @@ function renderStats(){
 
 function switchView(v){
   currentView=v;
-  ['all','today','week','month'].forEach(function(t){document.getElementById('tab-'+t).className='tab'+(v===t?' active':'');});
+  ['all','today','week','month','custom'].forEach(function(t){
+    var el=document.getElementById('tab-'+t);
+    if(el) el.className='tab'+(v===t?' active':'');
+  });
+  var bar=document.getElementById('custom-range-bar');
+  if(bar) bar.style.display=v==='custom'?'flex':'none';
+  renderTable();
+}
+
+function setCustomMonth(){
+  var mv=document.getElementById('custom-month').value;
+  if(!mv) return;
+  var parts=mv.split('-');
+  var y=parseInt(parts[0]),m=parseInt(parts[1])-1;
+  var from=new Date(y,m,1);
+  var to=new Date(y,m+1,0);
+  document.getElementById('custom-from').value=from.toISOString().split('T')[0];
+  document.getElementById('custom-to').value=to.toISOString().split('T')[0];
+  renderTable();
+}
+
+function setQuickRange(type){
+  var now=new Date();
+  var from,to;
+  if(type==='thismonth'){
+    from=new Date(now.getFullYear(),now.getMonth(),1);
+    to=new Date(now.getFullYear(),now.getMonth()+1,0);
+  } else if(type==='nextmonth'){
+    from=new Date(now.getFullYear(),now.getMonth()+1,1);
+    to=new Date(now.getFullYear(),now.getMonth()+2,0);
+  } else if(type==='next7'){
+    from=new Date(now);
+    to=new Date(now); to.setDate(to.getDate()+7);
+  } else if(type==='next30'){
+    from=new Date(now);
+    to=new Date(now); to.setDate(to.getDate()+30);
+  }
+  document.getElementById('custom-from').value=from.toISOString().split('T')[0];
+  document.getElementById('custom-to').value=to.toISOString().split('T')[0];
+  document.getElementById('custom-month').value='';
+  renderTable();
+}
+
+function clearCustomRange(){
+  document.getElementById('custom-from').value='';
+  document.getElementById('custom-to').value='';
+  document.getElementById('custom-month').value='';
   renderTable();
 }
 
@@ -1003,10 +1071,20 @@ function getDisplayed(){
   var we=new Date(ws);we.setDate(ws.getDate()+6);
   var wss=ws.toISOString().split('T')[0],wes=we.toISOString().split('T')[0];
   var q=(document.getElementById('search-input').value||'').toLowerCase().trim();
+  var cfrom='',cto='';
+  if(currentView==='custom'){
+    cfrom=document.getElementById('custom-from').value||'';
+    cto=document.getElementById('custom-to').value||'';
+  }
   return cases.filter(function(c){
     if(currentView==='today'&&c.nextDate!==today)return false;
     if(currentView==='week'&&(!c.nextDate||c.nextDate<wss||c.nextDate>wes))return false;
     if(currentView==='month'){if(!c.nextDate)return false;var d=new Date(c.nextDate);if(d.getFullYear()!==y||d.getMonth()!==mo)return false;}
+    if(currentView==='custom'){
+      if(!c.nextDate) return false;
+      if(cfrom&&c.nextDate<cfrom) return false;
+      if(cto&&c.nextDate>cto) return false;
+    }
     if(q)return['caseNo','title','client','court','caseType'].some(function(k){return(c[k]||'').toLowerCase().indexOf(q)>=0;});
     return true;
   }).sort(function(a,b){if(!a.nextDate)return 1;if(!b.nextDate)return -1;return a.nextDate.localeCompare(b.nextDate);});
