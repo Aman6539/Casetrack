@@ -395,6 +395,7 @@ code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px
   <button class="btn btn-gold"    onclick="openModal('modal-import')">⬇ Import</button>
   <button class="btn btn-ghost"   onclick="exportData()">⬆ Export</button>
   <button class="btn btn-ghost" onclick="openModal('modal-reminders')" id="btn-reminders" style="position:relative">🔔 Reminders<span id="rem-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:#dc2626;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;line-height:16px">0</span></button>
+  <button class="btn btn-ghost" onclick="openModal('modal-associates')" style="border-color:#7c3aed;color:#7c3aed;background:#faf5ff">👥 Associates</button>
   <div class="user-pill" id="user-pill" onclick="openModal('modal-account')" style="display:none">
     <img id="user-photo" class="user-avatar" src="" alt="U"/>
     <span id="user-short"></span>
@@ -506,6 +507,11 @@ code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px
       <div><label>Stage / Purpose</label><input id="f-stage" placeholder="e.g. Arguments, Evidence"/></div>
       <div><label>Status</label>
         <select id="f-status"><option>Active</option><option>Adjourned</option><option>Decided</option><option>Stayed</option><option>Withdrawn</option><option>Closed</option></select>
+      </div>
+      <div><label>Assigned To (Associate)</label>
+        <select id="f-assignedTo">
+          <option value="">-- Unassigned --</option>
+        </select>
       </div>
       <div class="span2"><label>Remarks / Notes (for reminders)</label><textarea id="f-remarks" rows="2" placeholder="Notes, follow-up tasks, instructions..."></textarea></div>
     </div>
@@ -1127,7 +1133,7 @@ function renderTable(){
 // ════════════════════════════════════════════════════════════
 // CASE CRUD
 // ════════════════════════════════════════════════════════════
-var FLDS=['title','caseNo','cnr','client','clientPhone','opposite','court','judge','caseType','status','nextDate','stage','sections','remarks'];
+var FLDS=['title','caseNo','cnr','client','clientPhone','opposite','court','judge','caseType','status','assignedTo','nextDate','stage','sections','remarks'];
 
 // ════════ JUDGES DIRECTORY — District Patiala (as of Jun 2026) ════════
 var JUDGES_BY_COURT = {
@@ -2387,6 +2393,124 @@ scheduleAllAlerts = function(){
     </div>
   </div></div>
 </div>
+
+<!-- ASSOCIATES MODAL -->
+<div class="overlay" id="modal-associates">
+  <div class="modal wide"><div class="modal-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div>
+        <div class="modal-title" style="margin-bottom:2px">&#128101; Associates / Team</div>
+        <div style="font-size:12px;color:#7b93ad">Manage team members and track case workload</div>
+      </div>
+      <button onclick="closeModal('modal-associates')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:#4b6280;margin-bottom:8px">ADD ASSOCIATE</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="assoc-name-inp" placeholder="Full name *" style="flex:1;min-width:150px;padding:7px 10px;border:1.5px solid #dbeafe;border-radius:7px;font-size:13px"/>
+        <input id="assoc-role-inp" placeholder="Role e.g. Junior Advocate" style="width:160px;padding:7px 10px;border:1.5px solid #dbeafe;border-radius:7px;font-size:13px"/>
+        <input id="assoc-phone-inp" placeholder="Phone" style="width:120px;padding:7px 10px;border:1.5px solid #dbeafe;border-radius:7px;font-size:13px"/>
+        <button class="btn btn-blue btn-sm" onclick="addAssociate()">+ Add</button>
+      </div>
+    </div>
+    <div id="assoc-list" style="margin-bottom:16px"></div>
+    <div id="assoc-workload"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeModal('modal-associates')">Close</button>
+    </div>
+  </div></div>
+</div>
+
+<script>
+// ASSOCIATES
+var ASSOC_KEY='lx_associates_v1';
+var associates=[];
+function loadAssociates(){ try{var s=localStorage.getItem(ASSOC_KEY);if(s)associates=JSON.parse(s);}catch(e){associates=[];} }
+function saveAssociates(){
+  try{localStorage.setItem(ASSOC_KEY,JSON.stringify(associates));}catch(e){}
+  if(isCloud&&db&&currentUser){
+    db.collection('users').doc(currentUser.uid).collection('associates').doc('list')
+      .set({associates:associates},{merge:true}).catch(function(e){console.error('assoc save:',e);});
+  }
+}
+function loadAssociatesFromCloud(user){
+  if(!db||!user) return;
+  db.collection('users').doc(user.uid).collection('associates').doc('list').get().then(function(doc){
+    if(doc.exists&&doc.data().associates){ associates=doc.data().associates; try{localStorage.setItem(ASSOC_KEY,JSON.stringify(associates));}catch(e){} populateAssignedTo(); }
+  }).catch(function(e){});
+}
+function addAssociate(){
+  var name=document.getElementById('assoc-name-inp').value.trim();
+  if(!name){toast('Enter associate name.','warn');return;}
+  var role=document.getElementById('assoc-role-inp').value.trim();
+  var phone=document.getElementById('assoc-phone-inp').value.trim();
+  associates.push({id:genId(),name:name,role:role,phone:phone,addedAt:new Date().toISOString()});
+  saveAssociates();
+  document.getElementById('assoc-name-inp').value='';
+  document.getElementById('assoc-role-inp').value='';
+  document.getElementById('assoc-phone-inp').value='';
+  populateAssignedTo();
+  renderAssociatesModal();
+  toast('Associate added.');
+}
+function deleteAssociate(id){
+  if(!confirm('Remove this associate?')) return;
+  associates=associates.filter(function(a){return a.id!==id;});
+  saveAssociates();
+  populateAssignedTo();
+  renderAssociatesModal();
+  toast('Associate removed.','warn');
+}
+function populateAssignedTo(){
+  var sel=document.getElementById('f-assignedTo');
+  if(!sel) return;
+  var cur=sel.value;
+  sel.innerHTML='<option value="">-- Unassigned --</option>';
+  associates.forEach(function(a){ sel.innerHTML+='<option value="'+a.name+'">'+a.name+(a.role?' ('+a.role+')':'')+'</option>'; });
+  if(cur) sel.value=cur;
+}
+function renderAssociatesModal(){
+  var list=document.getElementById('assoc-list');
+  var wl=document.getElementById('assoc-workload');
+  if(!list) return;
+  if(!associates.length){ list.innerHTML='<div style="text-align:center;padding:20px;color:#7b93ad;font-size:13px">No associates yet. Add team members above.</div>'; wl.innerHTML=''; return; }
+  var counts={},active={};
+  associates.forEach(function(a){counts[a.name]=0;active[a.name]=0;});
+  cases.forEach(function(c){ if(c.assignedTo&&counts[c.assignedTo]!==undefined){ counts[c.assignedTo]++; if(c.status==='Active'||c.status==='Adjourned') active[c.assignedTo]++; } });
+  var unassigned=cases.filter(function(c){return !c.assignedTo;}).length;
+  var maxC=Math.max(1,Math.max.apply(null,associates.map(function(a){return counts[a.name]||0;})));
+  list.innerHTML=associates.map(function(a){
+    var cnt=counts[a.name]||0,act=active[a.name]||0,pct=Math.round((cnt/Math.max(1,cases.length))*100),bw=Math.round((cnt/maxC)*100);
+    return '<div style="display:flex;align-items:center;gap:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:8px;flex-wrap:wrap">'
+      +'<div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#1a56db,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700;flex-shrink:0">'+a.name.charAt(0).toUpperCase()+'</div>'
+      +'<div style="flex:1;min-width:120px"><div style="font-weight:700;font-size:14px;color:#1e3a5f">'+a.name+'</div>'+(a.role?'<div style="font-size:11px;color:#7b93ad">'+a.role+'</div>':'')+(a.phone?'<div style="font-size:11px;color:#7b93ad">'+a.phone+'</div>':'')+'</div>'
+      +'<div style="text-align:center;min-width:55px"><div style="font-size:22px;font-weight:800;color:#1a56db">'+cnt+'</div><div style="font-size:10px;color:#7b93ad">Total</div></div>'
+      +'<div style="text-align:center;min-width:55px"><div style="font-size:22px;font-weight:800;color:#16a34a">'+act+'</div><div style="font-size:10px;color:#7b93ad">Active</div></div>'
+      +'<div style="flex:2;min-width:120px"><div style="display:flex;justify-content:space-between;font-size:11px;color:#7b93ad;margin-bottom:3px"><span>Workload</span><span>'+pct+'%</span></div><div style="height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden"><div style="height:100%;width:'+bw+'%;background:linear-gradient(90deg,#1a56db,#7c3aed);border-radius:4px"></div></div></div>'
+      +'<div style="display:flex;gap:6px;flex-shrink:0">'
+        +'<button class="btn btn-sm" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1a56db" onclick="filterByAssociate(this.dataset.n)" data-n="'+a.name+'">View Cases</button>'
+        +'<button class="btn btn-sm" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626" onclick="deleteAssociate(this.dataset.i)" data-i="'+a.id+'">Remove</button>'
+      +'</div></div>';
+  }).join('');
+  wl.innerHTML='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px">'
+    +'<div style="font-size:12px;font-weight:700;color:#1a56db;margin-bottom:10px">WORKLOAD SUMMARY</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px">'
+    +associates.map(function(a){ var cnt=counts[a.name]||0,act=active[a.name]||0; return '<div style="background:#fff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 14px;text-align:center;min-width:90px"><div style="font-weight:700;font-size:13px;color:#1e3a5f">'+a.name.split(' ').pop()+'</div><div style="font-size:22px;font-weight:800;color:#1a56db">'+cnt+'</div><div style="font-size:10px;color:#16a34a">'+act+' active</div></div>'; }).join('')
+    +'<div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:8px 14px;text-align:center;min-width:90px"><div style="font-weight:700;font-size:13px;color:#92400e">Unassigned</div><div style="font-size:22px;font-weight:800;color:#d97706">'+unassigned+'</div><div style="font-size:10px;color:#7b93ad">cases</div></div>'
+    +'</div></div>';
+}
+function filterByAssociate(name){
+  closeModal('modal-associates');
+  document.getElementById('search-input').value=name;
+  currentView='all';
+  ['all','today','week','month','custom'].forEach(function(t){var el=document.getElementById('tab-'+t);if(el)el.className='tab'+(t==='all'?' active':'');});
+  renderTable();
+  toast('Showing cases assigned to '+name);
+}
+var _origOpenModal2=openModal;
+openModal=function(id){ _origOpenModal2(id); if(id==='modal-associates')renderAssociatesModal(); if(id==='modal-case')populateAssignedTo(); };
+loadAssociates();
+</script>
 
 </body>
 </html>
