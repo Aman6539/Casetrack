@@ -360,10 +360,12 @@ code { background: #eff6ff; color: #1a56db; padding: 2px 7px; border-radius: 4px
   </div>
   <div class="tab-group">
     <button class="tab active" id="tab-all"    onclick="switchView('all')">All</button>
+    <button class="tab"        id="tab-active" onclick="switchView('active')" style="color:#16a34a">● Active</button>
     <button class="tab"        id="tab-today"  onclick="switchView('today')">Today</button>
     <button class="tab"        id="tab-week"   onclick="switchView('week')">This Week</button>
     <button class="tab"        id="tab-month"  onclick="switchView('month')">This Month</button>
     <button class="tab"        id="tab-custom" onclick="switchView('custom')">📅 Custom</button>
+    <button class="tab"        id="tab-closed" onclick="switchView('closed')" style="color:#7b93ad">🗄 Closed</button>
   </div>
   <!-- Custom date range picker — shown only when Custom tab active -->
   <div id="custom-range-bar" style="display:none;flex-wrap:wrap;align-items:center;gap:8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;margin-top:6px">
@@ -1020,7 +1022,7 @@ function renderStats(){
 
 function switchView(v){
   currentView=v;
-  ['all','today','week','month','custom'].forEach(function(t){
+  ['all','active','today','week','month','custom','closed'].forEach(function(t){
     var el=document.getElementById('tab-'+t);
     if(el) el.className='tab'+(v===t?' active':'');
   });
@@ -1082,7 +1084,15 @@ function getDisplayed(){
     cfrom=document.getElementById('custom-from').value||'';
     cto=document.getElementById('custom-to').value||'';
   }
+  var CLOSED=['Decided','Withdrawn','Closed'];
   return cases.filter(function(c){
+    // Active tab — only non-closed
+    if(currentView==='active' && CLOSED.indexOf(c.status)>=0) return false;
+    // Closed tab — only closed/decided/withdrawn
+    if(currentView==='closed') return CLOSED.indexOf(c.status)>=0 && (!q || ['caseNo','title','client','court','caseType'].some(function(k){return(c[k]||'').toLowerCase().indexOf(q)>=0;}));
+    // All tab — hide closed cases (they go to Closed tab)
+    if(currentView==='all' && CLOSED.indexOf(c.status)>=0) return false;
+    // Date filters
     if(currentView==='today'&&c.nextDate!==today)return false;
     if(currentView==='week'&&(!c.nextDate||c.nextDate<wss||c.nextDate>wes))return false;
     if(currentView==='month'){if(!c.nextDate)return false;var d=new Date(c.nextDate);if(d.getFullYear()!==y||d.getMonth()!==mo)return false;}
@@ -1091,7 +1101,7 @@ function getDisplayed(){
       if(cfrom&&c.nextDate<cfrom) return false;
       if(cto&&c.nextDate>cto) return false;
     }
-    if(q)return['caseNo','title','client','court','caseType'].some(function(k){return(c[k]||'').toLowerCase().indexOf(q)>=0;});
+    if(q)return['caseNo','title','client','court','caseType','assignedTo'].some(function(k){return(c[k]||'').toLowerCase().indexOf(q)>=0;});
     return true;
   }).sort(function(a,b){if(!a.nextDate)return 1;if(!b.nextDate)return -1;return a.nextDate.localeCompare(b.nextDate);});
 }
@@ -1110,8 +1120,11 @@ function renderTable(){
     var it=c.nextDate===today,ip=c.nextDate&&c.nextDate<today;
     var dc=it?'#16a34a':ip?'#dc2626':'#1e3a5f';
     var hasAlerts=alerts.some(function(a){return a.caseId===c.id&&!a.done;});
-    html+='<div class="tbl-row" onclick="openDetail(\''+c.id+'\')">'
-      +'<div><div class="cell-title">'+esc(c.title||'—')+(hasAlerts?' 🔔':'')+'</div><div class="cell-sub">'+esc(c.client||'—')+'</div></div>'
+    var acolor=c.assignedTo?getAssocColorByName(c.assignedTo):null;
+    var aflag=acolor?'<span title="'+c.assignedTo+'" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+acolor.dot+';margin-right:5px"></span>':'';
+    var abadge=acolor?'<span style="font-size:10px;background:'+acolor.bg+';color:'+acolor.c+';border-radius:10px;padding:1px 6px;margin-left:5px">'+esc(c.assignedTo)+'</span>':'';
+    html+='<div class="tbl-row" onclick="openDetail(\''+c.id+'\')" style="border-left:3px solid '+(acolor?acolor.dot:'transparent')+';">'
+      +'<div><div class="cell-title">'+aflag+esc(c.title||'—')+(hasAlerts?' 🔔':'')+abadge+'</div><div class="cell-sub">'+esc(c.client||'—')+'</div></div>'
       +'<div><div class="cell-case">'+esc(c.caseNo||'—')+'</div>'+(c.cnr?'<div class="cell-sub">CNR: '+esc(c.cnr)+'</div>':'')+'</div>'
       +'<div style="font-size:12px;color:#4b6280">'+esc(c.court||'—')+'</div>'
       +'<div><div style="font-size:12px;font-weight:'+(it?'700':'500')+';color:'+dc+'">'+fmtDate(c.nextDate)+'</div>'
@@ -2425,6 +2438,18 @@ scheduleAllAlerts = function(){
 // ASSOCIATES
 var ASSOC_KEY='lx_associates_v1';
 var associates=[];
+var ASSOC_COLORS=[
+  {bg:'#dbeafe',c:'#1e40af',dot:'#3b82f6',name:'Blue'},
+  {bg:'#dcfce7',c:'#166534',dot:'#22c55e',name:'Green'},
+  {bg:'#fce7f3',c:'#9d174d',dot:'#ec4899',name:'Pink'},
+  {bg:'#ffedd5',c:'#9a3412',dot:'#f97316',name:'Orange'},
+  {bg:'#f3e8ff',c:'#6b21a8',dot:'#a855f7',name:'Purple'},
+  {bg:'#fef9c3',c:'#854d0e',dot:'#eab308',name:'Yellow'},
+  {bg:'#ccfbf1',c:'#065f46',dot:'#14b8a6',name:'Teal'},
+  {bg:'#fee2e2',c:'#991b1b',dot:'#ef4444',name:'Red'}
+];
+function getAssocColor(idx){ return ASSOC_COLORS[idx % ASSOC_COLORS.length]; }
+function getAssocColorByName(name){ var a=associates.find(function(x){return x.name===name;}); if(!a) return null; var idx=associates.indexOf(a); return getAssocColor(idx); }
 function loadAssociates(){ try{var s=localStorage.getItem(ASSOC_KEY);if(s)associates=JSON.parse(s);}catch(e){associates=[];} }
 function saveAssociates(){
   try{localStorage.setItem(ASSOC_KEY,JSON.stringify(associates));}catch(e){}
@@ -2479,10 +2504,11 @@ function renderAssociatesModal(){
   cases.forEach(function(c){ if(c.assignedTo&&counts[c.assignedTo]!==undefined){ counts[c.assignedTo]++; if(c.status==='Active'||c.status==='Adjourned') active[c.assignedTo]++; } });
   var unassigned=cases.filter(function(c){return !c.assignedTo;}).length;
   var maxC=Math.max(1,Math.max.apply(null,associates.map(function(a){return counts[a.name]||0;})));
-  list.innerHTML=associates.map(function(a){
+  list.innerHTML=associates.map(function(a,ai){
     var cnt=counts[a.name]||0,act=active[a.name]||0,pct=Math.round((cnt/Math.max(1,cases.length))*100),bw=Math.round((cnt/maxC)*100);
-    return '<div style="display:flex;align-items:center;gap:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:8px;flex-wrap:wrap">'
-      +'<div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#1a56db,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700;flex-shrink:0">'+a.name.charAt(0).toUpperCase()+'</div>'
+    var col=getAssocColor(ai);
+    return '<div style="display:flex;align-items:center;gap:12px;background:'+col.bg+';border:2px solid '+col.dot+';border-radius:10px;padding:12px 14px;margin-bottom:8px;flex-wrap:wrap">'
+      +'<div style="width:40px;height:40px;border-radius:50%;background:'+col.dot+';display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700;flex-shrink:0">'+a.name.charAt(0).toUpperCase()+'</div>'
       +'<div style="flex:1;min-width:120px"><div style="font-weight:700;font-size:14px;color:#1e3a5f">'+a.name+'</div>'+(a.role?'<div style="font-size:11px;color:#7b93ad">'+a.role+'</div>':'')+(a.phone?'<div style="font-size:11px;color:#7b93ad">'+a.phone+'</div>':'')+'</div>'
       +'<div style="text-align:center;min-width:55px"><div style="font-size:22px;font-weight:800;color:#1a56db">'+cnt+'</div><div style="font-size:10px;color:#7b93ad">Total</div></div>'
       +'<div style="text-align:center;min-width:55px"><div style="font-size:22px;font-weight:800;color:#16a34a">'+act+'</div><div style="font-size:10px;color:#7b93ad">Active</div></div>'
@@ -2495,7 +2521,7 @@ function renderAssociatesModal(){
   wl.innerHTML='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px">'
     +'<div style="font-size:12px;font-weight:700;color:#1a56db;margin-bottom:10px">WORKLOAD SUMMARY</div>'
     +'<div style="display:flex;flex-wrap:wrap;gap:8px">'
-    +associates.map(function(a){ var cnt=counts[a.name]||0,act=active[a.name]||0; return '<div style="background:#fff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 14px;text-align:center;min-width:90px"><div style="font-weight:700;font-size:13px;color:#1e3a5f">'+a.name.split(' ').pop()+'</div><div style="font-size:22px;font-weight:800;color:#1a56db">'+cnt+'</div><div style="font-size:10px;color:#16a34a">'+act+' active</div></div>'; }).join('')
+    +associates.map(function(a,ai){ var cnt=counts[a.name]||0,act=active[a.name]||0,col=getAssocColor(ai); return '<div style="background:#fff;border:2px solid '+col.dot+';border-radius:8px;padding:8px 14px;text-align:center;min-width:90px"><div style="display:flex;align-items:center;justify-content:center;gap:5px;font-weight:700;font-size:13px;color:'+col.c+'"><span style="width:8px;height:8px;border-radius:50%;background:'+col.dot+';display:inline-block"></span>'+a.name.split(' ').pop()+'</div><div style="font-size:22px;font-weight:800;color:'+col.dot+'">'+cnt+'</div><div style="font-size:10px;color:#16a34a">'+act+' active</div></div>'; }).join('')
     +'<div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:8px 14px;text-align:center;min-width:90px"><div style="font-weight:700;font-size:13px;color:#92400e">Unassigned</div><div style="font-size:22px;font-weight:800;color:#d97706">'+unassigned+'</div><div style="font-size:10px;color:#7b93ad">cases</div></div>'
     +'</div></div>';
 }
