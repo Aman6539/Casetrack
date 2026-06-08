@@ -937,8 +937,9 @@ function startSync(user){
       try{ var s=localStorage.getItem(LOC_KEY); if(s) cases=JSON.parse(s); renderAll(); }catch(e){}
     });
 
-  // Also sync reminders
+  // Also sync reminders and associates
   startRemindersSync(user);
+  loadAssociatesFromCloud(user);
 }
 
 function setSyncPill(online){
@@ -2501,14 +2502,27 @@ function saveAssociates(){
   try{localStorage.setItem(ASSOC_KEY,JSON.stringify(associates));}catch(e){}
   if(isCloud&&db&&currentUser){
     db.collection('users').doc(currentUser.uid).collection('associates').doc('list')
-      .set({associates:associates},{merge:true}).catch(function(e){console.error('assoc save:',e);});
+      .set({associates:associates},{merge:true})
+      .then(function(){ console.log('Associates synced to cloud'); })
+      .catch(function(e){ console.error('assoc save:',e); toast('Associates sync error.','error'); });
   }
 }
+// Real-time listener — updates instantly on all devices when associates change
 function loadAssociatesFromCloud(user){
   if(!db||!user) return;
-  db.collection('users').doc(user.uid).collection('associates').doc('list').get().then(function(doc){
-    if(doc.exists&&doc.data().associates){ associates=doc.data().associates; try{localStorage.setItem(ASSOC_KEY,JSON.stringify(associates));}catch(e){} populateAssignedTo(); }
-  }).catch(function(e){});
+  db.collection('users').doc(user.uid).collection('associates').doc('list')
+    .onSnapshot(function(doc){
+      if(doc.exists && doc.data().associates){
+        associates = doc.data().associates;
+        try{ localStorage.setItem(ASSOC_KEY,JSON.stringify(associates)); }catch(e){}
+        populateAssignedTo();
+        // Re-render if modal is open
+        var modal = document.getElementById('modal-associates');
+        if(modal && modal.classList.contains('open')) renderAssociatesModal();
+        // Re-render table to update colour flags
+        try{ renderTable(); }catch(e){}
+      }
+    }, function(e){ console.error('associates snapshot:',e); });
 }
 function addAssociate(){
   var name=document.getElementById('assoc-name-inp').value.trim();
