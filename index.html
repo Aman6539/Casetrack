@@ -1000,6 +1000,8 @@ window.onload = function(){
   try { scheduleAllAlerts(); } catch(e){}
   try { reqNotif(); } catch(e){}
   setTimeout(function(){ try{ updateReminderBadge(); }catch(e){} }, 800);
+  // Schedule daily auto sign-out at 7PM
+  scheduleAutoSignOut();
 };
 
 // ════════ DYNAMIC FIREBASE LOADER ════════
@@ -1054,10 +1056,14 @@ function initFB(cfg){
     }).catch(function(e){ console.error('Redirect result error:',e.code); });
     auth.onAuthStateChanged(function(user){
       if(user){
-        // Always call showApp — handles popup, redirect, and page reload after sign-in
         currentUser=user; isCloud=true;
         showApp(user);
         startSync(user);
+        // Restore stored calendar token immediately
+        try{
+          var stored = localStorage.getItem('lx_gcal_token');
+          if(stored && !window._gcalToken) window._gcalToken = stored;
+        }catch(e){}
       } else {
         currentUser=null; isCloud=false;
       }
@@ -1110,11 +1116,57 @@ function doSignOut(){
   if(auth) auth.signOut();
   if(unsub){ unsub(); unsub=null; }
   currentUser=null; isCloud=false; cases=[];
+  window._gcalToken=null;
   closeModal('modal-account');
   document.getElementById('main-header').style.display='none';
   document.getElementById('main-body').style.display='none';
   document.getElementById('login-screen').style.display='flex';
   toast('Signed out.','warn');
+}
+
+// ════════ AUTO SIGN-OUT AT 7PM ════════
+var _autoSignOutTimer = null;
+
+function scheduleAutoSignOut(){
+  // Clear any existing timer
+  if(_autoSignOutTimer){ clearTimeout(_autoSignOutTimer); _autoSignOutTimer=null; }
+
+  var now = new Date();
+  var signOutTime = new Date();
+  signOutTime.setHours(19, 0, 0, 0); // 7:00 PM today
+
+  // If 7pm already passed today, schedule for tomorrow
+  if(now >= signOutTime){
+    signOutTime.setDate(signOutTime.getDate()+1);
+  }
+
+  var msUntilSignOut = signOutTime.getTime() - now.getTime();
+
+  _autoSignOutTimer = setTimeout(function(){
+    // Only sign out if user is logged in
+    if(currentUser || isCloud){
+      // Show warning toast 2 minutes before
+      toast('⚠ Auto sign-out in 2 minutes (7:00 PM security policy).','warn');
+      setTimeout(function(){
+        if(currentUser || isCloud){
+          doSignOut();
+          // Show sign-out notification
+          setTimeout(function(){
+            toast('🔒 Auto signed out at 7:00 PM. Sign in again to continue.','warn');
+          },300);
+        }
+        // Schedule next day
+        scheduleAutoSignOut();
+      }, 2 * 60 * 1000); // 2 minute warning
+    } else {
+      scheduleAutoSignOut(); // reschedule for tomorrow
+    }
+  }, msUntilSignOut - (2 * 60 * 1000)); // fire 2 min before 7pm for warning
+
+  // Log when next sign-out is scheduled
+  var hours = Math.floor(msUntilSignOut/3600000);
+  var mins = Math.floor((msUntilSignOut%3600000)/60000);
+  console.log('Auto sign-out scheduled in '+hours+'h '+mins+'m ('+signOutTime.toLocaleTimeString('en-IN')+')');
 }
 
 // ════════ SHOW APP ════════
@@ -1584,9 +1636,17 @@ function createCalendarEvent(token, c){
   }).then(function(r){return r.json();}).then(function(ev){
     if(ev.id){
       try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); m[c.id]=ev.id; localStorage.setItem('lx_gcal_ids',JSON.stringify(m)); }catch(e){}
-      toast('📅 Hearing added to Google Calendar');
-    } else if(ev.error&&ev.error.code===401){
-      window._gcalToken=null; try{localStorage.removeItem('lx_gcal_token');}catch(e){}
+      toast('📅 Added to Google Calendar: '+fmtDate(c.nextDate));
+    } else if(ev.error){
+      if(ev.error.code===401){
+        window._gcalToken=null;
+        try{ localStorage.removeItem('lx_gcal_token'); }catch(e){}
+        toast('📅 Calendar session expired. Sign out and sign back in to reconnect.','warn');
+      } else if(ev.error.code===403){
+        toast('📅 Calendar permission denied. Sign out and sign back in.','warn');
+      } else {
+        console.error('Calendar error:', ev.error);
+      }
     }
   }).catch(function(e){ console.error('Calendar create:',e); });
 }
@@ -1598,8 +1658,13 @@ function updateCalendarEvent(token, eventId, c){
     body:JSON.stringify(buildEventBody(c))
   }).then(function(r){
     if(r.status===404){ createCalendarEvent(token,c); }
-    else if(r.status===401){ window._gcalToken=null; try{localStorage.removeItem('lx_gcal_token');}catch(e){} }
-    else{ toast('📅 Calendar event updated'); }
+    else if(r.status===401){
+      window._gcalToken=null;
+      try{ localStorage.removeItem('lx_gcal_token'); }catch(e){}
+      toast('📅 Calendar session expired. Sign out and sign back in to reconnect.','warn');
+    } else if(r.status===200||r.status===204){
+      toast('📅 Calendar updated: '+fmtDate(c.nextDate));
+    }
   }).catch(function(e){ console.error('Calendar update:',e); });
 }
 
