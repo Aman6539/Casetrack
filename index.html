@@ -1084,13 +1084,25 @@ function signInGoogle(){
   provider.addScope('email');
   provider.addScope('profile');
   provider.addScope('https://www.googleapis.com/auth/calendar.events');
+  // Force account selection every time — this ensures credential.accessToken is always returned
+  provider.setCustomParameters({ prompt: 'select_account' });
+
   msgEl.textContent = 'Opening Google sign-in...';
   auth.signInWithPopup(provider)
     .then(function(result){
       msgEl.textContent = 'Signed in as ' + (result.user.displayName||result.user.email) + '...';
-      if(result.credential && result.credential.accessToken){
-        window._gcalToken = result.credential.accessToken;
-        try{ localStorage.setItem('lx_gcal_token', result.credential.accessToken); }catch(e){}
+      // Get token — always available when prompt:'select_account' is used
+      var token = result.credential && result.credential.accessToken;
+      if(token){
+        window._gcalToken = token;
+        _gcalTokenTime = Date.now();
+        try{
+          localStorage.setItem('lx_gcal_token', token);
+          localStorage.setItem('lx_gcal_token_time', _gcalTokenTime.toString());
+        }catch(e){}
+        console.log('Calendar token stored on sign-in');
+      } else {
+        console.warn('No access token returned — calendar sync may not work');
       }
     })
     .catch(function(e){
@@ -1582,10 +1594,44 @@ function openDetail(id){
 
 // ════════ GOOGLE CALENDAR AUTO-SYNC ════════
 var _gcalToken = null;
+var _gcalTokenTime = 0; // timestamp when token was stored
+var GCAL_TOKEN_TTL = 55 * 60 * 1000; // 55 minutes (token lasts 1hr, refresh at 55min)
 
 function getGcalToken(){
   if(window._gcalToken) return window._gcalToken;
   try{ return localStorage.getItem('lx_gcal_token'); }catch(e){ return null; }
+}
+
+function isTokenFresh(){
+  var t = _gcalTokenTime || parseInt(localStorage.getItem('lx_gcal_token_time')||'0');
+  return t && (Date.now() - t) < GCAL_TOKEN_TTL;
+}
+
+// Refresh token silently by re-authenticating in background
+function refreshGcalToken(cb){
+  if(!auth || !currentUser){ cb(null); return; }
+  // Check if token is still fresh
+  if(isTokenFresh() && getGcalToken()){ cb(getGcalToken()); return; }
+  // Re-auth to get fresh token — use prompt:consent to force credential return
+  var provider = new firebase.auth.GoogleAuthProvider();
+  provider.addScope('https://www.googleapis.com/auth/calendar.events');
+  provider.setCustomParameters({ prompt: 'consent' });
+  auth.currentUser.reauthenticateWithPopup(provider)
+    .then(function(result){
+      if(result.credential && result.credential.accessToken){
+        window._gcalToken = result.credential.accessToken;
+        _gcalTokenTime = Date.now();
+        try{
+          localStorage.setItem('lx_gcal_token', result.credential.accessToken);
+          localStorage.setItem('lx_gcal_token_time', _gcalTokenTime.toString());
+        }catch(e){}
+        cb(result.credential.accessToken);
+      } else { cb(getGcalToken()); }
+    })
+    .catch(function(e){
+      console.log('Token refresh skipped:', e.code);
+      cb(getGcalToken()); // Use existing token as fallback
+    });
 }
 
 function buildEventBody(c){
@@ -1620,12 +1666,14 @@ function buildEventBody(c){
 
 function autoSyncToCalendar(c){
   if(!c||!c.nextDate) return;
-  var token = getGcalToken();
-  if(!token) return; // Not signed in with calendar scope
-  var storedId = null;
-  try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); storedId=m[c.id]; }catch(e){}
-  if(storedId){ updateCalendarEvent(token, storedId, c); }
-  else { createCalendarEvent(token, c); }
+  // Always check token freshness before syncing
+  refreshGcalToken(function(token){
+    if(!token) return; // Not signed in with calendar scope
+    var storedId = null;
+    try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); storedId=m[c.id]; }catch(e){}
+    if(storedId){ updateCalendarEvent(token, storedId, c); }
+    else { createCalendarEvent(token, c); }
+  });
 }
 
 function createCalendarEvent(token, c){
