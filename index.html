@@ -653,6 +653,7 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
     </div>
   </div>
   <div class="sidebar-nav">
+    <button class="sidebar-link" id="nav-newcase" onclick="closeAllPages();openAddCase();setNavActive('nav-newcase')" style="background:var(--gold);color:var(--navy);font-weight:700;margin-bottom:10px"><span class="ic">+</span><span class="lbl">New Case</span></button>
     <button class="sidebar-link active" id="nav-dashboard" onclick="closeAllPages();setNavActive('nav-dashboard')"><span class="ic">📋</span><span class="lbl">Dashboard</span></button>
     <div class="sidebar-section-lbl">Tools</div>
     <button class="sidebar-link" id="nav-courtfee" onclick="closeAllPages();openModal('modal-courtfee');initCF();setNavActive('nav-courtfee')"><span class="ic">⚖</span><span class="lbl">Court Fee</span></button>
@@ -710,7 +711,6 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
     </div>
     <div id="custom-count-lbl" style="font-size:12px;font-weight:600;color:#1a56db;margin-left:4px"></div>
   </div>
-  <button class="btn btn-blue" onclick="openAddCase()">+ New Case</button>
 </div>
 
 <!-- ═══════════════════ BODY ═══════════════════ -->
@@ -753,9 +753,9 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
 ═══════════════════════════════════════ -->
 
 <!-- ADD/EDIT CASE -->
-<div class="overlay" id="modal-case">
+<div class="overlay page-view" id="modal-case">
   <div class="modal"><div class="modal-body">
-    <div class="modal-title" id="case-title-lbl">Add New Case</div>
+    <div class="page-topbar"><div class="page-topbar-title" id="case-title-lbl">Add New Case</div></div>
     <div class="form-grid">
       <div class="span2"><label>Case Title / Parties *</label><input id="f-title" placeholder="e.g. Suresh Kumar vs. Tarsem Singh & Others"/></div>
       <div><label>Case Number</label><input id="f-caseNo" placeholder="e.g. CS-254-2022"/></div>
@@ -824,6 +824,12 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
         </select>
       </div>
       <div class="span2"><label>Remarks / Notes (for reminders)</label><textarea id="f-remarks" rows="2" placeholder="Notes, follow-up tasks, instructions..."></textarea></div>
+      <div class="span2" style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin-top:6px;border-top:1px solid #e2e8f0;padding-top:14px">Fee Tracking</div>
+      <div><label>Total Fee Decided (₹)</label><input type="number" id="f-feeTotal" placeholder="e.g. 50000" oninput="calcFeeRemaining()"/></div>
+      <div><label>Amount Paid (₹)</label><input type="number" id="f-feePaid" placeholder="e.g. 20000" oninput="calcFeeRemaining()"/></div>
+      <div><label>Remaining Fee (₹)</label><input type="text" id="f-feeRemaining" readonly style="background:#f8fafc;font-weight:700;color:#1a56db"/></div>
+      <div><label>Fee Status</label><input type="text" id="f-feeStatus" readonly style="background:#f8fafc;font-weight:700"/></div>
+      <div class="span2"><label>Fee Remarks</label><textarea id="f-feeRemarks" rows="2" placeholder="Payment schedule, installment notes, etc."></textarea></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
       <button class="btn btn-ghost" onclick="closeModal('modal-case')">Cancel</button>
@@ -840,12 +846,17 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
         <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-detail')" style="margin-bottom:8px">← Back to Cases</button>
         <div class="page-topbar-title" id="d-title" style="font-size:18px"></div>
         <span id="d-badge" class="badge" style="margin-top:6px;display:inline-block"></span>
+        <span id="d-fee-badge" class="badge" style="margin-top:6px;margin-left:6px;display:none"></span>
       </div>
     </div>
     <div class="detail-grid" id="d-fields"></div>
     <div id="d-rem-wrap" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 13px;margin-bottom:13px">
       <div style="font-size:11px;color:#7b93ad;text-transform:uppercase;font-weight:600;margin-bottom:4px">Remarks</div>
       <div id="d-rem" style="font-size:13px;color:#4b6280;line-height:1.6"></div>
+    </div>
+    <div id="d-feerem-wrap" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 13px;margin-bottom:13px">
+      <div style="font-size:11px;color:#b45309;text-transform:uppercase;font-weight:600;margin-bottom:4px">Fee Remarks</div>
+      <div id="d-feerem" style="font-size:13px;color:#4b6280;line-height:1.6"></div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
       <button class="btn btn-ghost" onclick="closeModal('modal-detail')">Close</button>
@@ -1407,7 +1418,7 @@ document.querySelectorAll('.overlay').forEach(function(el){
 });
 
 // ════════ SIDEBAR NAVIGATION ════════
-var PAGE_VIEW_IDS=['modal-detail','modal-sync','modal-courtfee','modal-listdate','modal-import','modal-reminders','modal-associates','modal-account'];
+var PAGE_VIEW_IDS=['modal-detail','modal-sync','modal-courtfee','modal-listdate','modal-import','modal-reminders','modal-associates','modal-account','modal-case'];
 function closeAllPages(){
   PAGE_VIEW_IDS.forEach(function(id){ var el=document.getElementById(id); if(el) el.classList.remove('open'); });
   setNavActive('nav-dashboard');
@@ -1562,7 +1573,7 @@ function renderTable(){
 // ════════════════════════════════════════════════════════════
 // CASE CRUD
 // ════════════════════════════════════════════════════════════
-var FLDS=['title','caseNo','cnr','client','clientPhone','opposite','court','judge','caseType','status','assignedTo','nextDate','stage','sections','remarks'];
+var FLDS=['title','caseNo','cnr','client','clientPhone','opposite','court','judge','caseType','status','assignedTo','nextDate','stage','sections','remarks','feeTotal','feePaid','feeRemarks'];
 
 // ════════ JUDGES DIRECTORY — District Patiala (as of Jun 2026) ════════
 var JUDGES_BY_COURT = {
@@ -1672,8 +1683,36 @@ function updateJudgeList(){
   if(current) sel.value = current;
 }
 
-function openAddCase(){ editingId=null; document.getElementById('case-title-lbl').textContent='Add New Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=f==='status'?'Active':'';}); openModal('modal-case'); }
-function openEdit(id){ var c=cases.find(function(x){return x.id===id;}); if(!c)return; editingId=id; document.getElementById('case-title-lbl').textContent='Edit Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=c[f]||'';}); updateJudgeList(); document.getElementById('f-judge').value=c.judge||''; openModal('modal-case'); }
+var FEE_SM = {
+  'Not Set':     {c:'#64748b',bg:'#f8fafc',b:'#e2e8f0'},
+  'Pending':     {c:'#dc2626',bg:'#fef2f2',b:'#fecaca'},
+  'Partly Paid': {c:'#d97706',bg:'#fffbeb',b:'#fde68a'},
+  'Paid':        {c:'#16a34a',bg:'#f0fdf4',b:'#bbf7d0'}
+};
+function calcRemainingFee(totalStr,paidStr){
+  var total=parseFloat(totalStr);
+  var paid=parseFloat(paidStr)||0;
+  if(isNaN(total)) return '';
+  var rem=total-paid; if(rem<0) rem=0;
+  return String(rem);
+}
+function computeFeeStatus(totalStr,paidStr){
+  var total=parseFloat(totalStr);
+  var paid=parseFloat(paidStr)||0;
+  if(isNaN(total)||total<=0) return 'Not Set';
+  if(paid<=0) return 'Pending';
+  if(paid>=total) return 'Paid';
+  return 'Partly Paid';
+}
+function calcFeeRemaining(){
+  var t=document.getElementById('f-feeTotal'), p=document.getElementById('f-feePaid');
+  var total=t?t.value:'', paid=p?p.value:'';
+  var rem=document.getElementById('f-feeRemaining'); if(rem) rem.value=calcRemainingFee(total,paid);
+  var st=document.getElementById('f-feeStatus'); if(st) st.value=computeFeeStatus(total,paid);
+}
+
+function openAddCase(){ editingId=null; document.getElementById('case-title-lbl').textContent='Add New Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=f==='status'?'Active':'';}); calcFeeRemaining(); openModal('modal-case'); }
+function openEdit(id){ var c=cases.find(function(x){return x.id===id;}); if(!c)return; editingId=id; document.getElementById('case-title-lbl').textContent='Edit Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=c[f]||'';}); updateJudgeList(); document.getElementById('f-judge').value=c.judge||''; calcFeeRemaining(); openModal('modal-case'); }
 
 function saveCase(){
   var title=document.getElementById('f-title').value.trim();
@@ -1681,6 +1720,8 @@ function saveCase(){
   if(!title&&!caseNo){alert('Enter case title or case number.');return;}
   var data={};
   FLDS.forEach(function(f){var el=document.getElementById('f-'+f);data[f]=el?el.value.trim():'';});
+  data.feeRemaining=calcRemainingFee(data.feeTotal,data.feePaid);
+  data.feeStatus=computeFeeStatus(data.feeTotal,data.feePaid);
   data.updatedAt=new Date().toISOString();
   if(editingId){
     data.id=editingId;
@@ -1700,10 +1741,18 @@ function openDetail(id){
   var sm=SM[c.status]||SM.Closed;
   var b=document.getElementById('d-badge');
   b.textContent=c.status||'—';b.style.background=sm.bg;b.style.color=sm.c;b.style.border='1px solid '+sm.b;
-  var rows=[['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Judge',c.judge],['Type',c.caseType],['Client',c.client],['Phone',c.clientPhone],['Opposite',c.opposite],['Sections',c.sections],['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],['Added',fmtDate(c.createdAt)],['Last Updated',c.updatedAt?new Date(c.updatedAt).toLocaleString('en-IN'):null]];
+  var rows=[['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Judge',c.judge],['Type',c.caseType],['Client',c.client],['Phone',c.clientPhone],['Opposite',c.opposite],['Sections',c.sections],['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],['Total Fee',c.feeTotal?'₹'+c.feeTotal:null],['Amount Paid',c.feeTotal||c.feePaid?'₹'+(c.feePaid||'0'):null],['Remaining Fee',c.feeTotal?'₹'+calcRemainingFee(c.feeTotal,c.feePaid):null],['Added',fmtDate(c.createdAt)],['Last Updated',c.updatedAt?new Date(c.updatedAt).toLocaleString('en-IN'):null]];
   document.getElementById('d-fields').innerHTML=rows.filter(function(r){return r[1];}).map(function(r){return'<div class="detail-field"><div class="detail-key">'+esc(r[0])+'</div><div class="detail-val" style="font-weight:'+(r[0]==='Next Hearing'?700:400)+'">'+esc(r[1])+'</div></div>';}).join('');
   var rw=document.getElementById('d-rem-wrap');
   if(c.remarks){rw.style.display='block';document.getElementById('d-rem').textContent=c.remarks;}else rw.style.display='none';
+  var frw=document.getElementById('d-feerem-wrap');
+  if(c.feeRemarks){frw.style.display='block';document.getElementById('d-feerem').textContent=c.feeRemarks;}else frw.style.display='none';
+  var feeStatus=computeFeeStatus(c.feeTotal,c.feePaid);
+  var fb=document.getElementById('d-fee-badge');
+  if(fb){
+    if(feeStatus==='Not Set'){ fb.style.display='none'; }
+    else { var fsm=FEE_SM[feeStatus]||FEE_SM['Not Set']; fb.style.display='inline-block'; fb.textContent='Fee: '+feeStatus; fb.style.background=fsm.bg; fb.style.color=fsm.c; fb.style.border='1px solid '+fsm.b; }
+  }
   // Show/hide Google Calendar button
   var gcBtn=document.getElementById('d-gcal-btn');
   if(gcBtn){ gcBtn.style.display=c.nextDate?'inline-flex':'none'; }
