@@ -1831,26 +1831,52 @@ function buildEventBody(c){
   };
 }
 
+function calendarEventHash(c){
+  return [c.title,c.caseNo,c.court,c.judge,c.client,c.stage,c.status,c.nextDate].map(function(x){return x||'';}).join('|');
+}
+function persistCalendarMeta(caseId, eventId, hash){
+  var idx = cases.findIndex(function(x){return x.id===caseId;});
+  if(idx>=0){ cases[idx].calendarEventId=eventId; cases[idx].calendarSyncHash=hash; }
+  if(isCloud && db && currentUser){
+    db.collection('users').doc(currentUser.uid).collection('cases').doc(caseId)
+      .set({calendarEventId:eventId, calendarSyncHash:hash},{merge:true})
+      .catch(function(e){ console.error('Calendar meta save error:',e); });
+  } else {
+    try{ localStorage.setItem(LOC_KEY, JSON.stringify(cases)); }catch(e){}
+  }
+  // keep legacy per-browser map in sync too (backward compatibility)
+  try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); m[caseId]=eventId; localStorage.setItem('lx_gcal_ids',JSON.stringify(m)); }catch(e){}
+}
+
 function autoSyncToCalendar(c){
   if(!c||!c.nextDate) return;
   // Always check token freshness before syncing
   refreshGcalToken(function(token){
     if(!token) return; // Not signed in with calendar scope
-    var storedId = null;
-    try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); storedId=m[c.id]; }catch(e){}
-    if(storedId){ updateCalendarEvent(token, storedId, c); }
-    else { createCalendarEvent(token, c); }
+    var current = cases.find(function(x){return x.id===c.id;}) || c;
+    var hash = calendarEventHash(current);
+    var storedId = current.calendarEventId || null;
+    // Backward compat: fall back to legacy per-browser map if case object predates this field
+    if(!storedId){
+      try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); storedId=m[c.id]||null; }catch(e){}
+    }
+    if(storedId){
+      if(current.calendarSyncHash===hash) return; // nothing changed — skip, no duplicate call
+      updateCalendarEvent(token, storedId, current, hash);
+    } else {
+      createCalendarEvent(token, current, hash); // create exactly once
+    }
   });
 }
 
-function createCalendarEvent(token, c){
+function createCalendarEvent(token, c, hash){
   fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events',{
     method:'POST',
     headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
     body:JSON.stringify(buildEventBody(c))
   }).then(function(r){return r.json();}).then(function(ev){
     if(ev.id){
-      try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); m[c.id]=ev.id; localStorage.setItem('lx_gcal_ids',JSON.stringify(m)); }catch(e){}
+      persistCalendarMeta(c.id, ev.id, hash||calendarEventHash(c));
       toast('📅 Added to Google Calendar: '+fmtDate(c.nextDate));
     } else if(ev.error){
       if(ev.error.code===401){
@@ -1866,18 +1892,19 @@ function createCalendarEvent(token, c){
   }).catch(function(e){ console.error('Calendar create:',e); });
 }
 
-function updateCalendarEvent(token, eventId, c){
+function updateCalendarEvent(token, eventId, c, hash){
   fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+eventId,{
     method:'PUT',
     headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
     body:JSON.stringify(buildEventBody(c))
   }).then(function(r){
-    if(r.status===404){ createCalendarEvent(token,c); }
+    if(r.status===404){ createCalendarEvent(token,c,hash); }
     else if(r.status===401){
       window._gcalToken=null;
       try{ localStorage.removeItem('lx_gcal_token'); }catch(e){}
       toast('📅 Calendar session expired. Sign out and sign back in to reconnect.','warn');
     } else if(r.status===200||r.status===204){
+      persistCalendarMeta(c.id, eventId, hash||calendarEventHash(c));
       toast('📅 Calendar updated: '+fmtDate(c.nextDate));
     }
   }).catch(function(e){ console.error('Calendar update:',e); });
@@ -1886,8 +1913,11 @@ function updateCalendarEvent(token, eventId, c){
 function deleteCalendarEvent(caseId){
   var token = getGcalToken();
   if(!token) return;
-  var storedId = null;
-  try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); storedId=m[caseId]; }catch(e){}
+  var current = cases.find(function(x){return x.id===caseId;});
+  var storedId = current&&current.calendarEventId || null;
+  if(!storedId){
+    try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); storedId=m[caseId]; }catch(e){}
+  }
   if(!storedId) return;
   fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+storedId,{
     method:'DELETE', headers:{'Authorization':'Bearer '+token}
@@ -1943,7 +1973,7 @@ function addAllHearingsToCalendar(){
   var withDates=cases.filter(function(c){return c.nextDate;});
   if(!withDates.length){toast('No cases with hearing dates.','warn');return;}
   withDates.forEach(function(c,i){ setTimeout(function(){autoSyncToCalendar(c);},i*300); });
-  toast('Syncing '+withDates.length+' hearings to Google Calendar...');
+  toast('Syncing '+withDates.length+' hearings to Google Calendar (new events created once, existing ones only updated if changed)...');
 }
 function editFromDetail(){closeModal('modal-detail');openEdit(detailId);}
 function openSyncFromDetail(){closeModal('modal-detail');openSync(detailId);}
