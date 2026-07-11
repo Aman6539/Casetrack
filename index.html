@@ -156,8 +156,20 @@ body.app-active { padding-left: 216px; }
   border-radius: 20px; width: auto; height: auto; min-width: 16px; padding: 1px 6px;
   font-size: 10px; font-weight: 700; line-height: 15px; text-align: center;
 }
-.sidebar-spacer { flex: 1; }
 .sidebar-foot { border-top: 1px solid rgba(255,255,255,.12); padding-top: 10px; margin-top: 8px; }
+.sidebar-spacer { flex: 1; }
+.office-switcher-wrap { padding: 0 4px 12px; border-bottom: 1px solid rgba(255,255,255,.12); margin-bottom: 10px; }
+#office-switcher {
+  width: 100%; background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.18);
+  border-radius: 8px; padding: 8px 9px; font-size: 12.5px; font-weight: 700; font-family: inherit;
+  cursor: pointer; margin-bottom: 6px;
+}
+#office-switcher option { color: #1e293b; }
+.office-manage-btn {
+  width: 100%; background: transparent; border: none; color: rgba(255,255,255,.5);
+  font-size: 10.5px; font-weight: 600; text-align: left; padding: 2px 4px; cursor: pointer; font-family: inherit;
+}
+.office-manage-btn:hover { color: #fff; }
 .sidebar .user-pill {
   background: rgba(255,255,255,.06); border-radius: 8px; padding: 8px 10px;
   display: flex; align-items: center; gap: 8px; cursor: pointer; color: #fff;
@@ -200,6 +212,8 @@ body.app-active { padding-left: 216px; }
   .sidebar-link { justify-content: center; padding: 10px; }
   .sidebar-link #rem-badge { position: absolute; top: 2px; right: 2px; margin-left: 0; }
   .sidebar .user-pill { justify-content: center; }
+  .office-manage-btn { display: none; }
+  #office-switcher { font-size: 9px; padding: 6px 2px; text-align: center; }
   .overlay.page-view { left: 64px; }
   .page-topbar { margin: -30px -18px 20px; padding: 18px 18px 14px; }
   .overlay.page-view .modal-body { padding: 22px 18px 60px; }
@@ -652,6 +666,10 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
       <div class="sidebar-brand-sub" id="sync-pill">● Online</div>
     </div>
   </div>
+  <div class="office-switcher-wrap">
+    <select id="office-switcher" onchange="switchOffice(this.value)"></select>
+    <button class="office-manage-btn" onclick="closeAllPages();openModal('modal-offices');renderOfficesModal()" title="Manage Offices">⚙ Manage Offices</button>
+  </div>
   <div class="sidebar-nav">
     <button class="sidebar-link" id="nav-newcase" onclick="closeAllPages();openAddCase();setNavActive('nav-newcase')" style="background:var(--gold);color:var(--navy);font-weight:700;margin-bottom:10px"><span class="ic">+</span><span class="lbl">New Case</span></button>
     <button class="sidebar-link active" id="nav-dashboard" onclick="closeAllPages();setNavActive('nav-dashboard')"><span class="ic">📋</span><span class="lbl">Dashboard</span></button>
@@ -673,6 +691,25 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
     </div>
     <span id="offline-badge" onclick="openModal('modal-account')">Offline</span>
   </div>
+</div>
+
+<!-- MANAGE OFFICES -->
+<div class="overlay" id="modal-offices">
+  <div class="modal"><div class="modal-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div class="modal-title" style="margin-bottom:0">🏢 Manage Offices</div>
+      <button onclick="closeModal('modal-offices')" style="background:none;border:none;font-size:22px;color:#7b93ad;cursor:pointer">&times;</button>
+    </div>
+    <div style="font-size:12.5px;color:#7b93ad;margin-bottom:14px">Each office keeps its own cases, reminders, and calendar links completely separate. Switch offices anytime from the sidebar.</div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <input type="text" id="office-name-inp" placeholder="e.g. Chandigarh Office" style="flex:1"/>
+      <button class="btn btn-blue btn-sm" onclick="addOffice()">+ Add Office</button>
+    </div>
+    <div id="offices-list"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px">
+      <button class="btn btn-ghost" onclick="closeModal('modal-offices')">Close</button>
+    </div>
+  </div></div>
 </div>
 
 <!-- ═══════════════════ HEADER ═══════════════════ -->
@@ -757,8 +794,9 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
   <div class="modal"><div class="modal-body">
     <div class="page-topbar"><div class="page-topbar-title" id="case-title-lbl">Add New Case</div></div>
     <div class="form-grid">
-      <div class="span2"><label>Case Title / Parties *</label><input id="f-title" placeholder="e.g. Suresh Kumar vs. Tarsem Singh & Others"/></div>
+      <div><label>Office</label><select id="f-officeId" onchange="void(0)"></select></div>
       <div><label>Case Number</label><input id="f-caseNo" placeholder="e.g. CS-254-2022"/></div>
+      <div class="span2"><label>Case Title / Parties *</label><input id="f-title" placeholder="e.g. Suresh Kumar vs. Tarsem Singh & Others"/></div>
       <div><label>CNR Number (eCourts)</label><input id="f-cnr" placeholder="e.g. PBPTA010012022"/></div>
       <div><label>Court</label>
         <select id="f-court" onchange="updateJudgeList()">
@@ -982,14 +1020,21 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
       </label>
     </div>
     <div id="imp-status" style="display:none;border-radius:8px;padding:11px 14px;font-size:13px;margin-bottom:14px"></div>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:12px 14px;font-size:13px;color:#4b6280;margin-bottom:14px">
+      🏢 Imported cases will be added to <strong id="imp-office-name">the active office</strong>. Switch offices from the sidebar first if you meant to import elsewhere.
+    </div>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px 14px;font-size:13px;color:#4b6280;margin-bottom:24px">
       <strong style="color:#16a34a">eCourts file:</strong> Login to services.ecourts.gov.in → Advocate → My Cases → Send to Email → Download .txt attachment → Upload here
     </div>
     <div style="border-top:1px solid #e2e8f0;padding-top:20px">
       <div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Export</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;flex-wrap:wrap;margin-bottom:8px">
+        <div style="font-size:13px;color:#4b6280">Download cases from the <strong id="exp-office-name">active office</strong> only.</div>
+        <button class="btn btn-gold" onclick="exportData(false)">⬆ Export This Office</button>
+      </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;flex-wrap:wrap">
-        <div style="font-size:13px;color:#4b6280">Download a full backup of all your cases as a JSON file.</div>
-        <button class="btn btn-gold" onclick="exportData()">⬆ Export Backup</button>
+        <div style="font-size:13px;color:#4b6280">Download a full backup of <strong>every office</strong> as one JSON file.</div>
+        <button class="btn btn-ghost" onclick="exportData(true)">⬆ Export All Offices</button>
       </div>
     </div>
   </div></div>
@@ -1045,6 +1090,10 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px 14px;font-size:13px;color:#4b6280;line-height:1.6;margin-bottom:14px">
       ☁ Cases are stored in <strong>Firebase Firestore</strong> and sync across all devices instantly. Open this app on any phone, laptop or iPad and sign in with the same Google account to access all cases.
     </div>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:12px 14px;font-size:13px;color:#4b6280;line-height:1.6;margin-bottom:14px">
+      📅 <strong>Google Calendar sync</strong> keeps hearing dates in sync automatically. If your Google session expires (usually after a few hours), sync will pause and queue changes rather than fail — click below to reconnect and resume.
+      <div style="margin-top:8px"><button class="btn btn-gold btn-sm" onclick="reconnectGcalManual()">🔄 Reconnect Google Calendar</button></div>
+    </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
       <button class="btn btn-ghost" onclick="closeModal('modal-account')">Close</button>
       <button class="btn btn-ghost" onclick="exportData()">⬆ Export Backup</button>
@@ -1070,6 +1119,9 @@ var HARDCODED_FB_CONFIG = {
 
 var LOC_KEY = 'lx_cases_offline_v1';
 var ALT_KEY = 'lx_alerts_v1';
+var OFFICE_KEY = 'lx_offices_v1';
+var CUR_OFFICE_KEY = 'lx_current_office_v1';
+var OFFICE_DEFAULT_ID = 'office-default';
 
 var fbConfig = HARDCODED_FB_CONFIG;
 var db = null, auth = null;
@@ -1081,6 +1133,109 @@ var alerts = [];
 var alertTimers = {};
 var currentView = 'all';
 var editingId = null, syncingId = null, deletingId = null, detailId = null;
+
+// ════════════════════════════════════════════════════════════
+// OFFICE WORKSPACES — strict data isolation between offices.
+// Every case/reminder carries an officeId; every list, stat, export,
+// import, and bulk action is filtered to the currently active office.
+// Old data with no officeId is treated as belonging to OFFICE_DEFAULT_ID
+// so nothing already saved is ever lost or hidden.
+// ════════════════════════════════════════════════════════════
+var offices = [{id:OFFICE_DEFAULT_ID, name:'Main Office', color:'#1a56db'}];
+var currentOfficeId = OFFICE_DEFAULT_ID;
+
+function loadOffices(){
+  try{ var s=localStorage.getItem(OFFICE_KEY); if(s){ var arr=JSON.parse(s); if(arr&&arr.length) offices=arr; } }catch(e){}
+  try{ var c=localStorage.getItem(CUR_OFFICE_KEY); if(c) currentOfficeId=c; }catch(e){}
+  if(!offices.some(function(o){return o.id===currentOfficeId;})) currentOfficeId=offices[0].id;
+}
+function saveOffices(){
+  try{ localStorage.setItem(OFFICE_KEY, JSON.stringify(offices)); }catch(e){}
+  try{ localStorage.setItem(CUR_OFFICE_KEY, currentOfficeId); }catch(e){}
+  if(isCloud && db && currentUser){
+    db.collection('users').doc(currentUser.uid).collection('offices').doc('list')
+      .set({offices:offices},{merge:true})
+      .catch(function(e){ console.error('offices save:',e); });
+  }
+}
+// Real-time listener — office list stays identical across every device
+function loadOfficesFromCloud(user){
+  if(!db||!user) return;
+  db.collection('users').doc(user.uid).collection('offices').doc('list')
+    .onSnapshot(function(doc){
+      if(doc.exists && doc.data().offices && doc.data().offices.length){
+        offices = doc.data().offices;
+        try{ localStorage.setItem(OFFICE_KEY, JSON.stringify(offices)); }catch(e){}
+        if(!offices.some(function(o){return o.id===currentOfficeId;})) currentOfficeId=offices[0].id;
+        renderOfficeSwitcher();
+        try{ renderAll(); }catch(e){}
+        try{ renderRemindersPanel(); }catch(e){}
+      }
+    }, function(e){ console.error('offices snapshot:',e); });
+}
+function officeCases(){ return cases.filter(function(c){ return (c.officeId||OFFICE_DEFAULT_ID)===currentOfficeId; }); }
+function officeAlerts(){ return alerts.filter(function(a){ return (a.officeId||OFFICE_DEFAULT_ID)===currentOfficeId; }); }
+function currentOffice(){ return offices.find(function(o){return o.id===currentOfficeId;}) || offices[0]; }
+
+function switchOffice(id){
+  if(!offices.some(function(o){return o.id===id;})) return;
+  currentOfficeId = id;
+  try{ localStorage.setItem(CUR_OFFICE_KEY, currentOfficeId); }catch(e){}
+  closeAllPages();
+  renderOfficeSwitcher();
+  renderAll();
+  try{ renderRemindersPanel(); }catch(e){}
+  try{ updateReminderBadge(); }catch(e){}
+  toast('Switched to '+currentOffice().name+'.');
+}
+function addOffice(){
+  var name=(document.getElementById('office-name-inp')||{}).value;
+  name=(name||'').trim();
+  if(!name){ toast('Enter an office name.','warn'); return; }
+  var colors=['#1a56db','#7c3aed','#16a34a','#d97706','#dc2626','#0891b2'];
+  var o={id:'office-'+genId(), name:name, color:colors[offices.length%colors.length]};
+  offices.push(o); saveOffices(); document.getElementById('office-name-inp').value='';
+  renderOfficesModal(); renderOfficeSwitcher();
+  toast('Office "'+name+'" added.');
+}
+function renameOffice(id){
+  var o=offices.find(function(x){return x.id===id;}); if(!o) return;
+  var n=prompt('Rename office:', o.name);
+  if(n===null) return;
+  n=n.trim(); if(!n) return;
+  o.name=n; saveOffices(); renderOfficesModal(); renderOfficeSwitcher(); renderAll();
+}
+function deleteOffice(id){
+  if(offices.length<=1){ toast('You need at least one office.','warn'); return; }
+  var o=offices.find(function(x){return x.id===id;}); if(!o) return;
+  var count=cases.filter(function(c){return (c.officeId||OFFICE_DEFAULT_ID)===id;}).length;
+  if(!confirm('Delete "'+o.name+'"? '+(count?count+' case(s) in this office will NOT be deleted, but you will need to re-add the office to see them.':'This office has no cases.'))) return;
+  offices=offices.filter(function(x){return x.id!==id;});
+  saveOffices();
+  if(currentOfficeId===id) switchOffice(offices[0].id);
+  renderOfficesModal(); renderOfficeSwitcher();
+}
+function renderOfficeSwitcher(){
+  var sel=document.getElementById('office-switcher');
+  if(sel){
+    sel.innerHTML=offices.map(function(o){return '<option value="'+o.id+'"'+(o.id===currentOfficeId?' selected':'')+'>'+esc(o.name)+'</option>';}).join('');
+  }
+  var impLbl=document.getElementById('imp-office-name'); if(impLbl) impLbl.textContent=currentOffice().name;
+  var expLbl=document.getElementById('exp-office-name'); if(expLbl) expLbl.textContent=currentOffice().name;
+}
+function renderOfficesModal(){
+  var el=document.getElementById('offices-list'); if(!el) return;
+  el.innerHTML=offices.map(function(o){
+    var count=cases.filter(function(c){return (c.officeId||OFFICE_DEFAULT_ID)===o.id;}).length;
+    return '<div style="display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:10px 12px;margin-bottom:8px">'
+      +'<span style="width:10px;height:10px;border-radius:50%;background:'+o.color+';flex-shrink:0"></span>'
+      +'<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;color:#1e3a5f">'+esc(o.name)+(o.id===currentOfficeId?' <span style="font-size:10px;color:#16a34a;font-weight:700">● ACTIVE</span>':'')+'</div>'
+      +'<div style="font-size:11px;color:#7b93ad">'+count+' case'+(count!==1?'s':'')+'</div></div>'
+      +'<button class="btn btn-sm" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1a56db" onclick="renameOffice(\''+o.id+'\')">Rename</button>'
+      +'<button class="btn btn-sm" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626" onclick="deleteOffice(\''+o.id+'\')">Delete</button>'
+      +'</div>';
+  }).join('');
+}
 
 var SM = {
   Active:   {c:'#16a34a',bg:'#f0fdf4',b:'#bbf7d0'},
@@ -1094,6 +1249,8 @@ var SM = {
 // ════════ INIT ════════
 window.onload = function(){
   try { document.getElementById('list-date').value = todayStr(); } catch(e){}
+  loadOffices();
+  try{ renderOfficeSwitcher(); }catch(e){}
   try{ var a=localStorage.getItem(ALT_KEY); if(a) alerts=JSON.parse(a); }catch(e){}
   // Init Firebase immediately (SDKs loaded via <script> tags in <head>)
   // This ensures onAuthStateChanged fires on page load (restores session after redirect)
@@ -1109,8 +1266,6 @@ window.onload = function(){
   try { scheduleAllAlerts(); } catch(e){}
   try { reqNotif(); } catch(e){}
   setTimeout(function(){ try{ updateReminderBadge(); }catch(e){} }, 800);
-  // Schedule daily auto sign-out at 7PM
-  scheduleAutoSignOut();
 };
 
 // ════════ DYNAMIC FIREBASE LOADER ════════
@@ -1210,6 +1365,7 @@ function signInGoogle(){
           localStorage.setItem('lx_gcal_token_time', _gcalTokenTime.toString());
         }catch(e){}
         console.log('Calendar token stored on sign-in');
+        flushPendingCalendarSyncs();
       } else {
         console.warn('No access token returned — calendar sync may not work');
       }
@@ -1245,51 +1401,6 @@ function doSignOut(){
   document.body.classList.remove('app-active');
   document.getElementById('login-screen').style.display='flex';
   toast('Signed out.','warn');
-}
-
-// ════════ AUTO SIGN-OUT AT 7PM ════════
-var _autoSignOutTimer = null;
-
-function scheduleAutoSignOut(){
-  // Clear any existing timer
-  if(_autoSignOutTimer){ clearTimeout(_autoSignOutTimer); _autoSignOutTimer=null; }
-
-  var now = new Date();
-  var signOutTime = new Date();
-  signOutTime.setHours(19, 0, 0, 0); // 7:00 PM today
-
-  // If 7pm already passed today, schedule for tomorrow
-  if(now >= signOutTime){
-    signOutTime.setDate(signOutTime.getDate()+1);
-  }
-
-  var msUntilSignOut = signOutTime.getTime() - now.getTime();
-
-  _autoSignOutTimer = setTimeout(function(){
-    // Only sign out if user is logged in
-    if(currentUser || isCloud){
-      // Show warning toast 2 minutes before
-      toast('⚠ Auto sign-out in 2 minutes (7:00 PM security policy).','warn');
-      setTimeout(function(){
-        if(currentUser || isCloud){
-          doSignOut();
-          // Show sign-out notification
-          setTimeout(function(){
-            toast('🔒 Auto signed out at 7:00 PM. Sign in again to continue.','warn');
-          },300);
-        }
-        // Schedule next day
-        scheduleAutoSignOut();
-      }, 2 * 60 * 1000); // 2 minute warning
-    } else {
-      scheduleAutoSignOut(); // reschedule for tomorrow
-    }
-  }, msUntilSignOut - (2 * 60 * 1000)); // fire 2 min before 7pm for warning
-
-  // Log when next sign-out is scheduled
-  var hours = Math.floor(msUntilSignOut/3600000);
-  var mins = Math.floor((msUntilSignOut%3600000)/60000);
-  console.log('Auto sign-out scheduled in '+hours+'h '+mins+'m ('+signOutTime.toLocaleTimeString('en-IN')+')');
 }
 
 // ════════ SHOW APP ════════
@@ -1347,9 +1458,10 @@ function startSync(user){
       try{ var s=localStorage.getItem(LOC_KEY); if(s) cases=JSON.parse(s); renderAll(); }catch(e){}
     });
 
-  // Also sync reminders and associates
+  // Also sync reminders, associates, and offices
   startRemindersSync(user);
   loadAssociatesFromCloud(user);
+  loadOfficesFromCloud(user);
 }
 
 function setSyncPill(online){
@@ -1440,11 +1552,12 @@ function renderStats(){
   var ws=new Date(now);ws.setDate(now.getDate()+diff);ws.setHours(0,0,0,0);
   var we=new Date(ws);we.setDate(ws.getDate()+6);
   var wss=ws.toISOString().split('T')[0],wes=we.toISOString().split('T')[0];
-  document.getElementById('s-total').textContent=cases.length;
-  document.getElementById('s-today').textContent=cases.filter(function(c){return c.nextDate===today;}).length;
-  document.getElementById('s-week').textContent=cases.filter(function(c){return c.nextDate&&c.nextDate>=wss&&c.nextDate<=wes;}).length;
-  document.getElementById('s-month').textContent=cases.filter(function(c){if(!c.nextDate)return false;var d=new Date(c.nextDate);return d.getFullYear()===y&&d.getMonth()===m;}).length;
-  document.getElementById('s-active').textContent=cases.filter(function(c){return c.status==='Active';}).length;
+  var oc=officeCases();
+  document.getElementById('s-total').textContent=oc.length;
+  document.getElementById('s-today').textContent=oc.filter(function(c){return c.nextDate===today;}).length;
+  document.getElementById('s-week').textContent=oc.filter(function(c){return c.nextDate&&c.nextDate>=wss&&c.nextDate<=wes;}).length;
+  document.getElementById('s-month').textContent=oc.filter(function(c){if(!c.nextDate)return false;var d=new Date(c.nextDate);return d.getFullYear()===y&&d.getMonth()===m;}).length;
+  document.getElementById('s-active').textContent=oc.filter(function(c){return c.status==='Active';}).length;
 }
 
 function switchView(v){
@@ -1512,7 +1625,7 @@ function getDisplayed(){
     cto=document.getElementById('custom-to').value||'';
   }
   var CLOSED=['Decided','Withdrawn','Closed'];
-  return cases.filter(function(c){
+  return officeCases().filter(function(c){
     // Active tab — only non-closed
     if(currentView==='active' && CLOSED.indexOf(c.status)>=0) return false;
     // Closed tab — only closed/decided/withdrawn
@@ -1536,10 +1649,10 @@ function getDisplayed(){
 function mkBadge(s){var sm=SM[s]||SM.Closed;return'<span class="badge" style="background:'+sm.bg+';color:'+sm.c+';border:1px solid '+sm.b+'">'+esc(s||'—')+'</span>';}
 
 function renderTable(){
-  var today=todayStr(),list=getDisplayed();
-  document.getElementById('count-lbl').textContent=list.length+' / '+cases.length+' case'+(cases.length!==1?'s':'');
+  var today=todayStr(),list=getDisplayed(),ocLen=officeCases().length;
+  document.getElementById('count-lbl').textContent=list.length+' / '+ocLen+' case'+(ocLen!==1?'s':'');
   if(!list.length){
-    document.getElementById('tbl-body').innerHTML='<div style="padding:50px;text-align:center;color:#7b93ad"><div style="font-size:36px;margin-bottom:11px">⚖️</div><div style="font-size:14px;font-weight:600;color:#4b6280">'+(cases.length?'No cases match':'No cases yet')+'</div></div>';
+    document.getElementById('tbl-body').innerHTML='<div style="padding:50px;text-align:center;color:#7b93ad"><div style="font-size:36px;margin-bottom:11px">⚖️</div><div style="font-size:14px;font-weight:600;color:#4b6280">'+(ocLen?'No cases match':'No cases yet in '+esc(currentOffice().name))+'</div></div>';
     return;
   }
   var html='';
@@ -1711,8 +1824,12 @@ function calcFeeRemaining(){
   var st=document.getElementById('f-feeStatus'); if(st) st.value=computeFeeStatus(total,paid);
 }
 
-function openAddCase(){ editingId=null; document.getElementById('case-title-lbl').textContent='Add New Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=f==='status'?'Active':'';}); calcFeeRemaining(); openModal('modal-case'); }
-function openEdit(id){ var c=cases.find(function(x){return x.id===id;}); if(!c)return; editingId=id; document.getElementById('case-title-lbl').textContent='Edit Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=c[f]||'';}); updateJudgeList(); document.getElementById('f-judge').value=c.judge||''; calcFeeRemaining(); openModal('modal-case'); }
+function openAddCase(){ editingId=null; document.getElementById('case-title-lbl').textContent='Add New Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=f==='status'?'Active':'';}); populateOfficeSelect(); var of=document.getElementById('f-officeId'); if(of) of.value=currentOfficeId; calcFeeRemaining(); openModal('modal-case'); }
+function openEdit(id){ var c=cases.find(function(x){return x.id===id;}); if(!c)return; editingId=id; document.getElementById('case-title-lbl').textContent='Edit Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=c[f]||'';}); updateJudgeList(); document.getElementById('f-judge').value=c.judge||''; populateOfficeSelect(); var of=document.getElementById('f-officeId'); if(of) of.value=c.officeId||OFFICE_DEFAULT_ID; calcFeeRemaining(); openModal('modal-case'); }
+function populateOfficeSelect(){
+  var sel=document.getElementById('f-officeId'); if(!sel) return;
+  sel.innerHTML=offices.map(function(o){return '<option value="'+o.id+'">'+esc(o.name)+'</option>';}).join('');
+}
 
 function saveCase(){
   var title=document.getElementById('f-title').value.trim();
@@ -1726,10 +1843,10 @@ function saveCase(){
   if(editingId){
     data.id=editingId;
     var idx=cases.findIndex(function(c){return c.id===editingId;});
-    if(idx>=0){data.createdAt=cases[idx].createdAt;data.lastSynced=cases[idx].lastSynced||null;}
+    if(idx>=0){data.createdAt=cases[idx].createdAt;data.lastSynced=cases[idx].lastSynced||null;data.officeId=document.getElementById('f-officeId')?(document.getElementById('f-officeId').value||cases[idx].officeId||OFFICE_DEFAULT_ID):(cases[idx].officeId||OFFICE_DEFAULT_ID);}
     if(isCloud){cloudSave(data);}else{cases[idx]=data;saveLocal();renderAll();toast('Case updated.');}
   } else {
-    data.id=genId();data.createdAt=todayStr();data.lastSynced=null;
+    data.id=genId();data.createdAt=todayStr();data.lastSynced=null;data.officeId=currentOfficeId;
     if(isCloud){cloudSave(data);}else{cases.push(data);saveLocal();renderAll();toast('Case added.');}
   }
   closeModal('modal-case');
@@ -1741,7 +1858,8 @@ function openDetail(id){
   var sm=SM[c.status]||SM.Closed;
   var b=document.getElementById('d-badge');
   b.textContent=c.status||'—';b.style.background=sm.bg;b.style.color=sm.c;b.style.border='1px solid '+sm.b;
-  var rows=[['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Judge',c.judge],['Type',c.caseType],['Client',c.client],['Phone',c.clientPhone],['Opposite',c.opposite],['Sections',c.sections],['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],['Total Fee',c.feeTotal?'₹'+c.feeTotal:null],['Amount Paid',c.feeTotal||c.feePaid?'₹'+(c.feePaid||'0'):null],['Remaining Fee',c.feeTotal?'₹'+calcRemainingFee(c.feeTotal,c.feePaid):null],['Added',fmtDate(c.createdAt)],['Last Updated',c.updatedAt?new Date(c.updatedAt).toLocaleString('en-IN'):null]];
+  var officeName=(offices.find(function(o){return o.id===(c.officeId||OFFICE_DEFAULT_ID);})||offices[0]).name;
+  var rows=[['Office',officeName],['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Judge',c.judge],['Type',c.caseType],['Client',c.client],['Phone',c.clientPhone],['Opposite',c.opposite],['Sections',c.sections],['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],['Total Fee',c.feeTotal?'₹'+c.feeTotal:null],['Amount Paid',c.feeTotal||c.feePaid?'₹'+(c.feePaid||'0'):null],['Remaining Fee',c.feeTotal?'₹'+calcRemainingFee(c.feeTotal,c.feePaid):null],['Added',fmtDate(c.createdAt)],['Last Updated',c.updatedAt?new Date(c.updatedAt).toLocaleString('en-IN'):null]];
   document.getElementById('d-fields').innerHTML=rows.filter(function(r){return r[1];}).map(function(r){return'<div class="detail-field"><div class="detail-key">'+esc(r[0])+'</div><div class="detail-val" style="font-weight:'+(r[0]==='Next Hearing'?700:400)+'">'+esc(r[1])+'</div></div>';}).join('');
   var rw=document.getElementById('d-rem-wrap');
   if(c.remarks){rw.style.display='block';document.getElementById('d-rem').textContent=c.remarks;}else rw.style.display='none';
@@ -1774,12 +1892,63 @@ function isTokenFresh(){
   return t && (Date.now() - t) < GCAL_TOKEN_TTL;
 }
 
-// Refresh token silently by re-authenticating in background
+// Cases waiting for a calendar sync that couldn't complete because the
+// Google session had expired. Flushed automatically once we reconnect.
+var _pendingCalendarUpdates = [];
+function queuePendingCalendarSync(caseId){
+  if(_pendingCalendarUpdates.indexOf(caseId)===-1) _pendingCalendarUpdates.push(caseId);
+}
+function flushPendingCalendarSyncs(){
+  if(!_pendingCalendarUpdates.length) return;
+  var ids = _pendingCalendarUpdates.slice(); _pendingCalendarUpdates=[];
+  ids.forEach(function(id){
+    var c = cases.find(function(x){return x.id===id;});
+    if(c) autoSyncToCalendar(c);
+  });
+}
+
+// Silent refresh: reuse token if still within TTL, otherwise attempt a
+// background re-auth. IMPORTANT: on failure we never fall back to the old
+// (possibly expired) token — we return null so callers know to stop and
+// ask the user to reconnect, rather than firing a doomed API call.
 function refreshGcalToken(cb){
   if(!auth || !currentUser){ cb(null); return; }
-  // Check if token is still fresh
   if(isTokenFresh() && getGcalToken()){ cb(getGcalToken()); return; }
-  // Re-auth to get fresh token — use prompt:consent to force credential return
+  forceGcalReauth(cb);
+}
+
+// TRUE validation against Google — not a local-clock guess. Calls the
+// tokeninfo endpoint so we know for certain whether the token Google
+// will actually accept, before we ever attempt the real Calendar call.
+function validateGcalToken(token, cb){
+  if(!token){ cb(false); return; }
+  fetch('https://www.googleapis.com/oauth2/v3/tokeninfo?access_token='+encodeURIComponent(token))
+    .then(function(r){ cb(r.ok); })
+    .catch(function(){ cb(false); }); // network hiccup — treat as "can't confirm", re-auth to be safe
+}
+
+// The single gate every calendar API call must pass through:
+// 1) get whatever token we currently have (if any)
+// 2) validate it for real against Google (not just our local TTL)
+// 3) if it's missing, expired, or rejected — re-authenticate automatically
+//    and hand back the fresh token, so callers never have to guess.
+function getValidGcalToken(cb){
+  if(!auth || !currentUser){ cb(null); return; }
+  var token = getGcalToken();
+  if(!token){ forceGcalReauth(cb); return; }
+  validateGcalToken(token, function(valid){
+    if(valid) cb(token);
+    else forceGcalReauth(cb); // stale/rejected — re-auth before proceeding, never skip silently
+  });
+}
+
+// Always performs an interactive re-authentication against Google,
+// regardless of the local TTL heuristic. Used both for the periodic
+// silent refresh and, critically, whenever the Calendar API itself
+// tells us a token was rejected (401) — the API response is the source
+// of truth, not our local clock.
+function forceGcalReauth(cb){
+  if(!auth || !auth.currentUser){ cb(null); return; }
   var provider = new firebase.auth.GoogleAuthProvider();
   provider.addScope('https://www.googleapis.com/auth/calendar.events');
   provider.setCustomParameters({ prompt: 'consent' });
@@ -1793,12 +1962,34 @@ function refreshGcalToken(cb){
           localStorage.setItem('lx_gcal_token_time', _gcalTokenTime.toString());
         }catch(e){}
         cb(result.credential.accessToken);
-      } else { cb(getGcalToken()); }
+      } else {
+        window._gcalToken=null; _gcalTokenTime=0;
+        try{ localStorage.removeItem('lx_gcal_token'); localStorage.removeItem('lx_gcal_token_time'); }catch(e){}
+        cb(null);
+      }
     })
     .catch(function(e){
-      console.log('Token refresh skipped:', e.code);
-      cb(getGcalToken()); // Use existing token as fallback
+      console.log('Calendar re-auth failed:', e.code);
+      // Do NOT reuse the old token — it's the reason we're here. Treat as unauthenticated.
+      window._gcalToken=null; _gcalTokenTime=0;
+      try{ localStorage.removeItem('lx_gcal_token'); localStorage.removeItem('lx_gcal_token_time'); }catch(e){}
+      cb(null);
     });
+}
+
+// Manual "Reconnect Google Calendar" entry point (Account page button).
+// Forces a fresh interactive login and, on success, retries any case
+// updates that were stuck waiting for a valid session.
+function reconnectGcalManual(){
+  toast('Opening Google sign-in to reconnect Calendar...');
+  forceGcalReauth(function(token){
+    if(token){
+      toast('📅 Google Calendar reconnected. Syncing pending changes...');
+      flushPendingCalendarSyncs();
+    } else {
+      toast('📅 Could not reconnect. Please try again.','warn');
+    }
+  });
 }
 
 function buildEventBody(c){
@@ -1850,9 +2041,17 @@ function persistCalendarMeta(caseId, eventId, hash){
 
 function autoSyncToCalendar(c){
   if(!c||!c.nextDate) return;
-  // Always check token freshness before syncing
-  refreshGcalToken(function(token){
-    if(!token) return; // Not signed in with calendar scope
+  // Validate the token for real (against Google) before every calendar call —
+  // never assume it's still good just because it was recently issued.
+  getValidGcalToken(function(token){
+    if(!token){
+      // Not signed in / session expired and re-auth failed — do NOT silently
+      // skip or log the user out. Queue this case so it retries the moment
+      // the user reconnects, and the pending edit is never lost.
+      queuePendingCalendarSync(c.id);
+      toast('📅 Google Calendar session expired. Open Account → Reconnect Google Calendar to resume syncing.','warn');
+      return;
+    }
     var current = cases.find(function(x){return x.id===c.id;}) || c;
     var hash = calendarEventHash(current);
     var storedId = current.calendarEventId || null;
@@ -1869,7 +2068,7 @@ function autoSyncToCalendar(c){
   });
 }
 
-function createCalendarEvent(token, c, hash){
+function createCalendarEvent(token, c, hash, retried){
   fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events',{
     method:'POST',
     headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
@@ -1880,11 +2079,22 @@ function createCalendarEvent(token, c, hash){
       toast('📅 Added to Google Calendar: '+fmtDate(c.nextDate));
     } else if(ev.error){
       if(ev.error.code===401){
-        window._gcalToken=null;
-        try{ localStorage.removeItem('lx_gcal_token'); }catch(e){}
-        toast('📅 Calendar session expired. Sign out and sign back in to reconnect.','warn');
+        if(retried){
+          queuePendingCalendarSync(c.id);
+          toast('📅 Could not reconnect Google Calendar. Open Account → Reconnect Google Calendar to retry.','warn');
+          return;
+        }
+        // Token was rejected by Google despite our local TTL check — the API
+        // is the source of truth. Re-authenticate and retry this SAME create once.
+        forceGcalReauth(function(freshToken){
+          if(freshToken) createCalendarEvent(freshToken, c, hash, true);
+          else {
+            queuePendingCalendarSync(c.id);
+            toast('📅 Google Calendar session expired. Open Account → Reconnect Google Calendar to resume syncing.','warn');
+          }
+        });
       } else if(ev.error.code===403){
-        toast('📅 Calendar permission denied. Sign out and sign back in.','warn');
+        toast('📅 Calendar permission denied. Reconnect Google Calendar from Account.','warn');
       } else {
         console.error('Calendar error:', ev.error);
       }
@@ -1892,7 +2102,7 @@ function createCalendarEvent(token, c, hash){
   }).catch(function(e){ console.error('Calendar create:',e); });
 }
 
-function updateCalendarEvent(token, eventId, c, hash){
+function updateCalendarEvent(token, eventId, c, hash, retried){
   fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+eventId,{
     method:'PUT',
     headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
@@ -1900,9 +2110,20 @@ function updateCalendarEvent(token, eventId, c, hash){
   }).then(function(r){
     if(r.status===404){ createCalendarEvent(token,c,hash); }
     else if(r.status===401){
-      window._gcalToken=null;
-      try{ localStorage.removeItem('lx_gcal_token'); }catch(e){}
-      toast('📅 Calendar session expired. Sign out and sign back in to reconnect.','warn');
+      if(retried){
+        queuePendingCalendarSync(c.id);
+        toast('📅 Could not reconnect Google Calendar. Open Account → Reconnect Google Calendar to retry.','warn');
+        return;
+      }
+      // Detected auth expiry mid-update — re-authenticate, then retry
+      // updating this SAME existing event (by calendarEventId), never create a new one.
+      forceGcalReauth(function(freshToken){
+        if(freshToken) updateCalendarEvent(freshToken, eventId, c, hash, true);
+        else {
+          queuePendingCalendarSync(c.id);
+          toast('📅 Google Calendar session expired. Open Account → Reconnect Google Calendar to resume syncing.','warn');
+        }
+      });
     } else if(r.status===200||r.status===204){
       persistCalendarMeta(c.id, eventId, hash||calendarEventHash(c));
       toast('📅 Calendar updated: '+fmtDate(c.nextDate));
@@ -1911,19 +2132,20 @@ function updateCalendarEvent(token, eventId, c, hash){
 }
 
 function deleteCalendarEvent(caseId){
-  var token = getGcalToken();
-  if(!token) return;
   var current = cases.find(function(x){return x.id===caseId;});
   var storedId = current&&current.calendarEventId || null;
   if(!storedId){
     try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); storedId=m[caseId]; }catch(e){}
   }
   if(!storedId) return;
-  fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+storedId,{
-    method:'DELETE', headers:{'Authorization':'Bearer '+token}
-  }).then(function(){
-    try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); delete m[caseId]; localStorage.setItem('lx_gcal_ids',JSON.stringify(m)); }catch(e){}
-  }).catch(function(e){ console.error('Calendar delete:',e); });
+  getValidGcalToken(function(token){
+    if(!token) return; // nothing to delete against without a session; not a data-loss risk
+    fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+storedId,{
+      method:'DELETE', headers:{'Authorization':'Bearer '+token}
+    }).then(function(){
+      try{ var m=JSON.parse(localStorage.getItem('lx_gcal_ids')||'{}'); delete m[caseId]; localStorage.setItem('lx_gcal_ids',JSON.stringify(m)); }catch(e){}
+    }).catch(function(e){ console.error('Calendar delete:',e); });
+  });
 }
 
 function addToGoogleCalendar(){
@@ -1946,8 +2168,8 @@ function addAllHearingsToCalendar(){
   var token = getGcalToken();
   if(!token){
     // Download ICS as fallback
-    var withDates=cases.filter(function(c){return c.nextDate&&c.nextDate>=todayStr();});
-    if(!withDates.length){toast('No upcoming hearings.','warn');return;}
+    var withDates=officeCases().filter(function(c){return c.nextDate&&c.nextDate>=todayStr();});
+    if(!withDates.length){toast('No upcoming hearings in '+currentOffice().name+'.','warn');return;}
     var ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//LexTrack//EN','CALSCALE:GREGORIAN'];
     withDates.forEach(function(c){
       var d=c.nextDate.replace(/-/g,'');
@@ -1964,16 +2186,16 @@ function addAllHearingsToCalendar(){
     var blob=new Blob([ics.join('\r\n')],{type:'text/calendar'});
     var a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
-    a.download='LexTrack_Hearings.ics';
+    a.download='LexTrack_'+currentOffice().name.replace(/[^a-z0-9]+/gi,'_')+'_Hearings.ics';
     a.click();
     toast('Downloaded '+withDates.length+' hearings. Open file to import into Google Calendar.');
     return;
   }
-  // API sync all
-  var withDates=cases.filter(function(c){return c.nextDate;});
-  if(!withDates.length){toast('No cases with hearing dates.','warn');return;}
+  // API sync — only cases in the currently active office
+  var withDates=officeCases().filter(function(c){return c.nextDate;});
+  if(!withDates.length){toast('No cases with hearing dates in '+currentOffice().name+'.','warn');return;}
   withDates.forEach(function(c,i){ setTimeout(function(){autoSyncToCalendar(c);},i*300); });
-  toast('Syncing '+withDates.length+' hearings to Google Calendar (new events created once, existing ones only updated if changed)...');
+  toast('Syncing '+withDates.length+' '+currentOffice().name+' hearings to Google Calendar (new events created once, existing ones only updated if changed)...');
 }
 function editFromDetail(){closeModal('modal-detail');openEdit(detailId);}
 function openSyncFromDetail(){closeModal('modal-detail');openSync(detailId);}
@@ -2080,8 +2302,8 @@ function autoFetchECourts(){
 
 // ── Bulk auto-fetch all cases with CNR ──
 function bulkFetchECourts(){
-  var withCNR=cases.filter(function(c){return c.cnr && ['Active','Adjourned','Stayed'].indexOf(c.status)>=0;});
-  if(!withCNR.length){toast('No active cases with CNR numbers found.','warn');return;}
+  var withCNR=officeCases().filter(function(c){return c.cnr && ['Active','Adjourned','Stayed'].indexOf(c.status)>=0;});
+  if(!withCNR.length){toast('No active cases with CNR numbers found in '+currentOffice().name+'.','warn');return;}
   if(!confirm('Auto-fetch next dates for '+withCNR.length+' cases with CNR numbers? This may take a few minutes.')) return;
   var updated=0,failed=0,total=withCNR.length;
   toast('Fetching '+total+' cases... Please wait.');
@@ -2133,31 +2355,36 @@ function applySync(){
 // ════════════════════════════════════════════════════════════
 // EXPORT / IMPORT
 // ════════════════════════════════════════════════════════════
-function exportData(){
-  if(!cases.length){toast('No cases to export.','warn');return;}
-  var blob=new Blob([JSON.stringify(cases,null,2)],{type:'application/json'});
-  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='lextrack_backup_'+todayStr()+'.json';a.click();
-  toast('Exported '+cases.length+' cases.');
+function exportData(exportAll){
+  var list = exportAll ? cases : officeCases();
+  if(!list.length){toast('No cases to export.','warn');return;}
+  var blob=new Blob([JSON.stringify(list,null,2)],{type:'application/json'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='lextrack_backup_'+(exportAll?'all_offices':currentOffice().name.replace(/[^a-z0-9]+/gi,'_'))+'_'+todayStr()+'.json';
+  a.click();
+  toast('Exported '+list.length+' cases'+(exportAll?' (all offices)':' from '+currentOffice().name)+'.');
 }
 
 function handleImport(e){
   var file=e.target.files[0];if(!file)return;
   var st=document.getElementById('imp-status');
   st.style.display='block';st.style.background='#eff6ff';st.style.color='#1a56db';st.style.border='1px solid #bfdbfe';
-  st.innerHTML='Reading <strong>'+esc(file.name)+'</strong>...';
+  st.innerHTML='Reading <strong>'+esc(file.name)+'</strong> into '+esc(currentOffice().name)+'...';
   var go=function(text){
     var imp=parseECourts(text);
     if(!imp||!imp.length){try{var d=JSON.parse(text);if(Array.isArray(d)&&d.length){imp=d;}}catch(x){}}
     if(!imp||!imp.length){st.style.background='#fef2f2';st.style.color='#dc2626';st.style.border='1px solid #fecaca';st.textContent='Could not read file. Try the LexTrack Converter tool.';return;}
     var added=0,updated=0;
     imp.forEach(function(ic){
-      var idx=cases.findIndex(function(c){return ic.cnr&&c.cnr===ic.cnr;});
+      // Match for update ONLY within the active office — never let an
+      // import silently touch a case belonging to a different office.
+      var idx=cases.findIndex(function(c){return ic.cnr&&c.cnr===ic.cnr&&(c.officeId||OFFICE_DEFAULT_ID)===currentOfficeId;});
       if(idx>=0){cases[idx].nextDate=ic.nextDate;cases[idx].stage=ic.stage||cases[idx].stage;cases[idx].status=ic.status;cases[idx].lastSynced=new Date().toISOString();updated++;if(isCloud)cloudSave(cases[idx]);}
-      else{cases.push(ic);added++;if(isCloud)cloudSave(ic);}
+      else{ic.officeId=currentOfficeId;cases.push(ic);added++;if(isCloud)cloudSave(ic);}
     });
     if(!isCloud){saveLocal();renderAll();}
     st.style.background='#f0fdf4';st.style.color='#16a34a';st.style.border='1px solid #bbf7d0';
-    st.innerHTML='✓ <strong>'+added+' added</strong>, '+updated+' dates updated.';
+    st.innerHTML='✓ <strong>'+added+' added</strong>, '+updated+' dates updated in '+esc(currentOffice().name)+'.';
     toast('Import done: '+added+' added, '+updated+' updated.');
   };
   if(file.name.toLowerCase().endsWith('.pdf')){
@@ -2192,7 +2419,7 @@ function mapCourt(c){var u=c.toUpperCase();if(/SUB.DIV|JMFC|MAGIST.*IST|MAGIST.*
 function generateList(){
   var dv=document.getElementById('list-date').value;
   if(!dv){alert('Please select a date.');return;}
-  var list=cases.filter(function(c){return c.nextDate===dv;});
+  var list=officeCases().filter(function(c){return c.nextDate===dv;});
   buildPDF(dv,list);
   closeModal('modal-listdate');
   openModal('modal-pdf');
@@ -2843,7 +3070,7 @@ function saveReminder(){
   if(!msg){alert('Enter reminder message.');return;}
   if(!dt){alert('Select date and time.');return;}
   var c=cases.find(function(x){return x.id===cid;});
-  var a={id:genId(),caseId:cid,caseTitle:c?c.title:'',msg:msg,fireAt:dt,done:false,createdAt:new Date().toISOString()};
+  var a={id:genId(),caseId:cid,caseTitle:c?c.title:'',msg:msg,fireAt:dt,done:false,createdAt:new Date().toISOString(),officeId:(c?(c.officeId||OFFICE_DEFAULT_ID):currentOfficeId)};
   alerts.push(a);saveAlerts();scheduleAlert(a);
   toast('🔔 Reminder set for '+new Date(dt).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}));
   reqNotif();closeModal('modal-reminder');renderTable();
@@ -2900,7 +3127,7 @@ function filterReminders(f){
 function renderRemindersPanel(){
   var now = new Date();
   var nowStr = now.toISOString();
-  var list = alerts.slice(); // copy
+  var list = officeAlerts(); // only this office's reminders
 
   // Apply filter
   if(reminderFilter === 'missed'){
@@ -2969,8 +3196,9 @@ function renderRemindersPanel(){
 
 function updateReminderBadge(){
   var now = new Date();
-  var missed = alerts.filter(function(a){ return !a.done && new Date(a.fireAt) < now; }).length;
-  var upcoming = alerts.filter(function(a){ return !a.done && new Date(a.fireAt) >= now; }).length;
+  var scoped = officeAlerts();
+  var missed = scoped.filter(function(a){ return !a.done && new Date(a.fireAt) < now; }).length;
+  var upcoming = scoped.filter(function(a){ return !a.done && new Date(a.fireAt) >= now; }).length;
   var total = missed + upcoming;
   var badge = document.getElementById('rem-badge');
   if(!badge) return;
@@ -3227,11 +3455,12 @@ function renderAssociatesModal(){
   if(!associates.length){ list.innerHTML='<div style="text-align:center;padding:20px;color:#7b93ad;font-size:13px">No associates yet. Add team members above.</div>'; wl.innerHTML=''; return; }
   var counts={},active={};
   associates.forEach(function(a){counts[a.name]=0;active[a.name]=0;});
-  cases.forEach(function(c){ if(c.assignedTo&&counts[c.assignedTo]!==undefined){ counts[c.assignedTo]++; if(c.status==='Active'||c.status==='Adjourned') active[c.assignedTo]++; } });
-  var unassigned=cases.filter(function(c){return !c.assignedTo;}).length;
+  var oc=officeCases();
+  oc.forEach(function(c){ if(c.assignedTo&&counts[c.assignedTo]!==undefined){ counts[c.assignedTo]++; if(c.status==='Active'||c.status==='Adjourned') active[c.assignedTo]++; } });
+  var unassigned=oc.filter(function(c){return !c.assignedTo;}).length;
   var maxC=Math.max(1,Math.max.apply(null,associates.map(function(a){return counts[a.name]||0;})));
   list.innerHTML=associates.map(function(a,ai){
-    var cnt=counts[a.name]||0,act=active[a.name]||0,pct=Math.round((cnt/Math.max(1,cases.length))*100),bw=Math.round((cnt/maxC)*100);
+    var cnt=counts[a.name]||0,act=active[a.name]||0,pct=Math.round((cnt/Math.max(1,oc.length))*100),bw=Math.round((cnt/maxC)*100);
     var col=getAssocColor(ai);
     return '<div style="display:flex;align-items:center;gap:12px;background:'+col.bg+';border:2px solid '+col.dot+';border-radius:10px;padding:12px 14px;margin-bottom:8px;flex-wrap:wrap">'
       +'<div style="width:40px;height:40px;border-radius:50%;background:'+col.dot+';display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700;flex-shrink:0">'+a.name.charAt(0).toUpperCase()+'</div>'
