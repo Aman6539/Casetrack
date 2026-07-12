@@ -2555,6 +2555,39 @@ function exportData(exportAll){
   toast('Exported '+list.length+' cases'+(exportAll?' (all offices)':' from '+currentOffice().name)+'.');
 }
 
+// ════════════════════════════════════════════════════════════
+// DUPLICATE DETECTION FOR IMPORT — a case is the same case if it
+// matches on any of these, checked in order of reliability, scoped
+// to the active office so imports never cross-contaminate offices:
+//   1) CNR number (normalized — case/space/hyphen-insensitive)
+//   2) Case number (normalized) — covers records with no CNR yet
+//   3) Same client + opposite party + court — last-resort fuzzy
+//      match for very early filings that have neither CNR nor a
+//      formal case number assigned so far.
+// ════════════════════════════════════════════════════════════
+function normKey(s){ return String(s||'').toUpperCase().replace(/[\s\-\/.]/g,''); }
+function findExistingCase(ic, pool){
+  var normCnr=normKey(ic.cnr), normCaseNo=normKey(ic.caseNo);
+  if(normCnr){
+    var m=pool.find(function(c){ return normKey(c.cnr)===normCnr; });
+    if(m) return m;
+  }
+  if(normCaseNo){
+    var m2=pool.find(function(c){ return normKey(c.caseNo)===normCaseNo; });
+    if(m2) return m2;
+  }
+  if(ic.client && ic.opposite && ic.court){
+    // Only reached if neither CNR nor case number matched above, so this
+    // is purely a last-resort check for early filings with no formal
+    // numbers assigned yet.
+    var m3=pool.find(function(c){
+      return normKey(c.client)===normKey(ic.client) && normKey(c.opposite)===normKey(ic.opposite) && normKey(c.court)===normKey(ic.court);
+    });
+    if(m3) return m3;
+  }
+  return null;
+}
+
 function handleImport(e){
   var file=e.target.files[0];if(!file)return;
   var st=document.getElementById('imp-status');
@@ -2564,18 +2597,55 @@ function handleImport(e){
     var imp=parseECourts(text);
     if(!imp||!imp.length){try{var d=JSON.parse(text);if(Array.isArray(d)&&d.length){imp=d;}}catch(x){}}
     if(!imp||!imp.length){st.style.background='#fef2f2';st.style.color='#dc2626';st.style.border='1px solid #fecaca';st.textContent='Could not read file. Try the LexTrack Converter tool.';return;}
-    var added=0,updated=0;
+
+    // De-dupe WITHIN the imported file itself first (some eCourts exports
+    // repeat a case if it has multiple listing entries on the same date).
+    var seen=[], dedupedImp=[];
     imp.forEach(function(ic){
-      // Match for update ONLY within the active office — never let an
-      // import silently touch a case belonging to a different office.
-      var idx=cases.findIndex(function(c){return ic.cnr&&c.cnr===ic.cnr&&(c.officeId||OFFICE_DEFAULT_ID)===currentOfficeId;});
-      if(idx>=0){cases[idx].nextDate=ic.nextDate;cases[idx].stage=ic.stage||cases[idx].stage;cases[idx].status=ic.status;cases[idx].lastSynced=new Date().toISOString();updated++;if(isCloud)cloudSave(cases[idx]);}
-      else{ic.officeId=currentOfficeId;cases.push(ic);added++;if(isCloud)cloudSave(ic);}
+      var dupInBatch=findExistingCase(ic, seen);
+      if(!dupInBatch){ seen.push(ic); dedupedImp.push(ic); }
+    });
+
+    var officePool=cases.filter(function(c){return (c.officeId||OFFICE_DEFAULT_ID)===currentOfficeId;});
+    var added=0,updated=0,skipped=0;
+    dedupedImp.forEach(function(ic){
+      // Match ONLY within the active office — never let an import
+      // silently touch or duplicate a case in a different office.
+      var existing=findExistingCase(ic, officePool);
+      if(existing){
+        var idx=cases.findIndex(function(c){return c.id===existing.id;});
+        var changed=false;
+        // Only refresh fields that genuinely come from the court feed.
+        // Never touch fields the advocate entered manually (assignedTo,
+        // remarks, fee fields, sections, clientPhone, judge once set).
+        if(ic.nextDate && cases[idx].nextDate!==ic.nextDate){ cases[idx].nextDate=ic.nextDate; changed=true; }
+        if(ic.status && cases[idx].status!==ic.status){ cases[idx].status=ic.status; changed=true; }
+        if(ic.stage && cases[idx].stage!==ic.stage){ cases[idx].stage=ic.stage; changed=true; }
+        // Backfill only — never overwrite a value that's already present
+        if(ic.court && !cases[idx].court){ cases[idx].court=ic.court; changed=true; }
+        if(ic.caseNo && !cases[idx].caseNo){ cases[idx].caseNo=ic.caseNo; changed=true; }
+        if(ic.cnr && !cases[idx].cnr){ cases[idx].cnr=ic.cnr; changed=true; }
+        if(ic.title && !cases[idx].title){ cases[idx].title=ic.title; changed=true; }
+        if(changed){
+          cases[idx].lastSynced=new Date().toISOString();
+          cases[idx].updatedAt=new Date().toISOString();
+          updated++;
+          if(isCloud) cloudSave(cases[idx]);
+        } else {
+          skipped++; // already up to date — not touched, not duplicated
+        }
+        officePool[officePool.indexOf(existing)]=cases[idx]; // keep pool current for matches later in this same batch
+      } else {
+        ic.officeId=currentOfficeId;
+        cases.push(ic); officePool.push(ic);
+        added++;
+        if(isCloud) cloudSave(ic);
+      }
     });
     if(!isCloud){saveLocal();renderAll();}
     st.style.background='#f0fdf4';st.style.color='#16a34a';st.style.border='1px solid #bbf7d0';
-    st.innerHTML='✓ <strong>'+added+' added</strong>, '+updated+' dates updated in '+esc(currentOffice().name)+'.';
-    toast('Import done: '+added+' added, '+updated+' updated.');
+    st.innerHTML='✓ <strong>'+added+' added</strong>, '+updated+' updated, '+skipped+' already up to date (no duplicates created) in '+esc(currentOffice().name)+'.';
+    toast('Import done: '+added+' added, '+updated+' updated, '+skipped+' skipped (duplicates avoided).');
   };
   if(file.name.toLowerCase().endsWith('.pdf')){
     var r=new FileReader();r.onload=function(ev){var bytes=new Uint8Array(ev.target.result),raw='';for(var i=0;i<bytes.length;i++){var b=bytes[i];if(b>=32||b===10||b===13)raw+=String.fromCharCode(b);}go(raw);};r.readAsArrayBuffer(file);
