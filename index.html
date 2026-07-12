@@ -1708,7 +1708,10 @@ function renderTable(){
     var it=c.nextDate===today,ip=c.nextDate&&c.nextDate<today;
     var dc=it?'#16a34a':ip?'#dc2626':'#1e3a5f';
     var hasAlerts=alerts.some(function(a){return a.caseId===c.id&&!a.done;});
-    var abadge=c.assignedTo?'<span style="font-size:10px;background:#eef2f7;color:#334155;border:1px solid #dbe2ea;border-radius:10px;padding:1px 7px;margin-left:5px;font-weight:600">'+esc(c.assignedTo)+'</span>':'';
+    var at=assocTone(c.assignedTo);
+    var abadge=c.assignedTo?'<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;background:'+at.bg+';color:'+at.c+';border:1px solid '+at.b+';border-radius:20px;padding:1px 8px 1px 3px;margin-left:6px;font-weight:700;vertical-align:middle">'
+      +'<span style="width:14px;height:14px;border-radius:50%;background:'+at.c+';color:#fff;font-size:8px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">'+esc(assocInitials(c.assignedTo))+'</span>'
+      +esc(c.assignedTo)+'</span>':'';
     html+='<div class="tbl-row" onclick="openDetail(\''+c.id+'\')">'
       +'<div><div class="cell-title">'+esc(c.title||'—')+(hasAlerts?' 🔔':'')+abadge+'</div><div class="cell-sub">'+esc(c.client||'—')+'</div></div>'
       +'<div><div class="cell-case">'+esc(c.caseNo||'—')+'</div>'+(c.cnr?'<div class="cell-sub">CNR: '+esc(c.cnr)+'</div>':'')+'</div>'
@@ -1906,8 +1909,10 @@ function openDetail(id){
   b.textContent=c.status||'—';b.style.background=sm.bg;b.style.color=sm.c;b.style.border='1px solid '+sm.b;
   var officeName=(offices.find(function(o){return o.id===(c.officeId||OFFICE_DEFAULT_ID);})||offices[0]).name;
   var rows=[['Office',officeName],['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Judge',c.judge],['Type',c.caseType],['Client',c.client],['Phone',c.clientPhone],['Opposite',c.opposite],['Sections',c.sections],['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],['Total Fee',c.feeTotal?'₹'+c.feeTotal:null],['Amount Paid',c.feeTotal||c.feePaid?'₹'+(c.feePaid||'0'):null],['Remaining Fee',c.feeTotal?'₹'+calcRemainingFee(c.feeTotal,c.feePaid):null],['Added',fmtDate(c.createdAt)],['Last Updated',c.updatedAt?new Date(c.updatedAt).toLocaleString('en-IN'):null]];
-  var assignHtml='<div class="detail-field"><div class="detail-key">Assigned To</div><div class="detail-val">'
-    +'<select onchange="quickReassignCase(\''+c.id+'\',this.value)" style="font-size:13px;padding:5px 9px;border:1.5px solid #dbeafe;border-radius:6px;font-weight:600;color:#1e3a5f;background:#fff">'
+  var atInit=assocTone(c.assignedTo);
+  var assignHtml='<div class="detail-field"><div class="detail-key">Assigned To</div><div class="detail-val" style="display:flex;align-items:center;gap:8px">'
+    +'<span id="d-assoc-dot" style="width:20px;height:20px;border-radius:50%;background:'+atInit.c+';color:#fff;font-size:9px;font-weight:800;display:'+(c.assignedTo?'inline-flex':'none')+';align-items:center;justify-content:center;flex-shrink:0">'+esc(assocInitials(c.assignedTo))+'</span>'
+    +'<select id="d-assoc-select" onchange="quickReassignCase(\''+c.id+'\',this.value)" style="font-size:13px;padding:5px 9px;border:1.5px solid #dbeafe;border-radius:6px;font-weight:600;color:#1e3a5f;background:#fff">'
     +'<option value=""'+(!c.assignedTo?' selected':'')+'>-- Unassigned --</option>'
     +associates.map(function(a){return '<option value="'+esc(a.name)+'"'+(c.assignedTo===a.name?' selected':'')+'>'+esc(a.name)+(a.role?' ('+esc(a.role)+')':'')+'</option>';}).join('')
     +'</select></div></div>';
@@ -3583,6 +3588,29 @@ function quickReassignCase(caseId, newName, silent){
   try{ if(assocDetailId) showAssocDetail(assocDetailId); else renderAssociatesModal(); }catch(e){}
 }
 
+// A small set of deep, desaturated "chambers" tones — for telling
+// associates apart at a glance without turning the UI into a rainbow.
+// Each tone mirrors the existing status-badge pattern: a pale tint
+// background with a deep, muted foreground/border.
+var ASSOC_TONES=[
+  {c:'#1a3260',bg:'#eef1f8',b:'#d3dbec'}, // navy
+  {c:'#7c2d3a',bg:'#f8eef0',b:'#e8d3d8'}, // wine
+  {c:'#2f5233',bg:'#eef3ee',b:'#d3e0d4'}, // forest
+  {c:'#8a5a2b',bg:'#f7f1e8',b:'#e8dcc8'}, // bronze
+  {c:'#4a4066',bg:'#f0eef5',b:'#dcd7e6'}, // plum
+  {c:'#2d5a5a',bg:'#eef4f4',b:'#d2e2e2'}  // teal
+];
+function assocTone(name){
+  if(!name) return {c:'#7b93ad',bg:'#f1f5f9',b:'#e2e8f0'};
+  var idx=associates.findIndex(function(a){return a.name===name;});
+  return ASSOC_TONES[(idx<0?0:idx)%ASSOC_TONES.length];
+}
+function assocInitials(name){
+  if(!name) return '?';
+  var parts=String(name).trim().split(/\s+/);
+  return (parts[0].charAt(0)+(parts.length>1?parts[parts.length-1].charAt(0):'')).toUpperCase();
+}
+
 var CLOSED_STATUSES=['Decided','Withdrawn','Closed'];
 function assocStatsFor(name){
   var today=todayStr();
@@ -3621,8 +3649,9 @@ function renderAssociatesModal(){
   list.innerHTML=associates.map(function(a){
     var s=assocStatsFor(a.name);
     var bw=Math.round((s.total/Math.max(1,oc.length))*100);
-    return '<div style="display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #e2e8f0;border-left:3px solid var(--navy);border-radius:9px;padding:13px 16px;margin-bottom:9px;flex-wrap:wrap">'
-      +'<div style="width:38px;height:38px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:700;flex-shrink:0">'+esc(a.name.charAt(0).toUpperCase())+'</div>'
+    var at=assocTone(a.name);
+    return '<div style="display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #e2e8f0;border-left:3px solid '+at.c+';border-radius:9px;padding:13px 16px;margin-bottom:9px;flex-wrap:wrap">'
+      +'<div style="width:38px;height:38px;border-radius:50%;background:'+at.c+';display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;flex-shrink:0">'+esc(assocInitials(a.name))+'</div>'
       +'<div style="flex:1;min-width:140px;cursor:pointer" onclick="showAssocDetail(\''+a.id+'\')"><div style="font-weight:700;font-size:14px;color:#1e3a5f">'+esc(a.name)+'</div>'+(a.role?'<div style="font-size:11.5px;color:#7b93ad">'+esc(a.role)+(a.phone?' · '+esc(a.phone):'')+'</div>':(a.phone?'<div style="font-size:11.5px;color:#7b93ad">'+esc(a.phone)+'</div>':''))+'</div>'
       +'<div style="text-align:center;min-width:50px"><div style="font-size:19px;font-weight:800;color:#1e3a5f">'+s.total+'</div><div style="font-size:9.5px;color:#7b93ad;text-transform:uppercase">Total</div></div>'
       +'<div style="text-align:center;min-width:50px"><div style="font-size:19px;font-weight:800;color:#1a56db">'+s.upcoming+'</div><div style="font-size:9.5px;color:#7b93ad;text-transform:uppercase">Upcoming</div></div>'
@@ -3651,9 +3680,10 @@ function showAssocDetail(id){
   document.getElementById('assoc-detail-view').style.display='block';
 
   var s=assocStatsFor(a.name);
+  var at=assocTone(a.name);
   document.getElementById('assoc-detail-header').innerHTML=
     '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">'
-    +'<div style="width:52px;height:52px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:700;flex-shrink:0">'+esc(a.name.charAt(0).toUpperCase())+'</div>'
+    +'<div style="width:52px;height:52px;border-radius:50%;background:'+at.c+';display:flex;align-items:center;justify-content:center;color:#fff;font-size:17px;font-weight:700;flex-shrink:0">'+esc(assocInitials(a.name))+'</div>'
     +'<div style="flex:1;min-width:180px"><div style="font-size:19px;font-weight:800;color:#1e3a5f">'+esc(a.name)+'</div>'
       +'<div style="font-size:12.5px;color:#7b93ad">'+(a.role?esc(a.role):'Associate')+(a.phone?' · '+esc(a.phone):'')+(s.pendingReminders?' · '+s.pendingReminders+' pending reminder'+(s.pendingReminders!==1?'s':''):'')+'</div></div>'
     +'<button class="btn btn-sm" style="background:#f8fafc;border:1px solid #e2e8f0;color:#1e3a5f" onclick="filterByAssociate(\''+esc(a.name).replace(/'/g,"\\'")+'\')">🔍 View in Case List</button>'
@@ -3687,7 +3717,7 @@ function showAssocDetail(id){
     var isOverdue=c.nextDate&&c.nextDate<today&&CLOSED_STATUSES.indexOf(c.status)<0;
     var sm=SM[c.status]||SM.Closed;
     var reassignOpts='<option value="">-- Unassign --</option>'+associates.filter(function(x){return x.name!==c.assignedTo;}).map(function(x){return '<option value="'+esc(x.name)+'">'+esc(x.name)+'</option>';}).join('');
-    return '<div style="display:flex;align-items:center;gap:12px;background:'+(isOverdue?'#fef2f2':'#fff')+';border:1px solid '+(isOverdue?'#fecaca':'#e2e8f0')+';border-radius:9px;padding:11px 14px;margin-bottom:8px;flex-wrap:wrap">'
+    return '<div style="display:flex;align-items:center;gap:12px;background:'+(isOverdue?'#fef2f2':'#fff')+';border:1px solid '+(isOverdue?'#fecaca':'#e2e8f0')+';border-left:3px solid '+at.c+';border-radius:9px;padding:11px 14px;margin-bottom:8px;flex-wrap:wrap">'
       +'<div style="flex:1;min-width:160px;cursor:pointer" onclick="closeModal(\'modal-associates\');openDetail(\''+c.id+'\')">'
         +'<div style="font-weight:700;font-size:13.5px;color:#1e3a5f">'+esc(c.title||c.caseNo||'—')+'</div>'
         +'<div style="font-size:11.5px;color:#7b93ad">'+esc(c.caseNo||'')+(c.court?' · '+esc(c.court):'')+'</div>'
