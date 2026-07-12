@@ -675,6 +675,7 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
     <button class="sidebar-link active" id="nav-dashboard" onclick="closeAllPages();setNavActive('nav-dashboard')"><span class="ic">📋</span><span class="lbl">Dashboard</span></button>
     <div class="sidebar-section-lbl">Tools</div>
     <button class="sidebar-link" id="nav-courtfee" onclick="closeAllPages();openModal('modal-courtfee');initCF();setNavActive('nav-courtfee')"><span class="ic">⚖</span><span class="lbl">Court Fee</span></button>
+    <button class="sidebar-link" id="nav-fees" onclick="closeAllPages();openModal('modal-fees');renderFeesPage();setNavActive('nav-fees')"><span class="ic">💰</span><span class="lbl">Fee Tracker</span></button>
     <button class="sidebar-link" id="nav-causelist" onclick="closeAllPages();openModal('modal-listdate');setNavActive('nav-causelist')"><span class="ic">🗓</span><span class="lbl">Cause List</span></button>
     <button class="sidebar-link" id="nav-reminders" onclick="closeAllPages();openModal('modal-reminders');setNavActive('nav-reminders')" style="position:relative"><span class="ic">🔔</span><span class="lbl">Reminders</span><span id="rem-badge" style="display:none">0</span></button>
     <button class="sidebar-link" id="nav-associates" onclick="closeAllPages();openModal('modal-associates');setNavActive('nav-associates')"><span class="ic">👥</span><span class="lbl">Associates</span></button>
@@ -1578,7 +1579,7 @@ document.querySelectorAll('.overlay').forEach(function(el){
 });
 
 // ════════ SIDEBAR NAVIGATION ════════
-var PAGE_VIEW_IDS=['modal-detail','modal-sync','modal-courtfee','modal-listdate','modal-import','modal-reminders','modal-associates','modal-account','modal-case'];
+var PAGE_VIEW_IDS=['modal-detail','modal-sync','modal-courtfee','modal-listdate','modal-import','modal-reminders','modal-associates','modal-account','modal-case','modal-fees'];
 function closeAllPages(){
   PAGE_VIEW_IDS.forEach(function(id){ var el=document.getElementById(id); if(el) el.classList.remove('open'); });
   setNavActive('nav-dashboard');
@@ -1709,11 +1710,14 @@ function renderTable(){
     var dc=it?'#16a34a':ip?'#dc2626':'#1e3a5f';
     var hasAlerts=alerts.some(function(a){return a.caseId===c.id&&!a.done;});
     var at=assocTone(c.assignedTo);
-    var abadge=c.assignedTo?'<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;background:'+at.bg+';color:'+at.c+';border:1px solid '+at.b+';border-radius:20px;padding:1px 8px 1px 3px;margin-left:6px;font-weight:700;vertical-align:middle">'
-      +'<span style="width:14px;height:14px;border-radius:50%;background:'+at.c+';color:#fff;font-size:8px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">'+esc(assocInitials(c.assignedTo))+'</span>'
-      +esc(c.assignedTo)+'</span>':'';
+    var assocTag=c.assignedTo?('<span style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:'+at.c+';font-weight:600;flex-shrink:0;white-space:nowrap">'
+      +'<span style="width:13px;height:13px;border-radius:50%;background:'+at.c+';color:#fff;font-size:7.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">'+esc(assocInitials(c.assignedTo))+'</span>'
+      +esc(c.assignedTo)+'</span>'):'';
     html+='<div class="tbl-row" onclick="openDetail(\''+c.id+'\')">'
-      +'<div><div class="cell-title">'+esc(c.title||'—')+(hasAlerts?' 🔔':'')+abadge+'</div><div class="cell-sub">'+esc(c.client||'—')+'</div></div>'
+      +'<div><div class="cell-title">'+esc(c.title||'—')+(hasAlerts?' 🔔':'')+'</div>'
+        +'<div class="cell-sub" style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
+          +'<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(c.client||'—')+'</span>'+assocTag
+        +'</div></div>'
       +'<div><div class="cell-case">'+esc(c.caseNo||'—')+'</div>'+(c.cnr?'<div class="cell-sub">CNR: '+esc(c.cnr)+'</div>':'')+'</div>'
       +'<div style="font-size:12px;color:#4b6280">'+esc(c.court||'—')+'</div>'
       +'<div><div style="font-size:12px;font-weight:'+(it?'700':'500')+';color:'+dc+'">'+fmtDate(c.nextDate)+'</div>'
@@ -1871,6 +1875,136 @@ function calcFeeRemaining(){
   var total=t?t.value:'', paid=p?p.value:'';
   var rem=document.getElementById('f-feeRemaining'); if(rem) rem.value=calcRemainingFee(total,paid);
   var st=document.getElementById('f-feeStatus'); if(st) st.value=computeFeeStatus(total,paid);
+}
+
+// ════════════════════════════════════════════════════════════
+// FEE TRACKER — full-page view of every case's fee status,
+// with totals, filters, and inline quick updates.
+// ════════════════════════════════════════════════════════════
+var feesFilter = 'all';
+function isFeeOverdue(c){
+  // Money still owed on a matter that's already past its hearing date,
+  // or already closed — the fees most likely to be forgotten about.
+  var st = computeFeeStatus(c.feeTotal, c.feePaid);
+  if(st!=='Pending' && st!=='Partly Paid') return false;
+  var closed = CLOSED_STATUSES.indexOf(c.status)>=0;
+  var pastDue = c.nextDate && c.nextDate < todayStr();
+  return closed || pastDue;
+}
+function setFeesFilter(f){
+  feesFilter = f;
+  ['all','notset','pending','partial','paid','overdue'].forEach(function(k){
+    var el=document.getElementById('ff-'+k);
+    if(!el) return;
+    el.style.background = k===f ? '#1a56db' : '';
+    el.style.color = k===f ? '#fff' : '';
+    el.style.border = k===f ? '1px solid #1a56db' : '';
+  });
+  renderFeesPage();
+}
+function quickUpdateFeePaid(caseId, newPaid){
+  var idx=cases.findIndex(function(x){return x.id===caseId;});
+  if(idx<0) return;
+  var c=cases[idx];
+  c.feePaid=String(newPaid===''?'':(parseFloat(newPaid)||0));
+  c.feeRemaining=calcRemainingFee(c.feeTotal,c.feePaid);
+  c.feeStatus=computeFeeStatus(c.feeTotal,c.feePaid);
+  c.updatedAt=new Date().toISOString();
+  if(isCloud){ cloudSave(c); } else { saveLocal(); renderAll(); }
+  toast('💰 Fee updated for '+(c.title||c.caseNo||'case')+'.');
+  try{ if(detailId===caseId) openDetail(caseId); }catch(e){}
+  renderFeesPage();
+}
+function renderFeesPage(){
+  var totalsEl=document.getElementById('fees-totals');
+  var statsEl=document.getElementById('fees-stats');
+  var listEl=document.getElementById('fees-list');
+  if(!listEl) return;
+  var oc=officeCases();
+  var q=(document.getElementById('fees-search')||{value:''}).value.trim().toLowerCase();
+
+  var sumTotal=0,sumPaid=0,sumRemaining=0;
+  var counts={'Not Set':0,'Pending':0,'Partly Paid':0,'Paid':0};
+  var overdueCount=0;
+  oc.forEach(function(c){
+    var st=computeFeeStatus(c.feeTotal,c.feePaid);
+    counts[st]=(counts[st]||0)+1;
+    if(st!=='Not Set'){
+      sumTotal+=parseFloat(c.feeTotal)||0;
+      sumPaid+=parseFloat(c.feePaid)||0;
+      sumRemaining+=parseFloat(calcRemainingFee(c.feeTotal,c.feePaid))||0;
+    }
+    if(isFeeOverdue(c)) overdueCount++;
+  });
+
+  if(totalsEl){
+    var tCards=[
+      {label:'Total Fee Decided',val:'₹'+sumTotal.toLocaleString('en-IN'),c:'#1e3a5f',bg:'#f8fafc',b:'#e2e8f0'},
+      {label:'Total Collected',val:'₹'+sumPaid.toLocaleString('en-IN'),c:'#16a34a',bg:'#f0fdf4',b:'#bbf7d0'},
+      {label:'Total Outstanding',val:'₹'+sumRemaining.toLocaleString('en-IN'),c:sumRemaining?'#dc2626':'#16a34a',bg:sumRemaining?'#fef2f2':'#f0fdf4',b:sumRemaining?'#fecaca':'#bbf7d0'}
+    ];
+    totalsEl.innerHTML=tCards.map(function(s){return '<div style="background:'+s.bg+';border:1px solid '+s.b+';border-radius:11px;padding:16px 18px">'
+      +'<div style="font-size:23px;font-weight:800;color:'+s.c+'">'+s.val+'</div>'
+      +'<div style="font-size:12px;font-weight:700;color:#4b6280">'+s.label+'</div></div>';}).join('');
+  }
+  if(statsEl){
+    var sCards=[
+      {k:'all',label:'All Cases',val:oc.length,c:'#1e3a5f',bg:'#f8fafc',b:'#e2e8f0'},
+      {k:'notset',label:'Not Set',val:counts['Not Set']||0,c:'#64748b',bg:'#f8fafc',b:'#e2e8f0'},
+      {k:'pending',label:'Pending',val:counts['Pending']||0,c:'#dc2626',bg:'#fef2f2',b:'#fecaca'},
+      {k:'partial',label:'Partly Paid',val:counts['Partly Paid']||0,c:'#b45309',bg:'#fffbeb',b:'#fde68a'},
+      {k:'paid',label:'Paid',val:counts['Paid']||0,c:'#16a34a',bg:'#f0fdf4',b:'#bbf7d0'}
+    ];
+    statsEl.innerHTML=sCards.map(function(s){
+      var ring=feesFilter===s.k?'box-shadow:0 0 0 2px '+s.c+';':'';
+      return '<button id="ff-'+s.k+'" onclick="setFeesFilter(\''+s.k+'\')" style="text-align:left;cursor:pointer;background:'+s.bg+';border:1px solid '+s.b+';'+ring+'border-radius:11px;padding:12px 14px;font-family:inherit">'
+        +'<div style="font-size:19px;font-weight:800;color:'+s.c+'">'+s.val+'</div>'
+        +'<div style="font-size:10.5px;font-weight:700;color:'+s.c+'">'+s.label+'</div></button>';
+    }).join('');
+    if(overdueCount){
+      statsEl.innerHTML+='<button id="ff-overdue" onclick="setFeesFilter(\'overdue\')" style="text-align:left;cursor:pointer;grid-column:1/-1;margin-top:2px;background:#fef2f2;border:2px solid #fecaca;'+(feesFilter==='overdue'?'box-shadow:0 0 0 2px #dc2626;':'')+'border-radius:11px;padding:12px 14px;font-family:inherit">'
+        +'<span style="font-size:13px;font-weight:800;color:#dc2626">🔴 '+overdueCount+' overdue fee'+(overdueCount!==1?'s':'')+'</span>'
+        +'<span style="font-size:11.5px;color:#7b93ad;margin-left:8px">unpaid dues on matters already past hearing date or closed</span></button>';
+    }
+  }
+
+  var list=oc.filter(function(c){
+    var st=computeFeeStatus(c.feeTotal,c.feePaid);
+    if(feesFilter==='notset' && st!=='Not Set') return false;
+    if(feesFilter==='pending' && st!=='Pending') return false;
+    if(feesFilter==='partial' && st!=='Partly Paid') return false;
+    if(feesFilter==='paid' && st!=='Paid') return false;
+    if(feesFilter==='overdue' && !isFeeOverdue(c)) return false;
+    if(q && (c.title||'').toLowerCase().indexOf(q)<0 && (c.client||'').toLowerCase().indexOf(q)<0 && (c.caseNo||'').toLowerCase().indexOf(q)<0) return false;
+    return true;
+  }).sort(function(a,b){
+    var ao=isFeeOverdue(a), bo=isFeeOverdue(b);
+    if(ao!==bo) return ao?-1:1;
+    return (parseFloat(calcRemainingFee(b.feeTotal,b.feePaid))||0)-(parseFloat(calcRemainingFee(a.feeTotal,a.feePaid))||0);
+  });
+
+  if(!list.length){
+    listEl.innerHTML='<div style="text-align:center;padding:40px;color:#7b93ad;font-size:13px;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:10px">No cases match this filter.</div>';
+    return;
+  }
+  listEl.innerHTML=list.map(function(c){
+    var st=computeFeeStatus(c.feeTotal,c.feePaid);
+    var fsm=FEE_SM[st]||FEE_SM['Not Set'];
+    var overdue=isFeeOverdue(c);
+    return '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:'+(overdue?'#fef2f2':'#fff')+';border:1px solid '+(overdue?'#fecaca':'#e2e8f0')+';border-radius:9px;padding:12px 15px;margin-bottom:9px">'
+      +'<div style="flex:1.6;min-width:170px;cursor:pointer" onclick="closeModal(\'modal-fees\');openDetail(\''+c.id+'\')">'
+        +'<div style="font-weight:700;font-size:13.5px;color:#1e3a5f">'+esc(c.title||c.caseNo||'—')+'</div>'
+        +'<div style="font-size:11.5px;color:#7b93ad">'+esc(c.client||'')+(c.caseNo?' · '+esc(c.caseNo):'')+'</div>'
+      +'</div>'
+      +'<div style="min-width:80px;text-align:right"><div style="font-size:9.5px;color:#7b93ad;text-transform:uppercase">Total</div><div style="font-size:13px;font-weight:700;color:#1e3a5f">'+(c.feeTotal?'₹'+Number(c.feeTotal).toLocaleString('en-IN'):'—')+'</div></div>'
+      +'<div style="min-width:100px">'
+        +'<div style="font-size:9.5px;color:#7b93ad;text-transform:uppercase">Amount Paid</div>'
+        +'<input type="number" value="'+esc(c.feePaid||'')+'" placeholder="0" onclick="event.stopPropagation()" onchange="quickUpdateFeePaid(\''+c.id+'\',this.value)" style="width:90px;font-size:13px;font-weight:700;color:#16a34a;padding:4px 7px;border:1.5px solid #dbeafe;border-radius:6px"'+(c.feeTotal?'':' disabled title="Set Total Fee first from Edit Case"')+'/>'
+      +'</div>'
+      +'<div style="min-width:80px;text-align:right"><div style="font-size:9.5px;color:#7b93ad;text-transform:uppercase">Remaining</div><div style="font-size:13px;font-weight:700;color:'+(overdue?'#dc2626':'#1e3a5f')+'">'+(c.feeTotal?'₹'+Number(calcRemainingFee(c.feeTotal,c.feePaid)).toLocaleString('en-IN'):'—')+'</div></div>'
+      +'<span class="badge" style="background:'+fsm.bg+';color:'+fsm.c+';border:1px solid '+fsm.b+';flex-shrink:0">'+(overdue?'🔴 Overdue':st)+'</span>'
+      +'</div>';
+  }).join('');
 }
 
 function openAddCase(){ editingId=null; document.getElementById('case-title-lbl').textContent='Add New Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=f==='status'?'Active':'';}); populateOfficeSelect(); var of=document.getElementById('f-officeId'); if(of) of.value=currentOfficeId; calcFeeRemaining(); openModal('modal-case'); }
@@ -3429,6 +3563,30 @@ scheduleAllAlerts = function(){
   </div>
  </div></div>
 </div>
+
+<!-- ═══════════════════ FEE TRACKER ═══════════════════ -->
+<div class="overlay page-view" id="modal-fees">
+  <div class="modal wide"><div class="modal-body">
+    <div class="page-topbar">
+      <div>
+        <div class="page-topbar-title">💰 Fee Tracker</div>
+        <div class="page-topbar-sub">Client fees across all cases — totals, status, and quick updates</div>
+      </div>
+    </div>
+
+    <!-- Totals -->
+    <div id="fees-totals" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px"></div>
+    <!-- Status counts / filters -->
+    <div id="fees-stats" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px"></div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+      <input type="text" id="fees-search" placeholder="Search case, client..." oninput="renderFeesPage()" style="flex:1;min-width:160px;padding:7px 11px;border:1.5px solid #dbeafe;border-radius:7px;font-size:13px"/>
+    </div>
+
+    <div id="fees-list"></div>
+  </div></div>
+</div>
+
 
 
 
