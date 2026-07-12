@@ -1708,11 +1708,9 @@ function renderTable(){
     var it=c.nextDate===today,ip=c.nextDate&&c.nextDate<today;
     var dc=it?'#16a34a':ip?'#dc2626':'#1e3a5f';
     var hasAlerts=alerts.some(function(a){return a.caseId===c.id&&!a.done;});
-    var acolor=c.assignedTo?getAssocColorByName(c.assignedTo):null;
-    var aflag=acolor?'<span title="'+c.assignedTo+'" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+acolor.dot+';margin-right:5px"></span>':'';
-    var abadge=acolor?'<span style="font-size:10px;background:'+acolor.bg+';color:'+acolor.c+';border-radius:10px;padding:1px 6px;margin-left:5px">'+esc(c.assignedTo)+'</span>':'';
-    html+='<div class="tbl-row" onclick="openDetail(\''+c.id+'\')" style="border-left:3px solid '+(acolor?acolor.dot:'transparent')+';">'
-      +'<div><div class="cell-title">'+aflag+esc(c.title||'—')+(hasAlerts?' 🔔':'')+abadge+'</div><div class="cell-sub">'+esc(c.client||'—')+'</div></div>'
+    var abadge=c.assignedTo?'<span style="font-size:10px;background:#eef2f7;color:#334155;border:1px solid #dbe2ea;border-radius:10px;padding:1px 7px;margin-left:5px;font-weight:600">'+esc(c.assignedTo)+'</span>':'';
+    html+='<div class="tbl-row" onclick="openDetail(\''+c.id+'\')">'
+      +'<div><div class="cell-title">'+esc(c.title||'—')+(hasAlerts?' 🔔':'')+abadge+'</div><div class="cell-sub">'+esc(c.client||'—')+'</div></div>'
       +'<div><div class="cell-case">'+esc(c.caseNo||'—')+'</div>'+(c.cnr?'<div class="cell-sub">CNR: '+esc(c.cnr)+'</div>':'')+'</div>'
       +'<div style="font-size:12px;color:#4b6280">'+esc(c.court||'—')+'</div>'
       +'<div><div style="font-size:12px;font-weight:'+(it?'700':'500')+';color:'+dc+'">'+fmtDate(c.nextDate)+'</div>'
@@ -1908,7 +1906,12 @@ function openDetail(id){
   b.textContent=c.status||'—';b.style.background=sm.bg;b.style.color=sm.c;b.style.border='1px solid '+sm.b;
   var officeName=(offices.find(function(o){return o.id===(c.officeId||OFFICE_DEFAULT_ID);})||offices[0]).name;
   var rows=[['Office',officeName],['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Judge',c.judge],['Type',c.caseType],['Client',c.client],['Phone',c.clientPhone],['Opposite',c.opposite],['Sections',c.sections],['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],['Total Fee',c.feeTotal?'₹'+c.feeTotal:null],['Amount Paid',c.feeTotal||c.feePaid?'₹'+(c.feePaid||'0'):null],['Remaining Fee',c.feeTotal?'₹'+calcRemainingFee(c.feeTotal,c.feePaid):null],['Added',fmtDate(c.createdAt)],['Last Updated',c.updatedAt?new Date(c.updatedAt).toLocaleString('en-IN'):null]];
-  document.getElementById('d-fields').innerHTML=rows.filter(function(r){return r[1];}).map(function(r){return'<div class="detail-field"><div class="detail-key">'+esc(r[0])+'</div><div class="detail-val" style="font-weight:'+(r[0]==='Next Hearing'?700:400)+'">'+esc(r[1])+'</div></div>';}).join('');
+  var assignHtml='<div class="detail-field"><div class="detail-key">Assigned To</div><div class="detail-val">'
+    +'<select onchange="quickReassignCase(\''+c.id+'\',this.value)" style="font-size:13px;padding:5px 9px;border:1.5px solid #dbeafe;border-radius:6px;font-weight:600;color:#1e3a5f;background:#fff">'
+    +'<option value=""'+(!c.assignedTo?' selected':'')+'>-- Unassigned --</option>'
+    +associates.map(function(a){return '<option value="'+esc(a.name)+'"'+(c.assignedTo===a.name?' selected':'')+'>'+esc(a.name)+(a.role?' ('+esc(a.role)+')':'')+'</option>';}).join('')
+    +'</select></div></div>';
+  document.getElementById('d-fields').innerHTML=assignHtml+rows.filter(function(r){return r[1];}).map(function(r){return'<div class="detail-field"><div class="detail-key">'+esc(r[0])+'</div><div class="detail-val" style="font-weight:'+(r[0]==='Next Hearing'?700:400)+'">'+esc(r[1])+'</div></div>';}).join('');
   var rw=document.getElementById('d-rem-wrap');
   if(c.remarks){rw.style.display='block';document.getElementById('d-rem').innerHTML=previewHtml(c.remarks,240,'Remarks — '+(c.title||c.caseNo||'Case'));}else rw.style.display='none';
   var frw=document.getElementById('d-feerem-wrap');
@@ -3463,23 +3466,38 @@ scheduleAllAlerts = function(){
   <div class="modal wide"><div class="modal-body">
     <div class="page-topbar">
       <div>
-        <div class="page-topbar-title">&#128101; Associates / Team</div>
-        <div class="page-topbar-sub">Manage team members and track case workload</div>
+        <div class="page-topbar-title">Team &amp; Workload</div>
+        <div class="page-topbar-sub">Associates, case assignment and workload tracking</div>
       </div>
     </div>
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:16px">
-      <div style="font-size:12px;font-weight:700;color:#4b6280;margin-bottom:8px">ADD ASSOCIATE</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <input id="assoc-name-inp" placeholder="Full name *" style="flex:1;min-width:150px;padding:7px 10px;border:1.5px solid #dbeafe;border-radius:7px;font-size:13px"/>
-        <input id="assoc-role-inp" placeholder="Role e.g. Junior Advocate" style="width:160px;padding:7px 10px;border:1.5px solid #dbeafe;border-radius:7px;font-size:13px"/>
-        <input id="assoc-phone-inp" placeholder="Phone" style="width:120px;padding:7px 10px;border:1.5px solid #dbeafe;border-radius:7px;font-size:13px"/>
-        <button class="btn btn-blue btn-sm" onclick="addAssociate()">+ Add</button>
+
+    <!-- TEAM LIST -->
+    <div id="assoc-team-view">
+      <div id="assoc-summary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px"></div>
+
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-bottom:20px">
+        <div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Add Associate</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input id="assoc-name-inp" placeholder="Full name *" style="flex:1;min-width:150px;padding:7px 10px;border:1.5px solid #dbeafe;border-radius:7px;font-size:13px"/>
+          <input id="assoc-role-inp" placeholder="Role, e.g. Junior Advocate" style="width:170px;padding:7px 10px;border:1.5px solid #dbeafe;border-radius:7px;font-size:13px"/>
+          <input id="assoc-phone-inp" placeholder="Phone" style="width:120px;padding:7px 10px;border:1.5px solid #dbeafe;border-radius:7px;font-size:13px"/>
+          <button class="btn btn-gold btn-sm" onclick="addAssociate()">+ Add Associate</button>
+        </div>
       </div>
+
+      <div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Team Members</div>
+      <div id="assoc-list"></div>
     </div>
-    <div id="assoc-list" style="margin-bottom:16px"></div>
-    <div id="assoc-workload"></div>
-    <div style="display:flex;justify-content:flex-end;margin-top:14px">
-      <button class="btn btn-ghost" onclick="closeModal('modal-associates')">Close</button>
+
+    <!-- ASSOCIATE DETAIL -->
+    <div id="assoc-detail-view" style="display:none">
+      <button class="btn btn-ghost btn-sm" onclick="showAssocTeam()" style="margin-bottom:16px">← Back to Team</button>
+      <div id="assoc-detail-header"></div>
+      <div id="assoc-detail-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px">Assigned Cases</div>
+      </div>
+      <div id="assoc-detail-cases"></div>
     </div>
   </div></div>
 </div>
@@ -3488,18 +3506,7 @@ scheduleAllAlerts = function(){
 // ASSOCIATES
 var ASSOC_KEY='lx_associates_v1';
 var associates=[];
-var ASSOC_COLORS=[
-  {bg:'#dbeafe',c:'#1e40af',dot:'#3b82f6',name:'Blue'},
-  {bg:'#dcfce7',c:'#166534',dot:'#22c55e',name:'Green'},
-  {bg:'#fce7f3',c:'#9d174d',dot:'#ec4899',name:'Pink'},
-  {bg:'#ffedd5',c:'#9a3412',dot:'#f97316',name:'Orange'},
-  {bg:'#f3e8ff',c:'#6b21a8',dot:'#a855f7',name:'Purple'},
-  {bg:'#fef9c3',c:'#854d0e',dot:'#eab308',name:'Yellow'},
-  {bg:'#ccfbf1',c:'#065f46',dot:'#14b8a6',name:'Teal'},
-  {bg:'#fee2e2',c:'#991b1b',dot:'#ef4444',name:'Red'}
-];
-function getAssocColor(idx){ return ASSOC_COLORS[idx % ASSOC_COLORS.length]; }
-function getAssocColorByName(name){ var a=associates.find(function(x){return x.name===name;}); if(!a) return null; var idx=associates.indexOf(a); return getAssocColor(idx); }
+var assocDetailId=null; // which associate's detail view is currently open, if any
 function loadAssociates(){ try{var s=localStorage.getItem(ASSOC_KEY);if(s)associates=JSON.parse(s);}catch(e){associates=[];} }
 function saveAssociates(){
   try{localStorage.setItem(ASSOC_KEY,JSON.stringify(associates));}catch(e){}
@@ -3519,10 +3526,12 @@ function loadAssociatesFromCloud(user){
         associates = doc.data().associates;
         try{ localStorage.setItem(ASSOC_KEY,JSON.stringify(associates)); }catch(e){}
         populateAssignedTo();
-        // Re-render if modal is open
+        // Re-render whichever associates sub-view is open
         var modal = document.getElementById('modal-associates');
-        if(modal && modal.classList.contains('open')) renderAssociatesModal();
-        // Re-render table to update colour flags
+        if(modal && modal.classList.contains('open')){
+          if(assocDetailId) showAssocDetail(assocDetailId); else renderAssociatesModal();
+        }
+        // Re-render table to update assignment badges
         try{ renderTable(); }catch(e){}
       }
     }, function(e){ console.error('associates snapshot:',e); });
@@ -3542,11 +3551,14 @@ function addAssociate(){
   toast('Associate added.');
 }
 function deleteAssociate(id){
-  if(!confirm('Remove this associate?')) return;
-  associates=associates.filter(function(a){return a.id!==id;});
+  var a=associates.find(function(x){return x.id===id;}); if(!a) return;
+  var count=officeCases().filter(function(c){return c.assignedTo===a.name;}).length;
+  if(!confirm('Remove '+a.name+'? '+(count?count+' case(s) currently assigned to them will become Unassigned.':'They have no assigned cases.'))) return;
+  officeCases().forEach(function(c){ if(c.assignedTo===a.name){ quickReassignCase(c.id,'',true); } });
+  associates=associates.filter(function(x){return x.id!==id;});
   saveAssociates();
   populateAssignedTo();
-  renderAssociatesModal();
+  showAssocTeam();
   toast('Associate removed.','warn');
 }
 function populateAssignedTo(){
@@ -3557,38 +3569,136 @@ function populateAssignedTo(){
   associates.forEach(function(a){ sel.innerHTML+='<option value="'+a.name+'">'+a.name+(a.role?' ('+a.role+')':'')+'</option>'; });
   if(cur) sel.value=cur;
 }
+
+// Reassign a case to a different associate (or unassign) from anywhere in the
+// app — Case Detail's inline selector, or an Associate's own case list.
+function quickReassignCase(caseId, newName, silent){
+  var idx=cases.findIndex(function(x){return x.id===caseId;});
+  if(idx<0) return;
+  cases[idx].assignedTo=newName||'';
+  cases[idx].updatedAt=new Date().toISOString();
+  if(isCloud){ cloudSave(cases[idx]); } else { saveLocal(); renderAll(); }
+  if(!silent) toast(newName?('Reassigned to '+newName+'.'):'Case unassigned.');
+  try{ if(detailId===caseId) openDetail(caseId); }catch(e){}
+  try{ if(assocDetailId) showAssocDetail(assocDetailId); else renderAssociatesModal(); }catch(e){}
+}
+
+var CLOSED_STATUSES=['Decided','Withdrawn','Closed'];
+function assocStatsFor(name){
+  var today=todayStr();
+  var mine=officeCases().filter(function(c){return c.assignedTo===name;});
+  var closed=mine.filter(function(c){return CLOSED_STATUSES.indexOf(c.status)>=0;});
+  var open=mine.filter(function(c){return CLOSED_STATUSES.indexOf(c.status)<0;});
+  var upcoming=open.filter(function(c){return c.nextDate&&c.nextDate>=today;});
+  var overdue=open.filter(function(c){return c.nextDate&&c.nextDate<today;});
+  var pendingReminders=officeAlerts().filter(function(a){ return !a.done && mine.some(function(c){return c.id===a.caseId;}); }).length;
+  return {mine:mine,total:mine.length,upcoming:upcoming.length,overdue:overdue.length,closed:closed.length,pendingReminders:pendingReminders};
+}
+
 function renderAssociatesModal(){
   var list=document.getElementById('assoc-list');
-  var wl=document.getElementById('assoc-workload');
+  var summary=document.getElementById('assoc-summary');
   if(!list) return;
-  if(!associates.length){ list.innerHTML='<div style="text-align:center;padding:20px;color:#7b93ad;font-size:13px">No associates yet. Add team members above.</div>'; wl.innerHTML=''; return; }
-  var counts={},active={};
-  associates.forEach(function(a){counts[a.name]=0;active[a.name]=0;});
   var oc=officeCases();
-  oc.forEach(function(c){ if(c.assignedTo&&counts[c.assignedTo]!==undefined){ counts[c.assignedTo]++; if(c.status==='Active'||c.status==='Adjourned') active[c.assignedTo]++; } });
   var unassigned=oc.filter(function(c){return !c.assignedTo;}).length;
-  var maxC=Math.max(1,Math.max.apply(null,associates.map(function(a){return counts[a.name]||0;})));
-  list.innerHTML=associates.map(function(a,ai){
-    var cnt=counts[a.name]||0,act=active[a.name]||0,pct=Math.round((cnt/Math.max(1,oc.length))*100),bw=Math.round((cnt/maxC)*100);
-    var col=getAssocColor(ai);
-    return '<div style="display:flex;align-items:center;gap:12px;background:'+col.bg+';border:2px solid '+col.dot+';border-radius:10px;padding:12px 14px;margin-bottom:8px;flex-wrap:wrap">'
-      +'<div style="width:40px;height:40px;border-radius:50%;background:'+col.dot+';display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700;flex-shrink:0">'+a.name.charAt(0).toUpperCase()+'</div>'
-      +'<div style="flex:1;min-width:120px"><div style="font-weight:700;font-size:14px;color:#1e3a5f">'+a.name+'</div>'+(a.role?'<div style="font-size:11px;color:#7b93ad">'+a.role+'</div>':'')+(a.phone?'<div style="font-size:11px;color:#7b93ad">'+a.phone+'</div>':'')+'</div>'
-      +'<div style="text-align:center;min-width:55px"><div style="font-size:22px;font-weight:800;color:#1a56db">'+cnt+'</div><div style="font-size:10px;color:#7b93ad">Total</div></div>'
-      +'<div style="text-align:center;min-width:55px"><div style="font-size:22px;font-weight:800;color:#16a34a">'+act+'</div><div style="font-size:10px;color:#7b93ad">Active</div></div>'
-      +'<div style="flex:2;min-width:120px"><div style="display:flex;justify-content:space-between;font-size:11px;color:#7b93ad;margin-bottom:3px"><span>Workload</span><span>'+pct+'%</span></div><div style="height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden"><div style="height:100%;width:'+bw+'%;background:linear-gradient(90deg,#1a56db,#7c3aed);border-radius:4px"></div></div></div>'
+  var totalOverdue=0;
+  associates.forEach(function(a){ totalOverdue+=assocStatsFor(a.name).overdue; });
+
+  if(summary){
+    var cards=[
+      {label:'Team Members',val:associates.length,c:'#1e3a5f',bg:'#f8fafc',b:'#e2e8f0'},
+      {label:'Total Cases',val:oc.length,c:'#1e3a5f',bg:'#f8fafc',b:'#e2e8f0'},
+      {label:'Overdue Across Team',val:totalOverdue,c:totalOverdue?'#dc2626':'#16a34a',bg:totalOverdue?'#fef2f2':'#f0fdf4',b:totalOverdue?'#fecaca':'#bbf7d0'},
+      {label:'Unassigned Cases',val:unassigned,c:unassigned?'#b45309':'#16a34a',bg:unassigned?'#fffbeb':'#f0fdf4',b:unassigned?'#fde68a':'#bbf7d0'}
+    ];
+    summary.innerHTML=cards.map(function(s){return '<div style="background:'+s.bg+';border:1px solid '+s.b+';border-radius:11px;padding:14px 16px">'
+      +'<div style="font-size:22px;font-weight:800;color:'+s.c+'">'+s.val+'</div>'
+      +'<div style="font-size:11.5px;font-weight:700;color:#4b6280">'+s.label+'</div></div>';}).join('');
+  }
+
+  if(!associates.length){ list.innerHTML='<div style="text-align:center;padding:30px;color:#7b93ad;font-size:13px;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:10px">No associates yet. Add team members above to start assigning cases.</div>'; return; }
+
+  list.innerHTML=associates.map(function(a){
+    var s=assocStatsFor(a.name);
+    var bw=Math.round((s.total/Math.max(1,oc.length))*100);
+    return '<div style="display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #e2e8f0;border-left:3px solid var(--navy);border-radius:9px;padding:13px 16px;margin-bottom:9px;flex-wrap:wrap">'
+      +'<div style="width:38px;height:38px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:700;flex-shrink:0">'+esc(a.name.charAt(0).toUpperCase())+'</div>'
+      +'<div style="flex:1;min-width:140px;cursor:pointer" onclick="showAssocDetail(\''+a.id+'\')"><div style="font-weight:700;font-size:14px;color:#1e3a5f">'+esc(a.name)+'</div>'+(a.role?'<div style="font-size:11.5px;color:#7b93ad">'+esc(a.role)+(a.phone?' · '+esc(a.phone):'')+'</div>':(a.phone?'<div style="font-size:11.5px;color:#7b93ad">'+esc(a.phone)+'</div>':''))+'</div>'
+      +'<div style="text-align:center;min-width:50px"><div style="font-size:19px;font-weight:800;color:#1e3a5f">'+s.total+'</div><div style="font-size:9.5px;color:#7b93ad;text-transform:uppercase">Total</div></div>'
+      +'<div style="text-align:center;min-width:50px"><div style="font-size:19px;font-weight:800;color:#1a56db">'+s.upcoming+'</div><div style="font-size:9.5px;color:#7b93ad;text-transform:uppercase">Upcoming</div></div>'
+      +'<div style="text-align:center;min-width:50px"><div style="font-size:19px;font-weight:800;color:'+(s.overdue?'#dc2626':'#94a3b8')+'">'+s.overdue+'</div><div style="font-size:9.5px;color:#7b93ad;text-transform:uppercase">Overdue</div></div>'
+      +'<div style="text-align:center;min-width:50px"><div style="font-size:19px;font-weight:800;color:#64748b">'+s.closed+'</div><div style="font-size:9.5px;color:#7b93ad;text-transform:uppercase">Closed</div></div>'
+      +'<div style="flex:1.4;min-width:110px"><div style="height:7px;background:#e2e8f0;border-radius:4px;overflow:hidden"><div style="height:100%;width:'+bw+'%;background:var(--gold)"></div></div></div>'
       +'<div style="display:flex;gap:6px;flex-shrink:0">'
-        +'<button class="btn btn-sm" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1a56db" onclick="filterByAssociate(this.dataset.n)" data-n="'+a.name+'">View Cases</button>'
-        +'<button class="btn btn-sm" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626" onclick="deleteAssociate(this.dataset.i)" data-i="'+a.id+'">Remove</button>'
+        +'<button class="btn btn-sm" style="background:#f8fafc;border:1px solid #e2e8f0;color:#1e3a5f" onclick="showAssocDetail(\''+a.id+'\')">View</button>'
+        +'<button class="btn btn-sm" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626" onclick="deleteAssociate(\''+a.id+'\')">Remove</button>'
       +'</div></div>';
   }).join('');
-  wl.innerHTML='<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px">'
-    +'<div style="font-size:12px;font-weight:700;color:#1a56db;margin-bottom:10px">WORKLOAD SUMMARY</div>'
-    +'<div style="display:flex;flex-wrap:wrap;gap:8px">'
-    +associates.map(function(a,ai){ var cnt=counts[a.name]||0,act=active[a.name]||0,col=getAssocColor(ai); return '<div style="background:#fff;border:2px solid '+col.dot+';border-radius:8px;padding:8px 14px;text-align:center;min-width:90px"><div style="display:flex;align-items:center;justify-content:center;gap:5px;font-weight:700;font-size:13px;color:'+col.c+'"><span style="width:8px;height:8px;border-radius:50%;background:'+col.dot+';display:inline-block"></span>'+a.name.split(' ').pop()+'</div><div style="font-size:22px;font-weight:800;color:'+col.dot+'">'+cnt+'</div><div style="font-size:10px;color:#16a34a">'+act+' active</div></div>'; }).join('')
-    +'<div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:8px 14px;text-align:center;min-width:90px"><div style="font-weight:700;font-size:13px;color:#92400e">Unassigned</div><div style="font-size:22px;font-weight:800;color:#d97706">'+unassigned+'</div><div style="font-size:10px;color:#7b93ad">cases</div></div>'
-    +'</div></div>';
 }
+
+function showAssocTeam(){
+  assocDetailId=null;
+  document.getElementById('assoc-team-view').style.display='block';
+  document.getElementById('assoc-detail-view').style.display='none';
+  renderAssociatesModal();
+}
+
+function showAssocDetail(id){
+  var a=associates.find(function(x){return x.id===id;});
+  if(!a) return;
+  assocDetailId=id;
+  document.getElementById('assoc-team-view').style.display='none';
+  document.getElementById('assoc-detail-view').style.display='block';
+
+  var s=assocStatsFor(a.name);
+  document.getElementById('assoc-detail-header').innerHTML=
+    '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">'
+    +'<div style="width:52px;height:52px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:700;flex-shrink:0">'+esc(a.name.charAt(0).toUpperCase())+'</div>'
+    +'<div style="flex:1;min-width:180px"><div style="font-size:19px;font-weight:800;color:#1e3a5f">'+esc(a.name)+'</div>'
+      +'<div style="font-size:12.5px;color:#7b93ad">'+(a.role?esc(a.role):'Associate')+(a.phone?' · '+esc(a.phone):'')+(s.pendingReminders?' · '+s.pendingReminders+' pending reminder'+(s.pendingReminders!==1?'s':''):'')+'</div></div>'
+    +'<button class="btn btn-sm" style="background:#f8fafc;border:1px solid #e2e8f0;color:#1e3a5f" onclick="filterByAssociate(\''+esc(a.name).replace(/'/g,"\\'")+'\')">🔍 View in Case List</button>'
+    +'<button class="btn btn-sm" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626" onclick="deleteAssociate(\''+a.id+'\')">Remove</button>'
+    +'</div>';
+
+  var statsEl=document.getElementById('assoc-detail-stats');
+  var cards=[
+    {label:'Total Cases',val:s.total,c:'#1e3a5f',bg:'#f8fafc',b:'#e2e8f0'},
+    {label:'Upcoming Hearings',val:s.upcoming,c:'#1a56db',bg:'#eff6ff',b:'#bfdbfe'},
+    {label:'Overdue Matters',val:s.overdue,c:s.overdue?'#dc2626':'#16a34a',bg:s.overdue?'#fef2f2':'#f0fdf4',b:s.overdue?'#fecaca':'#bbf7d0'},
+    {label:'Closed Matters',val:s.closed,c:'#64748b',bg:'#f8fafc',b:'#e2e8f0'}
+  ];
+  statsEl.innerHTML=cards.map(function(c){return '<div style="background:'+c.bg+';border:1px solid '+c.b+';border-radius:11px;padding:14px 16px">'
+    +'<div style="font-size:24px;font-weight:800;color:'+c.c+'">'+c.val+'</div>'
+    +'<div style="font-size:11.5px;font-weight:700;color:#4b6280">'+c.label+'</div></div>';}).join('');
+
+  var casesEl=document.getElementById('assoc-detail-cases');
+  if(!s.mine.length){
+    casesEl.innerHTML='<div style="text-align:center;padding:26px;color:#7b93ad;font-size:13px;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:10px">No cases assigned yet.</div>';
+    return;
+  }
+  var today=todayStr();
+  var sorted=s.mine.slice().sort(function(x,y){
+    var xo=x.nextDate&&x.nextDate<today&&CLOSED_STATUSES.indexOf(x.status)<0;
+    var yo=y.nextDate&&y.nextDate<today&&CLOSED_STATUSES.indexOf(y.status)<0;
+    if(xo!==yo) return xo?-1:1;
+    return (x.nextDate||'9999').localeCompare(y.nextDate||'9999');
+  });
+  casesEl.innerHTML=sorted.map(function(c){
+    var isOverdue=c.nextDate&&c.nextDate<today&&CLOSED_STATUSES.indexOf(c.status)<0;
+    var sm=SM[c.status]||SM.Closed;
+    var reassignOpts='<option value="">-- Unassign --</option>'+associates.filter(function(x){return x.name!==c.assignedTo;}).map(function(x){return '<option value="'+esc(x.name)+'">'+esc(x.name)+'</option>';}).join('');
+    return '<div style="display:flex;align-items:center;gap:12px;background:'+(isOverdue?'#fef2f2':'#fff')+';border:1px solid '+(isOverdue?'#fecaca':'#e2e8f0')+';border-radius:9px;padding:11px 14px;margin-bottom:8px;flex-wrap:wrap">'
+      +'<div style="flex:1;min-width:160px;cursor:pointer" onclick="closeModal(\'modal-associates\');openDetail(\''+c.id+'\')">'
+        +'<div style="font-weight:700;font-size:13.5px;color:#1e3a5f">'+esc(c.title||c.caseNo||'—')+'</div>'
+        +'<div style="font-size:11.5px;color:#7b93ad">'+esc(c.caseNo||'')+(c.court?' · '+esc(c.court):'')+'</div>'
+      +'</div>'
+      +'<span class="badge" style="background:'+sm.bg+';color:'+sm.c+';border:1px solid '+sm.b+'">'+esc(c.status||'—')+'</span>'
+      +'<div style="min-width:90px;text-align:center"><div style="font-size:12px;font-weight:700;color:'+(isOverdue?'#dc2626':'#4b6280')+'">'+fmtDate(c.nextDate)+'</div>'+(isOverdue?'<div style="font-size:9.5px;color:#dc2626;font-weight:700">OVERDUE</div>':'')+'</div>'
+      +'<select onchange="quickReassignCase(\''+c.id+'\',this.value)" style="font-size:12px;padding:5px 8px;border:1.5px solid #dbeafe;border-radius:6px;font-weight:600;color:#1e3a5f;background:#fff" title="Reassign this case">'+reassignOpts+'</select>'
+      +'</div>';
+  }).join('');
+}
+
 function filterByAssociate(name){
   closeModal('modal-associates');
   document.getElementById('search-input').value=name;
@@ -3598,7 +3708,7 @@ function filterByAssociate(name){
   toast('Showing cases assigned to '+name);
 }
 var _origOpenModal2=openModal;
-openModal=function(id){ _origOpenModal2(id); if(id==='modal-associates')renderAssociatesModal(); if(id==='modal-case')populateAssignedTo(); };
+openModal=function(id){ _origOpenModal2(id); if(id==='modal-associates')showAssocTeam(); if(id==='modal-case')populateAssignedTo(); };
 loadAssociates();
 </script>
 
