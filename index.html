@@ -681,7 +681,7 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
     <button class="sidebar-link" id="nav-associates" onclick="closeAllPages();openModal('modal-associates');setNavActive('nav-associates')"><span class="ic">👥</span><span class="lbl">Associates</span></button>
     <button class="sidebar-link" id="nav-importexport" onclick="closeAllPages();openModal('modal-import');setNavActive('nav-importexport')"><span class="ic">⇅</span><span class="lbl">Import / Export</span></button>
     <div class="sidebar-section-lbl">Account</div>
-    <button class="sidebar-link" id="nav-account" onclick="closeAllPages();openModal('modal-account');setNavActive('nav-account')"><span class="ic">👤</span><span class="lbl">Account</span></button>
+    <button class="sidebar-link" id="nav-account" onclick="closeAllPages();openModal('modal-account');populateProfileForm();setNavActive('nav-account')"><span class="ic">👤</span><span class="lbl">Account</span></button>
   </div>
   <div class="sidebar-spacer"></div>
   <div class="sidebar-foot">
@@ -876,6 +876,15 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
         <select id="f-assignedTo">
           <option value="">-- Unassigned --</option>
         </select>
+      </div>
+      <div><label>Appearing For <span style="font-weight:400;color:#94a3b8">(optional)</span></label>
+        <input id="f-appearingFor" list="appearing-for-opts" placeholder="Leave blank to omit from Cause List"/>
+        <datalist id="appearing-for-opts">
+          <option value="Petitioner"></option><option value="Respondent"></option>
+          <option value="Plaintiff"></option><option value="Defendant"></option>
+          <option value="Complainant"></option><option value="Accused"></option>
+          <option value="Applicant"></option><option value="Appellant"></option>
+        </datalist>
       </div>
       <div class="span2"><label>Remarks / Notes (for reminders)</label><textarea id="f-remarks" rows="2" placeholder="Notes, follow-up tasks, instructions..."></textarea></div>
       <div class="span2" style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin-top:6px;border-top:1px solid #e2e8f0;padding-top:14px">Fee Tracking</div>
@@ -1104,6 +1113,18 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
   <div class="modal"><div class="modal-body">
     <div class="page-topbar"><div class="page-topbar-title">👤 Account &amp; Cloud Sync</div></div>
     <div id="acct-info" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:14px;margin-bottom:14px"></div>
+
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:14px 16px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">My Advocate Profile</div>
+      <div style="font-size:12px;color:#7b93ad;margin-bottom:12px">Used on the Cause List printout. Private to your account only — every new sign-in starts with these blank until filled in here.</div>
+      <div class="form-grid" style="margin-bottom:10px">
+        <div><label>Bar / License Number</label><input id="prof-barno" placeholder="e.g. PH/1234/2020"/></div>
+        <div><label>Chamber Number / Address</label><input id="prof-chamber" placeholder="e.g. Chamber No. 12, District Court Complex"/></div>
+        <div class="span2"><label>Court Location (for Cause List header)</label><input id="prof-courtloc" placeholder="e.g. In the Court at [City], District [X], [State]"/></div>
+      </div>
+      <button class="btn btn-gold btn-sm" onclick="saveUserProfile()">Save Profile</button>
+    </div>
+
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px 14px;font-size:13px;color:#4b6280;line-height:1.6;margin-bottom:14px">
       ☁ Cases are stored in <strong>Firebase Firestore</strong> and sync across all devices instantly. Open this app on any phone, laptop or iPad and sign in with the same Google account to access all cases.
     </div>
@@ -1139,6 +1160,7 @@ var ALT_KEY = 'lx_alerts_v1';
 var OFFICE_KEY = 'lx_offices_v1';
 var CUR_OFFICE_KEY = 'lx_current_office_v1';
 var OFFICE_DEFAULT_ID = 'office-default';
+var PROFILE_KEY = 'lx_profile_v1';
 
 var fbConfig = HARDCODED_FB_CONFIG;
 var db = null, auth = null;
@@ -1254,6 +1276,48 @@ function renderOfficesModal(){
   }).join('');
 }
 
+// ════════════════════════════════════════════════════════════
+// ADVOCATE PROFILE — license/bar number, chamber, and court-location
+// text shown on the Cause List. This is per-signed-in-user data,
+// never hardcoded and never defaulted to anyone else's details.
+// A brand-new user, or anyone else who ever opens this app, starts
+// with every field completely blank until THEY fill it in themselves
+// under Account → My Advocate Profile.
+// ════════════════════════════════════════════════════════════
+var userProfile = {barNo:'', chamber:'', courtLocation:''};
+function loadUserProfile(){
+  userProfile = {barNo:'', chamber:'', courtLocation:''}; // always start blank, never inherit anything
+  try{ var s=localStorage.getItem(PROFILE_KEY); if(s){ var p=JSON.parse(s); userProfile.barNo=p.barNo||''; userProfile.chamber=p.chamber||''; userProfile.courtLocation=p.courtLocation||''; } }catch(e){}
+}
+function populateProfileForm(){
+  var b=document.getElementById('prof-barno'); if(b) b.value=userProfile.barNo||'';
+  var c=document.getElementById('prof-chamber'); if(c) c.value=userProfile.chamber||'';
+  var l=document.getElementById('prof-courtloc'); if(l) l.value=userProfile.courtLocation||'';
+}
+function saveUserProfile(){
+  userProfile.barNo=(document.getElementById('prof-barno')||{value:''}).value.trim();
+  userProfile.chamber=(document.getElementById('prof-chamber')||{value:''}).value.trim();
+  userProfile.courtLocation=(document.getElementById('prof-courtloc')||{value:''}).value.trim();
+  try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(userProfile)); }catch(e){}
+  if(isCloud && db && currentUser){
+    db.collection('users').doc(currentUser.uid).set({profile:userProfile},{merge:true})
+      .catch(function(e){ console.error('profile save:',e); });
+  }
+  toast('Advocate profile saved.');
+}
+// Real-time listener — this user's own profile only, keyed to their own uid
+function loadUserProfileFromCloud(user){
+  if(!db||!user) return;
+  db.collection('users').doc(user.uid).onSnapshot(function(doc){
+    if(doc.exists && doc.data().profile){
+      var p=doc.data().profile;
+      userProfile={barNo:p.barNo||'',chamber:p.chamber||'',courtLocation:p.courtLocation||''};
+      try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(userProfile)); }catch(e){}
+      populateProfileForm();
+    }
+  }, function(e){ console.error('profile snapshot:',e); });
+}
+
 var SM = {
   Active:   {c:'#16a34a',bg:'#f0fdf4',b:'#bbf7d0'},
   Adjourned:{c:'#d97706',bg:'#fffbeb',b:'#fde68a'},
@@ -1268,6 +1332,7 @@ window.onload = function(){
   try { document.getElementById('list-date').value = todayStr(); } catch(e){}
   loadOffices();
   try{ renderOfficeSwitcher(); }catch(e){}
+  loadUserProfile();
   try{ var a=localStorage.getItem(ALT_KEY); if(a) alerts=JSON.parse(a); }catch(e){}
   // Init Firebase immediately (SDKs loaded via <script> tags in <head>)
   // This ensures onAuthStateChanged fires on page load (restores session after redirect)
@@ -1411,6 +1476,11 @@ function doSignOut(){
   if(unsub){ unsub(); unsub=null; }
   currentUser=null; isCloud=false; cases=[];
   window._gcalToken=null;
+  // Never let one signed-in user's private advocate profile (bar number,
+  // chamber, court location) linger for the next person who opens this
+  // app on the same device/browser.
+  userProfile={barNo:'',chamber:'',courtLocation:''};
+  try{ localStorage.removeItem(PROFILE_KEY); }catch(e){}
   closeModal('modal-account');
   document.getElementById('main-header').style.display='none';
   document.getElementById('main-body').style.display='none';
@@ -1475,10 +1545,11 @@ function startSync(user){
       try{ var s=localStorage.getItem(LOC_KEY); if(s) cases=JSON.parse(s); renderAll(); }catch(e){}
     });
 
-  // Also sync reminders, associates, and offices
+  // Also sync reminders, associates, offices, and the advocate profile
   startRemindersSync(user);
   loadAssociatesFromCloud(user);
   loadOfficesFromCloud(user);
+  loadUserProfileFromCloud(user);
 }
 
 function setSyncPill(online){
@@ -1739,7 +1810,7 @@ function renderTable(){
 // ════════════════════════════════════════════════════════════
 // CASE CRUD
 // ════════════════════════════════════════════════════════════
-var FLDS=['title','caseNo','cnr','client','clientPhone','opposite','court','judge','caseType','status','assignedTo','nextDate','stage','sections','remarks','feeTotal','feePaid','feeRemarks'];
+var FLDS=['title','caseNo','cnr','client','clientPhone','opposite','court','judge','caseType','status','assignedTo','nextDate','stage','sections','remarks','appearingFor','feeTotal','feePaid','feeRemarks'];
 
 // ════════ JUDGES DIRECTORY — District Patiala (as of Jun 2026) ════════
 var JUDGES_BY_COURT = {
@@ -2042,7 +2113,7 @@ function openDetail(id){
   var b=document.getElementById('d-badge');
   b.textContent=c.status||'—';b.style.background=sm.bg;b.style.color=sm.c;b.style.border='1px solid '+sm.b;
   var officeName=(offices.find(function(o){return o.id===(c.officeId||OFFICE_DEFAULT_ID);})||offices[0]).name;
-  var rows=[['Office',officeName],['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Judge',c.judge],['Type',c.caseType],['Client',c.client],['Phone',c.clientPhone],['Opposite',c.opposite],['Sections',c.sections],['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],['Total Fee',c.feeTotal?'₹'+c.feeTotal:null],['Amount Paid',c.feeTotal||c.feePaid?'₹'+(c.feePaid||'0'):null],['Remaining Fee',c.feeTotal?'₹'+calcRemainingFee(c.feeTotal,c.feePaid):null],['Added',fmtDate(c.createdAt)],['Last Updated',c.updatedAt?new Date(c.updatedAt).toLocaleString('en-IN'):null]];
+  var rows=[['Office',officeName],['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Judge',c.judge],['Type',c.caseType],['Client',c.client],['Phone',c.clientPhone],['Opposite',c.opposite],['Appearing For',c.appearingFor],['Sections',c.sections],['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],['Total Fee',c.feeTotal?'₹'+c.feeTotal:null],['Amount Paid',c.feeTotal||c.feePaid?'₹'+(c.feePaid||'0'):null],['Remaining Fee',c.feeTotal?'₹'+calcRemainingFee(c.feeTotal,c.feePaid):null],['Added',fmtDate(c.createdAt)],['Last Updated',c.updatedAt?new Date(c.updatedAt).toLocaleString('en-IN'):null]];
   var atInit=assocTone(c.assignedTo);
   var assignHtml='<div class="detail-field"><div class="detail-key">Assigned To</div><div class="detail-val" style="display:flex;align-items:center;gap:8px">'
     +'<span id="d-assoc-dot" style="width:20px;height:20px;border-radius:50%;background:'+atInit.c+';color:#fff;font-size:9px;font-weight:800;display:'+(c.assignedTo?'inline-flex':'none')+';align-items:center;justify-content:center;flex-shrink:0">'+esc(assocInitials(c.assignedTo))+'</span>'
@@ -2688,7 +2759,7 @@ function generateList(){
 function buildPDF(dv,list){
   document.getElementById('pdf-lbl').textContent='Cause List — '+fmtDate(dv);
   document.getElementById('pdf-cnt').textContent=list.length+' case'+(list.length!==1?'s':'')+' on this date';
-  var advName=(currentUser&&currentUser.displayName)?currentUser.displayName:'Legaldrafts';
+  var advName=(currentUser&&currentUser.displayName)?currentUser.displayName:'';
 
   // ── Court normalisation ──────────────────────────────────────────────────────
   // JMFC = Civil Judge (Jr. Div.) same judge, criminal capacity
@@ -2743,8 +2814,11 @@ function buildPDF(dv,list){
       var rows='';
       entry.cases.forEach(function(c){
         sno++;
+        // "Appearing For" only ever shows if the advocate explicitly set it
+        // on that case — nothing is assumed or auto-filled by default.
+        var apFor=c.appearingFor?' <span style="font-weight:normal;font-style:italic;opacity:.8">(For: '+esc(c.appearingFor)+')</span>':'';
         rows+='<tr><td>'+sno+'.</td>'
-          +'<td><div class="p-title-cell">'+esc(c.title||'—')+'</div>'+(c.client?'<div class="p-client-cell">('+esc(c.client)+')</div>':'')+'</td>'
+          +'<td><div class="p-title-cell">'+esc(c.title||'—')+apFor+'</div>'+(c.client?'<div class="p-client-cell">('+esc(c.client)+')</div>':'')+'</td>'
           +'<td class="p-stage-cell">'+esc(c.stage||'—')+'</td>'
           +'<td class="p-date-cell">&nbsp;</td></tr>';
       });
@@ -2772,17 +2846,27 @@ function buildPDF(dv,list){
       +judgeOrder.map(function(jk){var e=judgeMap[jk];return esc(e.display||e.courts[0]||jk)+' ('+e.cases.length+')';}).join(' &bull; ')+'</div>';
   }
 
+  // Advocate line: license and chamber only appear if THIS signed-in user
+  // has filled them in under Account → My Advocate Profile. Nothing is
+  // ever hardcoded or borrowed from another account.
+  var advBits=[];
+  if(advName) advBits.push('Advocate: '+esc(advName));
+  if(userProfile.barNo) advBits.push(esc(userProfile.barNo));
+  if(userProfile.chamber) advBits.push(esc(userProfile.chamber));
+  var advLine=advBits.length?'<div class="ph-adv">'+advBits.join(' | ')+'</div>':'';
+  var courtLocLine=userProfile.courtLocation?'<div class="ph-court">'+esc(userProfile.courtLocation)+'</div>':'';
+
   var html=''
     +'<div class="ph">'
-    +'<div class="ph-court">In the Court at Rajpura, District Patiala, Punjab</div>'
+    +courtLocLine
     +'<h1>Daily Cause List</h1>'
     +'<div class="ph-date">Date: <strong>'+fmtDate(dv)+'</strong></div>'
-    +'<div class="ph-adv">Advocate: '+esc(advName)+' (PH/3112/2020) | Chamber No. 103, Civil Court Complex, Rajpura</div>'
+    +advLine
     +'</div>'
     +summaryLine+courtSections
     +'<div class="p-footer">'
     +'<div>Total Cases: <strong>'+list.length+'</strong><br><span style="font-size:8.5pt;color:#666">Generated: '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})+'</span></div>'
-    +'<div class="p-sig"><div class="p-sig-line">'+esc(advName)+'</div><div style="font-size:8.5pt;color:#666">Advocate, Rajpura</div></div>'
+    +'<div class="p-sig"><div class="p-sig-line">'+esc(advName||'\u00A0')+'</div><div style="font-size:8.5pt;color:#666">Advocate</div></div>'
     +'</div>';
 
   document.getElementById('print-area').innerHTML=html;
@@ -3966,7 +4050,7 @@ function filterByAssociate(name){
   toast('Showing cases assigned to '+name);
 }
 var _origOpenModal2=openModal;
-openModal=function(id){ _origOpenModal2(id); if(id==='modal-associates')showAssocTeam(); if(id==='modal-case')populateAssignedTo(); };
+openModal=function(id){ _origOpenModal2(id); if(id==='modal-associates')showAssocTeam(); if(id==='modal-case')populateAssignedTo(); if(id==='modal-account')populateProfileForm(); };
 loadAssociates();
 </script>
 
