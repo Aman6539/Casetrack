@@ -812,7 +812,7 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
     <div class="form-grid">
       <div><label>Office</label><select id="f-officeId" onchange="void(0)"></select></div>
       <div><label>Case Number</label><input id="f-caseNo" placeholder="e.g. CS-254-2022"/></div>
-      <div class="span2"><label>Case Title / Parties *</label><input id="f-title" placeholder="e.g. Suresh Kumar vs. Tarsem Singh & Others"/></div>
+      <div class="span2"><label>Case Title / Parties *</label><input id="f-title" placeholder="e.g. Suresh Kumar vs. Tarsem Singh & Others" oninput="updateQuickPickParties()"/></div>
       <div><label>CNR Number (eCourts)</label><input id="f-cnr" placeholder="e.g. PBPTA010012022"/></div>
       <div><label>Court</label>
         <select id="f-court" onchange="updateJudgeList()">
@@ -863,9 +863,13 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
           <option>Revision</option><option>Bail Application</option><option>Other</option>
         </select>
       </div>
-      <div><label>Client Name</label><input id="f-client" placeholder="Client / Complainant"/></div>
+      <div><label>Represented Party Name <span style="font-weight:400;color:#94a3b8">(your client — never assumed)</span></label><input id="f-client" placeholder="Type the exact name of the party you represent"/></div>
       <div><label>Client Phone</label><input id="f-clientPhone" placeholder="Mobile"/></div>
-      <div><label>Opposite Party</label><input id="f-opposite" placeholder="Accused / Defendant"/></div>
+      <div><label>Opposite Party</label><input id="f-opposite" placeholder="The other side"/></div>
+      <div class="span2" id="quick-pick-parties" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin-top:-6px">
+        <div style="font-size:11.5px;color:#92400e;font-weight:600;margin-bottom:6px">Which party do you represent? (parsed from the title above — pick one, or ignore and type your own above)</div>
+        <div id="quick-pick-btns" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      </div>
       <div><label>Sections / Acts</label><input id="f-sections" placeholder="e.g. Sec 138 NI Act"/></div>
       <div><label>Next Hearing Date</label><input type="date" id="f-nextDate"/></div>
       <div><label>Stage / Purpose</label><input id="f-stage" placeholder="e.g. Arguments, Evidence"/></div>
@@ -912,6 +916,7 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
         <span id="d-fee-badge" class="badge" style="margin-top:6px;margin-left:6px;display:none"></span>
       </div>
     </div>
+    <div id="d-rep-banner" style="display:none;align-items:center;gap:12px;flex-wrap:wrap;background:#fffbeb;border:2px solid #fde68a;border-radius:10px;padding:12px 16px;margin-bottom:16px"></div>
     <div class="detail-grid" id="d-fields"></div>
     <div id="d-rem-wrap" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 13px;margin-bottom:13px">
       <div style="font-size:11px;color:#7b93ad;text-transform:uppercase;font-weight:600;margin-bottom:4px">Remarks</div>
@@ -1470,6 +1475,8 @@ function useOffline(){
   isCloud=false;
   try{ var s=localStorage.getItem(LOC_KEY); if(s) cases=JSON.parse(s); }catch(e){ cases=[]; }
   showApp(null);
+  migrateAppearingForDefaults();
+  migrateRepresentationConfirmed();
 }
 function doSignOut(){
   if(auth) auth.signOut();
@@ -1481,6 +1488,8 @@ function doSignOut(){
   // app on the same device/browser.
   userProfile={barNo:'',chamber:'',courtLocation:''};
   try{ localStorage.removeItem(PROFILE_KEY); }catch(e){}
+  _appearingForMigrated=false;
+  _repMigrated=false;
   closeModal('modal-account');
   document.getElementById('main-header').style.display='none';
   document.getElementById('main-body').style.display='none';
@@ -1519,6 +1528,58 @@ function showApp(user){
 }
 
 // ════════ REAL-TIME FIRESTORE SYNC ════════
+// ════════════════════════════════════════════════════════════
+// ONE-TIME DATA FIX — clears any case where "Appearing For" was
+// left over as an auto-assigned "Plaintiff" or "Complainant" from
+// before this field was made a genuinely optional, blank-by-default
+// field. Runs once per load; harmless (no-op) once data is clean.
+// ════════════════════════════════════════════════════════════
+var _appearingForMigrated=false;
+function migrateAppearingForDefaults(){
+  if(_appearingForMigrated) return;
+  _appearingForMigrated=true;
+  var WRONG_DEFAULTS=['Plaintiff','Complainant'];
+  var fixed=0;
+  cases.forEach(function(c){
+    if(c.appearingFor && WRONG_DEFAULTS.indexOf(c.appearingFor)>=0){
+      c.appearingFor='';
+      c.updatedAt=new Date().toISOString();
+      fixed++;
+      if(isCloud) cloudSave(c);
+    }
+  });
+  if(fixed>0){
+    if(!isCloud) saveLocal();
+    renderAll();
+    toast('🧹 Cleared the auto-filled representation side on '+fixed+' case'+(fixed!==1?'s':'')+' — "Appearing For" is now blank until you set it yourself.','warn');
+  }
+}
+
+// Flags — never silently rewrites — cases that match the exact pattern of
+// the old import bug (client auto-set to whichever party eCourts listed
+// first). Nothing is cleared automatically: the advocate confirms or
+// corrects each flagged case from Case Detail, since we can't safely
+// tell which historical cases were bugged versus genuinely correct.
+var _repMigrated=false;
+function migrateRepresentationConfirmed(){
+  if(_repMigrated) return;
+  _repMigrated=true;
+  var flagged=0;
+  cases.forEach(function(c){
+    if(c.representationConfirmed===undefined){
+      var parts=splitTitleParties(c.title);
+      var looksAutoAssigned = !!(c.cnr && parts && c.client && normKey(c.client)===normKey(parts.a));
+      c.representationConfirmed = !looksAutoAssigned;
+      if(looksAutoAssigned){ flagged++; if(isCloud) cloudSave(c); }
+    }
+  });
+  if(flagged>0){
+    if(!isCloud) saveLocal();
+    renderAll();
+    toast('⚠ '+flagged+' imported case'+(flagged!==1?'s':'')+' may have the wrong represented party — look for "Confirm representation" in Case Detail.','warn');
+  }
+}
+
 function startSync(user){
   if(!db||!user) return;
   if(unsub){ unsub(); }
@@ -1537,6 +1598,8 @@ function startSync(user){
       cases=[];
       snap.forEach(function(doc){ cases.push(Object.assign({},doc.data(),{id:doc.id})); });
       renderAll();
+      migrateAppearingForDefaults();
+      migrateRepresentationConfirmed();
       document.getElementById('cloud-lbl').className='';
       document.getElementById('cloud-lbl').textContent='☁';
     }, function(err){
@@ -1941,6 +2004,38 @@ function computeFeeStatus(totalStr,paidStr){
   if(paid>=total) return 'Paid';
   return 'Partly Paid';
 }
+// ════════════════════════════════════════════════════════════
+// REPRESENTED PARTY — never inferred automatically. The advocate
+// must either type the represented party's name directly, or
+// explicitly click one of the two names parsed from the case
+// title. Clicking "vs." and assuming the first name is never done.
+// ════════════════════════════════════════════════════════════
+function splitTitleParties(title){
+  if(!title) return null;
+  var m=title.match(/^(.*?)\s+(?:vs?\.?|versus)\s+(.*)$/i);
+  if(!m) return null;
+  var a=m[1].trim(), b=m[2].trim();
+  if(!a||!b) return null;
+  return {a:a,b:b};
+}
+function updateQuickPickParties(){
+  var titleEl=document.getElementById('f-title');
+  var wrap=document.getElementById('quick-pick-parties');
+  var btns=document.getElementById('quick-pick-btns');
+  if(!titleEl||!wrap||!btns) return;
+  var parts=splitTitleParties(titleEl.value);
+  if(!parts){ wrap.style.display='none'; btns.innerHTML=''; return; }
+  wrap.style.display='block';
+  btns.innerHTML=''
+    +'<button type="button" class="btn btn-sm" style="background:#fff;border:1.5px solid #d97706;color:#92400e;font-weight:700" onclick="pickRepresentedParty('+JSON.stringify(parts.a)+','+JSON.stringify(parts.b)+')">I represent: '+esc(parts.a)+'</button>'
+    +'<button type="button" class="btn btn-sm" style="background:#fff;border:1.5px solid #d97706;color:#92400e;font-weight:700" onclick="pickRepresentedParty('+JSON.stringify(parts.b)+','+JSON.stringify(parts.a)+')">I represent: '+esc(parts.b)+'</button>';
+}
+function pickRepresentedParty(mine, other){
+  document.getElementById('f-client').value=mine;
+  document.getElementById('f-opposite').value=other;
+  toast('Set "'+mine+'" as the represented party.');
+}
+
 function calcFeeRemaining(){
   var t=document.getElementById('f-feeTotal'), p=document.getElementById('f-feePaid');
   var total=t?t.value:'', paid=p?p.value:'';
@@ -2078,8 +2173,8 @@ function renderFeesPage(){
   }).join('');
 }
 
-function openAddCase(){ editingId=null; document.getElementById('case-title-lbl').textContent='Add New Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=f==='status'?'Active':'';}); populateOfficeSelect(); var of=document.getElementById('f-officeId'); if(of) of.value=currentOfficeId; calcFeeRemaining(); openModal('modal-case'); }
-function openEdit(id){ var c=cases.find(function(x){return x.id===id;}); if(!c)return; editingId=id; document.getElementById('case-title-lbl').textContent='Edit Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=c[f]||'';}); updateJudgeList(); document.getElementById('f-judge').value=c.judge||''; populateOfficeSelect(); var of=document.getElementById('f-officeId'); if(of) of.value=c.officeId||OFFICE_DEFAULT_ID; calcFeeRemaining(); openModal('modal-case'); }
+function openAddCase(){ editingId=null; document.getElementById('case-title-lbl').textContent='Add New Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=f==='status'?'Active':'';}); populateOfficeSelect(); var of=document.getElementById('f-officeId'); if(of) of.value=currentOfficeId; calcFeeRemaining(); updateQuickPickParties(); openModal('modal-case'); }
+function openEdit(id){ var c=cases.find(function(x){return x.id===id;}); if(!c)return; editingId=id; document.getElementById('case-title-lbl').textContent='Edit Case'; FLDS.forEach(function(f){var el=document.getElementById('f-'+f);if(el)el.value=c[f]||'';}); updateJudgeList(); document.getElementById('f-judge').value=c.judge||''; populateOfficeSelect(); var of=document.getElementById('f-officeId'); if(of) of.value=c.officeId||OFFICE_DEFAULT_ID; calcFeeRemaining(); updateQuickPickParties(); openModal('modal-case'); }
 function populateOfficeSelect(){
   var sel=document.getElementById('f-officeId'); if(!sel) return;
   sel.innerHTML=offices.map(function(o){return '<option value="'+o.id+'">'+esc(o.name)+'</option>';}).join('');
@@ -2093,6 +2188,10 @@ function saveCase(){
   FLDS.forEach(function(f){var el=document.getElementById('f-'+f);data[f]=el?el.value.trim():'';});
   data.feeRemaining=calcRemainingFee(data.feeTotal,data.feePaid);
   data.feeStatus=computeFeeStatus(data.feeTotal,data.feePaid);
+  // Saving through this form is always an explicit human action on the
+  // Represented Party field (typed or picked) — never an assumption —
+  // so mark it as confirmed and stop flagging this case for review.
+  data.representationConfirmed = true;
   data.updatedAt=new Date().toISOString();
   if(editingId){
     data.id=editingId;
@@ -2106,6 +2205,16 @@ function saveCase(){
   closeModal('modal-case');
 }
 
+function confirmRepresentation(caseId, correctName){
+  var idx=cases.findIndex(function(x){return x.id===caseId;});
+  if(idx<0) return;
+  if(correctName){ cases[idx].client=correctName; cases[idx].opposite=splitTitleParties(cases[idx].title)?splitTitleParties(cases[idx].title).a:cases[idx].opposite; }
+  cases[idx].representationConfirmed=true;
+  cases[idx].updatedAt=new Date().toISOString();
+  if(isCloud){ cloudSave(cases[idx]); } else { saveLocal(); renderAll(); }
+  toast('Representation confirmed.');
+  openDetail(caseId);
+}
 function openDetail(id){
   var c=cases.find(function(x){return x.id===id;});if(!c)return;detailId=id;
   document.getElementById('d-title').textContent=c.title||'—';
@@ -2113,7 +2222,7 @@ function openDetail(id){
   var b=document.getElementById('d-badge');
   b.textContent=c.status||'—';b.style.background=sm.bg;b.style.color=sm.c;b.style.border='1px solid '+sm.b;
   var officeName=(offices.find(function(o){return o.id===(c.officeId||OFFICE_DEFAULT_ID);})||offices[0]).name;
-  var rows=[['Office',officeName],['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Judge',c.judge],['Type',c.caseType],['Client',c.client],['Phone',c.clientPhone],['Opposite',c.opposite],['Appearing For',c.appearingFor],['Sections',c.sections],['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],['Total Fee',c.feeTotal?'₹'+c.feeTotal:null],['Amount Paid',c.feeTotal||c.feePaid?'₹'+(c.feePaid||'0'):null],['Remaining Fee',c.feeTotal?'₹'+calcRemainingFee(c.feeTotal,c.feePaid):null],['Added',fmtDate(c.createdAt)],['Last Updated',c.updatedAt?new Date(c.updatedAt).toLocaleString('en-IN'):null]];
+  var rows=[['Office',officeName],['Case No.',c.caseNo],['CNR',c.cnr],['Court',c.court],['Judge',c.judge],['Type',c.caseType],['Represented Party',c.client],['Phone',c.clientPhone],['Opposite Party',c.opposite],['Appearing For',c.appearingFor],['Sections',c.sections],['Next Hearing',fmtDate(c.nextDate)],['Stage',c.stage],['Status',c.status],['Total Fee',c.feeTotal?'₹'+c.feeTotal:null],['Amount Paid',c.feeTotal||c.feePaid?'₹'+(c.feePaid||'0'):null],['Remaining Fee',c.feeTotal?'₹'+calcRemainingFee(c.feeTotal,c.feePaid):null],['Added',fmtDate(c.createdAt)],['Last Updated',c.updatedAt?new Date(c.updatedAt).toLocaleString('en-IN'):null]];
   var atInit=assocTone(c.assignedTo);
   var assignHtml='<div class="detail-field"><div class="detail-key">Assigned To</div><div class="detail-val" style="display:flex;align-items:center;gap:8px">'
     +'<span id="d-assoc-dot" style="width:20px;height:20px;border-radius:50%;background:'+atInit.c+';color:#fff;font-size:9px;font-weight:800;display:'+(c.assignedTo?'inline-flex':'none')+';align-items:center;justify-content:center;flex-shrink:0">'+esc(assocInitials(c.assignedTo))+'</span>'
@@ -2122,6 +2231,20 @@ function openDetail(id){
     +associates.map(function(a){return '<option value="'+esc(a.name)+'"'+(c.assignedTo===a.name?' selected':'')+'>'+esc(a.name)+(a.role?' ('+esc(a.role)+')':'')+'</option>';}).join('')
     +'</select></div></div>';
   document.getElementById('d-fields').innerHTML=assignHtml+rows.filter(function(r){return r[1];}).map(function(r){return'<div class="detail-field"><div class="detail-key">'+esc(r[0])+'</div><div class="detail-val" style="font-weight:'+(r[0]==='Next Hearing'?700:400)+'">'+esc(r[1])+'</div></div>';}).join('');
+  var repBanner=document.getElementById('d-rep-banner');
+  if(repBanner){
+    if(c.representationConfirmed===false){
+      var parts=splitTitleParties(c.title);
+      var altBtn=(parts&&parts.b&&normKey(parts.b)!==normKey(c.client||''))?('<button class="btn btn-sm" style="background:#fff;border:1.5px solid #d97706;color:#92400e;font-weight:700" onclick="confirmRepresentation(\''+c.id+'\',\''+esc(parts.b).replace(/'/g,"\\'")+'\')">Actually, I represent: '+esc(parts.b)+'</button>'):'';
+      repBanner.style.display='flex';
+      repBanner.innerHTML='<div style="font-size:20px">⚠️</div>'
+        +'<div style="flex:1"><div style="font-weight:800;color:#92400e;font-size:13px">Confirm representation</div>'
+        +'<div style="font-size:12px;color:#7b93ad">This case was imported and may have the wrong party auto-set as "'+esc(c.client||'—')+'". Please confirm or correct it.</div></div>'
+        +'<button class="btn btn-sm" style="background:#16a34a;border:none;color:#fff;font-weight:700" onclick="confirmRepresentation(\''+c.id+'\')">✓ "'+esc(c.client||'—')+'" is correct</button>'
+        +altBtn
+        +'<button class="btn btn-sm" style="background:#f8fafc;border:1px solid #e2e8f0;color:#4b6280" onclick="openEdit(\''+c.id+'\')">Edit</button>';
+    } else { repBanner.style.display='none'; repBanner.innerHTML=''; }
+  }
   var rw=document.getElementById('d-rem-wrap');
   if(c.remarks){rw.style.display='block';document.getElementById('d-rem').innerHTML=previewHtml(c.remarks,240,'Remarks — '+(c.title||c.caseNo||'Case'));}else rw.style.display='none';
   var frw=document.getElementById('d-feerem-wrap');
@@ -2737,7 +2860,11 @@ function parseECourts(raw){
     var nd=(dates[i]||'').replace(/\s/g,'');
     var dm=nd.match(/^(\d{4})-(\d{2})(\d{2})$/);if(dm)nd=dm[1]+'-'+dm[2]+'-'+dm[3];
     var pet=fixN(pets[i]||''),resp=fixN(res[i]||''),ct=(courts[i]||'').replace(/\s+/g,' ').trim();
-    out.push({id:cinos[i]+'_'+i,cnr:cinos[i],caseNo:cnos[i]||'',title:pet+' vs. '+resp,client:pet,opposite:resp,court:mapCourt(ct),caseType:'',nextDate:nd,stage:purps[i]||'',status:nd&&nd>=today?'Active':'Adjourned',sections:'',remarks:'Court: '+ct,createdAt:today,lastSynced:null,updatedAt:new Date().toISOString()});
+    // NEVER assume which side the advocate represents — eCourts data only
+    // tells us who the petitioner and respondent ARE, not which one hired
+    // this advocate. Leave client/opposite blank and flag for a one-time
+    // confirmation, instead of guessing "petitioner = my client".
+    out.push({id:cinos[i]+'_'+i,cnr:cinos[i],caseNo:cnos[i]||'',title:pet+' vs. '+resp,client:'',opposite:'',titleParty1:pet,titleParty2:resp,appearingFor:'',representationConfirmed:false,court:mapCourt(ct),caseType:'',nextDate:nd,stage:purps[i]||'',status:nd&&nd>=today?'Active':'Adjourned',sections:'',remarks:'Court: '+ct,createdAt:today,lastSynced:null,updatedAt:new Date().toISOString()});
   }
   return out;
 }
