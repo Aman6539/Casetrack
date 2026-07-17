@@ -674,8 +674,10 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
     <button class="sidebar-link" id="nav-newcase" onclick="closeAllPages();openAddCase();setNavActive('nav-newcase')" style="background:var(--gold);color:var(--navy);font-weight:700;margin-bottom:10px"><span class="ic">+</span><span class="lbl">New Case</span></button>
     <button class="sidebar-link active" id="nav-dashboard" onclick="closeAllPages();setNavActive('nav-dashboard')"><span class="ic">📋</span><span class="lbl">Dashboard</span></button>
     <div class="sidebar-section-lbl">Tools</div>
+    <button class="sidebar-link" id="nav-today" onclick="openTodayCasesPage()"><span class="ic">📅</span><span class="lbl">Today Cases Only</span></button>
     <button class="sidebar-link" id="nav-courtfee" onclick="closeAllPages();openModal('modal-courtfee');initCF();setNavActive('nav-courtfee')"><span class="ic">⚖</span><span class="lbl">Court Fee</span></button>
     <button class="sidebar-link" id="nav-fees" onclick="closeAllPages();openModal('modal-fees');renderFeesPage();setNavActive('nav-fees')"><span class="ic">💰</span><span class="lbl">Fee Tracker</span></button>
+    <button class="sidebar-link" id="nav-cc" onclick="closeAllPages();openModal('modal-cc');renderCCPage();setNavActive('nav-cc')"><span class="ic">📑</span><span class="lbl">Certified Copies</span></button>
     <button class="sidebar-link" id="nav-causelist" onclick="closeAllPages();openModal('modal-listdate');setNavActive('nav-causelist')"><span class="ic">🗓</span><span class="lbl">Cause List</span></button>
     <button class="sidebar-link" id="nav-reminders" onclick="closeAllPages();openModal('modal-reminders');setNavActive('nav-reminders')" style="position:relative"><span class="ic">🔔</span><span class="lbl">Reminders</span><span id="rem-badge" style="display:none">0</span></button>
     <button class="sidebar-link" id="nav-associates" onclick="closeAllPages();openModal('modal-associates');setNavActive('nav-associates')"><span class="ic">👥</span><span class="lbl">Associates</span></button>
@@ -768,7 +770,7 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
     <input type="text" id="search-input" placeholder="Search case no., title, client, court..." oninput="renderTable()"/>
     <div class="count-pill" id="count-lbl">0 cases</div>
     <button class="btn btn-ghost btn-sm" onclick="addAllHearingsToCalendar()" style="border-color:#1a73e8;color:#1a73e8;background:#f0f6ff" title="Add all upcoming hearings to Google Calendar">📅 Calendar</button>
-    <button class="btn btn-ghost btn-sm" onclick="bulkFetchECourts()" style="border-color:#16a34a;color:#16a34a;background:#f0fdf4" title="Auto-fetch next dates for all CNR cases">⟳ Bulk eCourts Sync</button>
+    <button class="btn btn-ghost btn-sm" onclick="openTodayCasesPage()" style="border-color:#16a34a;color:#16a34a;background:#f0fdf4" title="Review and update only today's listed matters — no bulk fetch">📅 Today Cases Only</button>
   </div>
   <div class="tbl-wrap">
     <div class="tbl-head">
@@ -1130,6 +1132,18 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
       <button class="btn btn-gold btn-sm" onclick="saveUserProfile()">Save Profile</button>
     </div>
 
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:14px 16px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">eCourts API</div>
+      <div style="font-size:12px;color:#7b93ad;margin-bottom:12px">Paste your eCourtsIndia.com API key to enable manual, per-case eCourts checks and order downloads from the <strong>Today Cases Only</strong> page. Nothing runs automatically — a network call only happens when you click "Check eCourts" or "Download" on one specific case. Stored only in this browser, never in the app file itself.</div>
+      <div class="form-grid" style="margin-bottom:10px">
+        <div class="span2"><label>eCourts API Key</label><input id="prof-ecourts-key" type="password" placeholder="eci_live_..."/></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-gold btn-sm" onclick="saveUserProfile()">Save Profile</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-account');openTodayCasesPage()">📅 Open Today Cases Only</button>
+      </div>
+    </div>
+
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:12px 14px;font-size:13px;color:#4b6280;line-height:1.6;margin-bottom:14px">
       ☁ Cases are stored in <strong>Firebase Firestore</strong> and sync across all devices instantly. Open this app on any phone, laptop or iPad and sign in with the same Google account to access all cases.
     </div>
@@ -1289,26 +1303,31 @@ function renderOfficesModal(){
 // with every field completely blank until THEY fill it in themselves
 // under Account → My Advocate Profile.
 // ════════════════════════════════════════════════════════════
-var userProfile = {barNo:'', chamber:'', courtLocation:''};
+var userProfile = {barNo:'', chamber:'', courtLocation:'', role:'', clerkAreas:[], ecourtsApiKey:''};
 function loadUserProfile(){
-  userProfile = {barNo:'', chamber:'', courtLocation:''}; // always start blank, never inherit anything
-  try{ var s=localStorage.getItem(PROFILE_KEY); if(s){ var p=JSON.parse(s); userProfile.barNo=p.barNo||''; userProfile.chamber=p.chamber||''; userProfile.courtLocation=p.courtLocation||''; } }catch(e){}
+  userProfile = {barNo:'', chamber:'', courtLocation:'', role:'', clerkAreas:[], ecourtsApiKey:''}; // always start blank, never inherit anything
+  try{ var s=localStorage.getItem(PROFILE_KEY); if(s){ var p=JSON.parse(s); userProfile.barNo=p.barNo||''; userProfile.chamber=p.chamber||''; userProfile.courtLocation=p.courtLocation||''; userProfile.role=p.role||''; userProfile.clerkAreas=p.clerkAreas||[]; userProfile.ecourtsApiKey=p.ecourtsApiKey||''; } }catch(e){}
 }
 function populateProfileForm(){
   var b=document.getElementById('prof-barno'); if(b) b.value=userProfile.barNo||'';
   var c=document.getElementById('prof-chamber'); if(c) c.value=userProfile.chamber||'';
   var l=document.getElementById('prof-courtloc'); if(l) l.value=userProfile.courtLocation||'';
+  var k=document.getElementById('prof-ecourts-key'); if(k) k.value=userProfile.ecourtsApiKey||'';
 }
 function saveUserProfile(){
   userProfile.barNo=(document.getElementById('prof-barno')||{value:''}).value.trim();
   userProfile.chamber=(document.getElementById('prof-chamber')||{value:''}).value.trim();
   userProfile.courtLocation=(document.getElementById('prof-courtloc')||{value:''}).value.trim();
+  userProfile.ecourtsApiKey=(document.getElementById('prof-ecourts-key')||{value:''}).value.trim();
+  persistUserProfile();
+  toast('Advocate profile saved.');
+}
+function persistUserProfile(){
   try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(userProfile)); }catch(e){}
   if(isCloud && db && currentUser){
     db.collection('users').doc(currentUser.uid).set({profile:userProfile},{merge:true})
       .catch(function(e){ console.error('profile save:',e); });
   }
-  toast('Advocate profile saved.');
 }
 // Real-time listener — this user's own profile only, keyed to their own uid
 function loadUserProfileFromCloud(user){
@@ -1316,11 +1335,307 @@ function loadUserProfileFromCloud(user){
   db.collection('users').doc(user.uid).onSnapshot(function(doc){
     if(doc.exists && doc.data().profile){
       var p=doc.data().profile;
-      userProfile={barNo:p.barNo||'',chamber:p.chamber||'',courtLocation:p.courtLocation||''};
+      userProfile={barNo:p.barNo||'',chamber:p.chamber||'',courtLocation:p.courtLocation||'',role:p.role||'',clerkAreas:p.clerkAreas||[],ecourtsApiKey:p.ecourtsApiKey||''};
       try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(userProfile)); }catch(e){}
       populateProfileForm();
+      try{ renderCCPage(); }catch(e){}
     }
   }, function(e){ console.error('profile snapshot:',e); });
+}
+
+// ════════════════════════════════════════════════════════════
+// CERTIFIED COPY REQUEST WORKFLOW — a small marketplace between
+// advocates (who need certified copies from court) and clerks (who
+// file for and collect them). Unlike everything else in this app,
+// this lives in a SHARED top-level Firestore collection so any
+// clerk covering the matching area can see and quote on a request —
+// it is intentionally not scoped to one advocate's private data.
+//
+// SETUP NOTE: this needs a Firestore security rule permitting
+// authenticated read/write on the `ccRequests` collection, e.g.:
+//   match /ccRequests/{id} { allow read, write: if request.auth != null; }
+// ════════════════════════════════════════════════════════════
+var CC_AREAS=['Rajpura','Patiala','Nabha','Samana','Kharar','Mohali','Chandigarh','Other'];
+var CC_STAGE_LABELS={open:'Open for Quotes',quoted:'Quotes Received',approved:'Approved',filing:'Filing',ready:'Ready for Collection',collected:'Collected',delivered:'Delivered',cancelled:'Cancelled'};
+var ccRequests=[];
+var ccCurrentDetailId=null;
+
+function startCCSync(user){
+  if(!db||!user) return;
+  db.collection('ccRequests').onSnapshot(function(snap){
+    ccRequests=[];
+    snap.forEach(function(doc){ ccRequests.push(Object.assign({},doc.data(),{id:doc.id})); });
+    try{ renderCCPage(); }catch(e){}
+  }, function(e){ console.error('ccRequests snapshot:',e); });
+}
+function CC_TONE(status){
+  var map={
+    open:{c:'#1a56db',bg:'#eff6ff',b:'#bfdbfe'}, quoted:{c:'#b45309',bg:'#fffbeb',b:'#fde68a'},
+    approved:{c:'#7c3aed',bg:'#f3e8ff',b:'#e9d5ff'}, filing:{c:'#0891b2',bg:'#ecfeff',b:'#a5f3fc'},
+    ready:{c:'#d97706',bg:'#fffbeb',b:'#fde68a'}, collected:{c:'#16a34a',bg:'#f0fdf4',b:'#bbf7d0'},
+    delivered:{c:'#16a34a',bg:'#f0fdf4',b:'#bbf7d0'}, cancelled:{c:'#64748b',bg:'#f8fafc',b:'#e2e8f0'}
+  };
+  return map[status]||map.open;
+}
+function myCCRole(){ return userProfile.role||''; }
+function saveCCRole(role){ userProfile.role=role; persistUserProfile(); ccCurrentDetailId=null; renderCCPage(); }
+function toggleCCArea(area){
+  userProfile.clerkAreas=userProfile.clerkAreas||[];
+  var idx=userProfile.clerkAreas.indexOf(area);
+  if(idx>=0) userProfile.clerkAreas.splice(idx,1); else userProfile.clerkAreas.push(area);
+  persistUserProfile();
+  renderCCPage();
+}
+
+function openCCForm(){
+  document.getElementById('cc-new-form').style.display='block';
+  document.getElementById('cc-area').innerHTML='<option value="">-- Select Area --</option>'+CC_AREAS.map(function(a){return '<option>'+a+'</option>';}).join('');
+}
+function closeCCForm(){ var f=document.getElementById('cc-new-form'); if(f) f.style.display='none'; }
+
+function createCCRequest(){
+  var area=document.getElementById('cc-area').value;
+  var court=document.getElementById('cc-court').value.trim();
+  var caseTitle=document.getElementById('cc-casetitle').value.trim();
+  var caseNo=document.getElementById('cc-caseno').value.trim();
+  var copyType=document.getElementById('cc-copytype').value.trim();
+  var desc=document.getElementById('cc-desc').value.trim();
+  if(!area){ toast('Select an area.','warn'); return; }
+  if(!caseTitle){ toast('Enter the case title.','warn'); return; }
+  if(!copyType){ toast('Enter what copy is needed (e.g. certified copy of judgment).','warn'); return; }
+  var req={
+    advocateUid:currentUser.uid, advocateName:currentUser.displayName||currentUser.email||'Advocate',
+    area:area, court:court, caseTitle:caseTitle, caseNo:caseNo, copyType:copyType, description:desc,
+    status:'open', quotes:[], approvedClerkUid:'', approvedClerkName:'', approvedAmount:'',
+    createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()
+  };
+  db.collection('ccRequests').add(req).then(function(){
+    toast('Certified copy request posted for '+area+'.');
+    closeCCForm();
+  }).catch(function(e){ toast('Could not post request. Check Firestore rules for ccRequests.','error'); console.error(e); });
+}
+
+function submitQuote(reqId){
+  var amtEl=document.getElementById('cc-quote-amt-'+reqId);
+  var etaEl=document.getElementById('cc-quote-eta-'+reqId);
+  var msgEl=document.getElementById('cc-quote-msg-'+reqId);
+  var amt=amtEl?amtEl.value:'';
+  if(!amt||parseFloat(amt)<=0){ toast('Enter a valid quote amount.','warn'); return; }
+  var req=ccRequests.find(function(r){return r.id===reqId;});
+  if(!req) return;
+  var quotes=(req.quotes||[]).filter(function(q){return q.clerkUid!==currentUser.uid;});
+  quotes.push({clerkUid:currentUser.uid,clerkName:currentUser.displayName||currentUser.email||'Clerk',amount:parseFloat(amt),eta:etaEl?etaEl.value.trim():'',message:msgEl?msgEl.value.trim():'',quotedAt:new Date().toISOString()});
+  db.collection('ccRequests').doc(reqId).set({quotes:quotes,status:'quoted',updatedAt:new Date().toISOString()},{merge:true})
+    .then(function(){ toast('Quote submitted.'); })
+    .catch(function(e){ toast('Could not submit quote.','error'); console.error(e); });
+}
+
+function approveQuote(reqId, clerkUid){
+  var req=ccRequests.find(function(r){return r.id===reqId;});
+  if(!req || req.advocateUid!==currentUser.uid){ toast('Only the requesting advocate can approve a quote.','warn'); return; }
+  var q=(req.quotes||[]).find(function(x){return x.clerkUid===clerkUid;});
+  if(!q) return;
+  if(!confirm('Approve '+q.clerkName+' at ₹'+q.amount+' for this request?')) return;
+  db.collection('ccRequests').doc(reqId).set({
+    status:'approved', approvedClerkUid:q.clerkUid, approvedClerkName:q.clerkName, approvedAmount:q.amount, updatedAt:new Date().toISOString()
+  },{merge:true}).then(function(){ toast('Approved '+q.clerkName+'.'); }).catch(function(e){ toast('Could not approve.','error'); console.error(e); });
+}
+
+function advanceCCStatus(reqId, newStatus){
+  var req=ccRequests.find(function(r){return r.id===reqId;});
+  if(!req || req.approvedClerkUid!==currentUser.uid){ toast('Only the assigned clerk can update this.','warn'); return; }
+  db.collection('ccRequests').doc(reqId).set({status:newStatus,updatedAt:new Date().toISOString()},{merge:true})
+    .then(function(){ toast('Marked as '+CC_STAGE_LABELS[newStatus]+'.'); })
+    .catch(function(e){ toast('Could not update.','error'); console.error(e); });
+}
+
+function cancelCCRequest(reqId){
+  var req=ccRequests.find(function(r){return r.id===reqId;});
+  if(!req || req.advocateUid!==currentUser.uid) return;
+  if(!confirm('Cancel this certified copy request?')) return;
+  db.collection('ccRequests').doc(reqId).set({status:'cancelled',updatedAt:new Date().toISOString()},{merge:true})
+    .then(function(){ ccCurrentDetailId=null; renderCCPage(); });
+}
+
+function openCCDetail(id){ ccCurrentDetailId=id; renderCCPage(); }
+function closeCCDetail(){ ccCurrentDetailId=null; renderCCPage(); }
+
+function renderCCPage(){
+  var root=document.getElementById('cc-root');
+  if(!root) return;
+  if(!isCloud || !currentUser){
+    root.innerHTML='<div style="text-align:center;padding:50px 20px;color:#7b93ad;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:10px">Sign in with Google to use Certified Copy Requests — it needs cloud sync so advocates and clerks can see each other\'s requests.</div>';
+    return;
+  }
+  if(ccCurrentDetailId){ root.innerHTML=renderCCDetail(ccCurrentDetailId); return; }
+  var role=myCCRole();
+  if(!role){ root.innerHTML=renderCCRolePicker(); return; }
+  root.innerHTML = role==='clerk' ? renderClerkCC() : renderAdvocateCC();
+}
+
+function renderCCRolePicker(){
+  return '<div style="max-width:520px;margin:20px auto;text-align:center;padding:30px 20px">'
+    +'<div style="font-size:32px;margin-bottom:10px">📑</div>'
+    +'<div style="font-size:16px;font-weight:800;color:#1e3a5f;margin-bottom:8px">How will you use Certified Copy Requests?</div>'
+    +'<div style="font-size:13px;color:#7b93ad;margin-bottom:22px">You can switch this anytime from this page.</div>'
+    +'<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">'
+    +'<button class="btn btn-blue" style="padding:16px 22px;text-align:left" onclick="saveCCRole(\'advocate\')"><div style="font-weight:800">⚖ I am an Advocate</div><div style="font-weight:400;font-size:11px;margin-top:3px">I need certified copies filed and collected</div></button>'
+    +'<button class="btn btn-gold" style="padding:16px 22px;text-align:left" onclick="saveCCRole(\'clerk\')"><div style="font-weight:800">📋 I am a Clerk</div><div style="font-weight:400;font-size:11px;margin-top:3px">I file for and collect certified copies</div></button>'
+    +'</div></div>';
+}
+
+function renderAdvocateCC(){
+  var mine=ccRequests.filter(function(r){return r.advocateUid===currentUser.uid;}).sort(function(a,b){return new Date(b.createdAt)-new Date(a.createdAt);});
+  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">'
+    +'<div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px">My Certified Copy Requests</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button class="btn btn-ghost btn-sm" onclick="saveCCRole(\'\')">Switch Role</button>'
+    +'<button class="btn btn-gold btn-sm" onclick="openCCForm()">+ New Request</button>'
+    +'</div></div>'
+    +'<div id="cc-new-form" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:18px">'
+      +'<div class="form-grid">'
+      +'<div><label>Area *</label><select id="cc-area"></select></div>'
+      +'<div><label>Court (optional)</label><input id="cc-court" placeholder="e.g. Civil Judge (Sr. Div.) Rajpura"/></div>'
+      +'<div class="span2"><label>Case Title *</label><input id="cc-casetitle" placeholder="e.g. Kulwinder Singh vs. Dalip Kumar"/></div>'
+      +'<div><label>Case No.</label><input id="cc-caseno"/></div>'
+      +'<div><label>Copy Needed *</label><input id="cc-copytype" placeholder="e.g. Certified copy of judgment dated ..."/></div>'
+      +'<div class="span2"><label>Notes for clerk</label><textarea id="cc-desc" rows="2"></textarea></div>'
+      +'</div>'
+      +'<div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-blue btn-sm" onclick="createCCRequest()">Post Request</button><button class="btn btn-ghost btn-sm" onclick="closeCCForm()">Cancel</button></div>'
+    +'</div>';
+  if(!mine.length){
+    html+='<div style="text-align:center;padding:34px;color:#7b93ad;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:10px">No requests yet. Click "+ New Request" to ask a clerk to file a certified copy.</div>';
+  } else {
+    html+=mine.map(function(r){
+      var quoteCount=(r.quotes||[]).length;
+      var sm=CC_TONE(r.status);
+      return '<div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:13px 16px;margin-bottom:9px;cursor:pointer;flex-wrap:wrap" onclick="openCCDetail(\''+r.id+'\')">'
+        +'<div style="flex:1;min-width:170px"><div style="font-weight:700;font-size:13.5px;color:#1e3a5f">'+esc(r.caseTitle)+'</div><div style="font-size:11.5px;color:#7b93ad">'+esc(r.area)+(r.court?' · '+esc(r.court):'')+' · '+esc(r.copyType)+'</div></div>'
+        +((r.status==='open'||r.status==='quoted')?'<div style="font-size:12px;color:#1a56db;font-weight:700">'+quoteCount+' quote'+(quoteCount!==1?'s':'')+'</div>':'')
+        +'<span class="badge" style="background:'+sm.bg+';color:'+sm.c+';border:1px solid '+sm.b+'">'+CC_STAGE_LABELS[r.status]+'</span>'
+        +'</div>';
+    }).join('');
+  }
+  return html;
+}
+
+function renderCCOpenCard(r){
+  return '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:14px 16px;margin-bottom:10px">'
+    +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">'
+    +'<div><div style="font-weight:700;font-size:13.5px;color:#1e3a5f">'+esc(r.caseTitle)+'</div><div style="font-size:11.5px;color:#7b93ad">'+esc(r.area)+(r.court?' · '+esc(r.court):'')+' · '+esc(r.copyType)+'</div>'+(r.description?'<div style="font-size:11.5px;color:#4b6280;margin-top:4px">'+esc(r.description)+'</div>':'')+'</div>'
+    +'<div style="font-size:11px;color:#94a3b8">by '+esc(r.advocateName)+'</div>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+    +'<input type="number" id="cc-quote-amt-'+r.id+'" placeholder="Your fee (₹)" style="width:120px;padding:6px 9px;border:1.5px solid #dbeafe;border-radius:6px;font-size:13px"/>'
+    +'<input type="text" id="cc-quote-eta-'+r.id+'" placeholder="ETA e.g. 3 days" style="width:110px;padding:6px 9px;border:1.5px solid #dbeafe;border-radius:6px;font-size:13px"/>'
+    +'<input type="text" id="cc-quote-msg-'+r.id+'" placeholder="Note (optional)" style="flex:1;min-width:140px;padding:6px 9px;border:1.5px solid #dbeafe;border-radius:6px;font-size:13px"/>'
+    +'<button class="btn btn-blue btn-sm" onclick="submitQuote(\''+r.id+'\')">Submit Quote</button>'
+    +'</div></div>';
+}
+function renderCCAssignedCard(r){
+  var sm=CC_TONE(r.status);
+  var nextStage={approved:'filing',filing:'ready',ready:'collected',collected:'delivered'}[r.status];
+  return '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:14px 16px;margin-bottom:10px">'
+    +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">'
+    +'<div><div style="font-weight:700;font-size:13.5px;color:#1e3a5f">'+esc(r.caseTitle)+'</div><div style="font-size:11.5px;color:#7b93ad">'+esc(r.area)+' · ₹'+r.approvedAmount+' · for '+esc(r.advocateName)+'</div></div>'
+    +'<span class="badge" style="background:'+sm.bg+';color:'+sm.c+';border:1px solid '+sm.b+'">'+CC_STAGE_LABELS[r.status]+'</span>'
+    +'</div>'
+    +(nextStage?'<button class="btn btn-gold btn-sm" onclick="advanceCCStatus(\''+r.id+'\',\''+nextStage+'\')">Mark as '+CC_STAGE_LABELS[nextStage]+'</button>':'<div style="font-size:12px;color:#16a34a;font-weight:700">✓ Completed</div>')
+    +'</div>';
+}
+
+function renderClerkCC(){
+  var areas=userProfile.clerkAreas||[];
+  var open=ccRequests.filter(function(r){return r.status==='open'&&areas.indexOf(r.area)>=0&&r.advocateUid!==currentUser.uid;});
+  var quoted=ccRequests.filter(function(r){return r.status==='quoted'&&areas.indexOf(r.area)>=0&&(r.quotes||[]).some(function(q){return q.clerkUid===currentUser.uid;})&&r.approvedClerkUid!==currentUser.uid;});
+  var mine=ccRequests.filter(function(r){return r.approvedClerkUid===currentUser.uid;}).sort(function(a,b){return new Date(b.updatedAt)-new Date(a.updatedAt);});
+
+  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">'
+    +'<div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px">Clerk Dashboard</div>'
+    +'<button class="btn btn-ghost btn-sm" onclick="saveCCRole(\'\')">Switch Role</button>'
+    +'</div>'
+    +'<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:9px;padding:12px 16px;margin-bottom:18px">'
+    +'<div style="font-size:11px;font-weight:700;color:#1a56db;text-transform:uppercase;margin-bottom:8px">Areas You Serve</div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'+CC_AREAS.map(function(a){
+      var on=areas.indexOf(a)>=0;
+      return '<button class="btn btn-sm" style="background:'+(on?'#1a56db':'#fff')+';color:'+(on?'#fff':'#1a56db')+';border:1px solid #1a56db" onclick="toggleCCArea(\''+a+'\')">'+a+'</button>';
+    }).join('')+'</div></div>';
+
+  html+='<div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Open Requests in Your Areas ('+open.length+')</div>';
+  if(!areas.length){
+    html+='<div style="text-align:center;padding:24px;color:#7b93ad;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:10px;margin-bottom:20px">Select at least one area above to see requests.</div>';
+  } else if(!open.length){
+    html+='<div style="text-align:center;padding:24px;color:#7b93ad;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:10px;margin-bottom:20px">No open requests right now.</div>';
+  } else {
+    html+=open.map(renderCCOpenCard).join('');
+  }
+
+  if(quoted.length){
+    html+='<div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin:20px 0 10px">Your Pending Quotes ('+quoted.length+')</div>';
+    html+=quoted.map(function(r){
+      var myQ=(r.quotes||[]).find(function(q){return q.clerkUid===currentUser.uid;});
+      return '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:12px 16px;margin-bottom:9px">'
+        +'<div style="font-weight:700;font-size:13.5px;color:#1e3a5f">'+esc(r.caseTitle)+'</div>'
+        +'<div style="font-size:11.5px;color:#7b93ad">Your quote: ₹'+myQ.amount+(myQ.eta?' · ETA '+esc(myQ.eta):'')+' — waiting for the advocate to decide</div>'
+        +'</div>';
+    }).join('');
+  }
+
+  if(mine.length){
+    html+='<div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin:20px 0 10px">My Assigned Requests ('+mine.length+')</div>';
+    html+=mine.map(renderCCAssignedCard).join('');
+  }
+  return html;
+}
+
+function renderCCDetail(id){
+  var r=ccRequests.find(function(x){return x.id===id;});
+  if(!r){ ccCurrentDetailId=null; return renderAdvocateCC(); }
+  var sm=CC_TONE(r.status);
+  var isMine=currentUser&&r.advocateUid===currentUser.uid;
+  var html='<button class="btn btn-ghost btn-sm" onclick="closeCCDetail()" style="margin-bottom:14px">← Back</button>'
+    +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">'
+    +'<div><div style="font-size:18px;font-weight:800;color:#1e3a5f">'+esc(r.caseTitle)+'</div>'
+    +'<div style="font-size:12.5px;color:#7b93ad;margin-top:4px">'+esc(r.area)+(r.court?' · '+esc(r.court):'')+(r.caseNo?' · '+esc(r.caseNo):'')+' · '+esc(r.copyType)+'</div>'
+    +(r.description?'<div style="font-size:12.5px;color:#4b6280;margin-top:6px">'+esc(r.description)+'</div>':'')+'</div>'
+    +'<span class="badge" style="background:'+sm.bg+';color:'+sm.c+';border:1px solid '+sm.b+'">'+CC_STAGE_LABELS[r.status]+'</span>'
+    +'</div>';
+
+  if(r.status!=='cancelled'){
+    var stages=['open','approved','filing','ready','collected','delivered'];
+    var curIdx=stages.indexOf(r.status==='quoted'?'open':r.status);
+    html+='<div style="display:flex;gap:4px;margin-bottom:22px;flex-wrap:wrap">'+stages.map(function(s,i){
+      var done=i<=curIdx;
+      return '<div style="flex:1;min-width:80px;text-align:center"><div style="height:5px;border-radius:3px;background:'+(done?'var(--gold)':'#e2e8f0')+';margin-bottom:5px"></div><div style="font-size:9.5px;font-weight:700;color:'+(done?'#1e3a5f':'#94a3b8')+'">'+CC_STAGE_LABELS[s]+'</div></div>';
+    }).join('')+'</div>';
+  }
+
+  if(r.status==='open'||r.status==='quoted'){
+    html+='<div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Quotes ('+(r.quotes||[]).length+') — sorted by price</div>';
+    if(!(r.quotes||[]).length){
+      html+='<div style="text-align:center;padding:24px;color:#7b93ad;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:10px">No quotes yet — clerks covering '+esc(r.area)+' will see this request.</div>';
+    } else {
+      var sorted=(r.quotes||[]).slice().sort(function(a,b){return a.amount-b.amount;});
+      html+=sorted.map(function(q){
+        return '<div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:13px 16px;margin-bottom:9px;flex-wrap:wrap">'
+          +'<div style="flex:1;min-width:140px"><div style="font-weight:700;font-size:13.5px;color:#1e3a5f">'+esc(q.clerkName)+'</div>'+(q.message?'<div style="font-size:11.5px;color:#7b93ad">'+esc(q.message)+'</div>':'')+'</div>'
+          +'<div style="text-align:right"><div style="font-size:17px;font-weight:800;color:#16a34a">₹'+q.amount+'</div>'+(q.eta?'<div style="font-size:11px;color:#7b93ad">ETA: '+esc(q.eta)+'</div>':'')+'</div>'
+          +(isMine?'<button class="btn btn-gold btn-sm" onclick="approveQuote(\''+r.id+'\',\''+q.clerkUid+'\')">Approve</button>':'')
+          +'</div>';
+      }).join('');
+    }
+    if(isMine) html+='<button class="btn btn-ghost btn-sm" style="margin-top:10px;color:#dc2626;border-color:#fecaca" onclick="cancelCCRequest(\''+r.id+'\')">Cancel Request</button>';
+  } else if(r.status!=='cancelled') {
+    html+='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:14px 16px">'
+      +'<div style="font-size:12px;color:#7b93ad;text-transform:uppercase;font-weight:700;margin-bottom:4px">Assigned Clerk</div>'
+      +'<div style="font-weight:700;font-size:14px;color:#1e3a5f">'+esc(r.approvedClerkName)+' — ₹'+r.approvedAmount+'</div>'
+      +'</div>';
+    if(r.approvedClerkUid===currentUser.uid){
+      var nextStage={approved:'filing',filing:'ready',ready:'collected',collected:'delivered'}[r.status];
+      if(nextStage) html+='<button class="btn btn-gold btn-sm" style="margin-top:12px" onclick="advanceCCStatus(\''+r.id+'\',\''+nextStage+'\')">Mark as '+CC_STAGE_LABELS[nextStage]+'</button>';
+    }
+  }
+  return html;
 }
 
 var SM = {
@@ -1613,6 +1928,7 @@ function startSync(user){
   loadAssociatesFromCloud(user);
   loadOfficesFromCloud(user);
   loadUserProfileFromCloud(user);
+  startCCSync(user);
 }
 
 function setSyncPill(online){
@@ -1713,7 +2029,7 @@ document.querySelectorAll('.overlay').forEach(function(el){
 });
 
 // ════════ SIDEBAR NAVIGATION ════════
-var PAGE_VIEW_IDS=['modal-detail','modal-sync','modal-courtfee','modal-listdate','modal-import','modal-reminders','modal-associates','modal-account','modal-case','modal-fees'];
+var PAGE_VIEW_IDS=['modal-detail','modal-sync','modal-courtfee','modal-listdate','modal-import','modal-reminders','modal-associates','modal-account','modal-case','modal-fees','modal-cc','modal-today'];
 function closeAllPages(){
   PAGE_VIEW_IDS.forEach(function(id){ var el=document.getElementById(id); if(el) el.classList.remove('open'); });
   setNavActive('nav-dashboard');
@@ -2684,50 +3000,141 @@ function autoFetchECourts(){
   });
 }
 
-// ── Bulk auto-fetch all cases with CNR ──
-function bulkFetchECourts(){
-  var withCNR=officeCases().filter(function(c){return c.cnr && ['Active','Adjourned','Stayed'].indexOf(c.status)>=0;});
-  if(!withCNR.length){toast('No active cases with CNR numbers found in '+currentOffice().name+'.','warn');return;}
-  if(!confirm('Auto-fetch next dates for '+withCNR.length+' cases with CNR numbers? This may take a few minutes.')) return;
-  var updated=0,failed=0,total=withCNR.length;
-  toast('Fetching '+total+' cases... Please wait.');
-  var processNext=function(idx){
-    if(idx>=withCNR.length){
-      toast('Bulk fetch complete: '+updated+' updated, '+failed+' failed.');
-      renderAll();
-      return;
-    }
-    var c=withCNR[idx];
-    fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:200,
-        tools:[{type:'web_search_20250305',name:'web_search'}],
-        messages:[{role:'user',content:'Search eCourts India for CNR: '+c.cnr+'. Find next hearing date. Reply ONLY JSON: {"nextDate":"YYYY-MM-DD","stage":"string","found":true} or {"found":false}'}]
-      })
-    }).then(function(r){return r.json();}).then(function(data){
-      var text='';
-      if(data.content) data.content.forEach(function(b){if(b.type==='text')text+=b.text;});
-      try{
-        var result=JSON.parse(text.replace(/```json|```/g,'').trim());
-        if(result.found&&result.nextDate){
-          var i=cases.findIndex(function(x){return x.id===c.id;});
-          if(i>=0){
-            cases[i].nextDate=result.nextDate;
-            if(result.stage) cases[i].stage=result.stage;
-            cases[i].lastSynced=new Date().toISOString();
-            if(isCloud) cloudSave(cases[i]); else saveLocal();
-            updated++;
-          }
-        } else { failed++; }
-      }catch(ex){ failed++; }
-      setTimeout(function(){processNext(idx+1);},1500); // delay to avoid rate limiting
-    }).catch(function(){failed++;setTimeout(function(){processNext(idx+1);},1500);});
-  };
-  processNext(0);
+// ── eCourts API sync — TODAY'S hearings only, no full-portfolio bulk sync ──
+// Runs automatically every day at 7 PM, or on demand via the Account page.
+// Only shows cases whose hearing date is today. Nothing here calls the
+// eCourts API automatically — this just filters your own local case data.
+function getTodaysECourtsCandidates(){
+  var today=todayStr();
+  return officeCases().filter(function(c){ return c.nextDate===today; });
 }
+
+var _todayCaseOrders={}; // caseId -> [{filename,label}], populated only after an explicit per-case check
+
+function openTodayCasesPage(){
+  closeAllPages(); openModal('modal-today'); setNavActive('nav-today'); renderTodayCasesPage();
+}
+
+function renderTodayCasesPage(){
+  var root=document.getElementById('today-root');
+  if(!root) return;
+  var hasKey=!!userProfile.ecourtsApiKey;
+  var list=getTodaysECourtsCandidates();
+  var html='';
+  if(!hasKey){
+    html+='<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:12px 16px;margin-bottom:16px;font-size:12.5px;color:#92400e">Add your eCourts API key in Account to enable "Check eCourts" and order downloads below. You can still update next dates and remarks manually without a key — no API usage at all in that case.</div>';
+  }
+  if(!list.length){
+    html+='<div style="text-align:center;padding:40px;color:#7b93ad;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:10px">No matters listed for today in '+esc(currentOffice().name)+'.</div>';
+    root.innerHTML=html;
+    return;
+  }
+  html+='<div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px">'+list.length+" matter"+(list.length!==1?'s':'')+' listed today</div>';
+  html+=list.map(function(c){ return renderTodayCaseCard(c,hasKey); }).join('');
+  root.innerHTML=html;
+}
+
+function renderTodayCaseCard(c,hasKey){
+  var orders=_todayCaseOrders[c.id]||[];
+  var ordersHtml=orders.length?('<div style="margin-top:10px;border-top:1px solid #e2e8f0;padding-top:10px"><div style="font-size:11px;color:#7b93ad;margin-bottom:5px">Orders found on eCourts:</div>'
+    +orders.map(function(o){return '<button class="btn btn-sm" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1a56db;margin:0 6px 6px 0" onclick="downloadECourtsOrder(\''+esc(c.cnr)+'\',\''+esc(o.filename)+'\')">⬇ '+esc(o.label)+'</button>';}).join('')
+    +'</div>'):'';
+  return '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:12px">'
+    +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">'
+    +'<div style="cursor:pointer" onclick="closeModal(\'modal-today\');openDetail(\''+c.id+'\')"><div style="font-weight:700;font-size:14px;color:#1e3a5f">'+esc(c.title||'—')+'</div><div style="font-size:11.5px;color:#7b93ad">'+esc(c.court||'')+(c.cnr?' · CNR: '+esc(c.cnr):' · No CNR on file')+'</div></div>'
+    +(c.cnr?('<button class="btn btn-sm" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a" onclick="checkOneCaseOnECourts(\''+c.id+'\')" '+(hasKey?'':'disabled title="Add an eCourts API key in Account first"')+'>🔍 Check eCourts (1 call)</button>'):'')
+    +'</div>'
+    +'<div class="form-grid" style="margin-bottom:8px">'
+    +'<div><label style="font-size:11px">Next Hearing Date</label><input type="date" id="today-date-'+c.id+'" value="'+(c.nextDate||'')+'"/></div>'
+    +'<div><label style="font-size:11px">Stage</label><input type="text" id="today-stage-'+c.id+'" value="'+esc(c.stage||'')+'"/></div>'
+    +'<div class="span2"><label style="font-size:11px">Remarks</label><textarea id="today-remarks-'+c.id+'" rows="2">'+esc(c.remarks||'')+'</textarea></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+    +'<button class="btn btn-blue btn-sm" onclick="saveTodayCaseUpdate(\''+c.id+'\')">Save Update</button>'
+    +'<span id="today-status-'+c.id+'" style="font-size:11.5px;color:#7b93ad"></span>'
+    +'</div>'
+    +ordersHtml
+    +'</div>';
+}
+
+// Manual save — reads whatever you typed into the fields. No API call.
+function saveTodayCaseUpdate(caseId){
+  var idx=cases.findIndex(function(x){return x.id===caseId;});
+  if(idx<0) return;
+  var d=document.getElementById('today-date-'+caseId).value;
+  var s=document.getElementById('today-stage-'+caseId).value.trim();
+  var r=document.getElementById('today-remarks-'+caseId).value.trim();
+  cases[idx].nextDate=d; cases[idx].stage=s; cases[idx].remarks=r;
+  cases[idx].updatedAt=new Date().toISOString();
+  if(isCloud){ cloudSave(cases[idx]); } else { saveLocal(); renderAll(); }
+  var st=document.getElementById('today-status-'+caseId);
+  if(st) st.textContent='Saved — no API call used.';
+  toast('Updated.');
+  renderTodayCasesPage(); // date may have moved off "today", refresh the list
+}
+
+// The ONLY place a network call happens — and only because you clicked
+// "Check eCourts" on this one specific case. One case, one API call.
+function checkOneCaseOnECourts(caseId){
+  var c=cases.find(function(x){return x.id===caseId;});
+  if(!c||!c.cnr) return;
+  var key=userProfile.ecourtsApiKey;
+  if(!key){ toast('Add your eCourts API key in Account first.','warn'); return; }
+  var st=document.getElementById('today-status-'+caseId);
+  if(st) st.textContent='Checking eCourts for this case...';
+  fetch('https://webapi.ecourtsindia.com/api/partner/case/'+encodeURIComponent(c.cnr),{
+    headers:{'Authorization':'Bearer '+key}
+  }).then(function(r){
+    if(r.status===401) throw new Error('AUTH');
+    if(r.status===402) throw new Error('CREDITS');
+    if(r.status===404) throw new Error('NOTFOUND');
+    return r.json();
+  }).then(function(resp){
+    var d=resp&&resp.data&&resp.data.courtCaseData;
+    if(!d){ if(st) st.textContent='No data returned for this CNR.'; return; }
+    if(d.nextHearingDate){ var de=document.getElementById('today-date-'+caseId); if(de) de.value=d.nextHearingDate; }
+    if(d.purpose||d.stage){ var se=document.getElementById('today-stage-'+caseId); if(se) se.value=d.purpose||d.stage; }
+    var orders=[];
+    (d.interimOrders||[]).forEach(function(o,i){ orders.push({filename:o.filename||('order-'+(i+1)+'.pdf'),label:'Interim Order'+(o.orderDate?' — '+o.orderDate:' '+(i+1))}); });
+    (d.judgmentOrders||[]).forEach(function(o,i){ orders.push({filename:o.filename||('judgment-'+(i+1)+'.pdf'),label:'Judgment'+(o.orderDate?' — '+o.orderDate:' '+(i+1))}); });
+    _todayCaseOrders[caseId]=orders;
+    if(st) st.textContent='Checked just now — review the fields, then click Save Update to apply.';
+    renderTodayCasesPage();
+  }).catch(function(e){
+    var msg = e.message==='AUTH' ? 'API key rejected — check it in Account.'
+      : e.message==='CREDITS' ? 'eCourts credits exhausted — top up your deposit.'
+      : e.message==='NOTFOUND' ? 'Case not found on eCourts for this CNR.'
+      : 'Check failed — try again.';
+    if(st) st.textContent=msg;
+    toast(msg,'warn');
+  });
+}
+
+// Download one specific order PDF — again, only fires on an explicit click.
+function downloadECourtsOrder(cnr, filename){
+  var key=userProfile.ecourtsApiKey;
+  if(!key){ toast('Add your eCourts API key in Account first.','warn'); return; }
+  toast('Downloading '+filename+'...');
+  fetch('https://webapi.ecourtsindia.com/api/partner/case/'+encodeURIComponent(cnr)+'/order/'+encodeURIComponent(filename),{
+    headers:{'Authorization':'Bearer '+key}
+  }).then(function(r){
+    var ct=r.headers.get('Content-Type')||'';
+    if(ct.indexOf('pdf')>=0) return r.blob().then(function(b){ return {blob:b}; });
+    return r.json().then(function(j){ return {json:j}; });
+  }).then(function(result){
+    if(result.blob){
+      var a=document.createElement('a');
+      a.href=URL.createObjectURL(result.blob);
+      a.download=filename;
+      a.click();
+      toast('Downloaded '+filename+'.');
+    } else {
+      var name=(result.json&&result.json.data&&result.json.data.downloadFilename)||filename;
+      toast('Order ready as "'+name+'" — check your eCourtsIndia dashboard if it did not download directly.','warn');
+    }
+  }).catch(function(){ toast('Download failed.','warn'); });
+}
+
 function applySync(){
   var nd=document.getElementById('sync-date').value,ns=document.getElementById('sync-stage').value.trim();
   if(!nd){alert('Enter next hearing date.');return;}
@@ -3867,6 +4274,33 @@ scheduleAllAlerts = function(){
     <div id="fees-list"></div>
   </div></div>
 </div>
+
+<!-- ═══════════════════ CERTIFIED COPY REQUESTS ═══════════════════ -->
+<div class="overlay page-view" id="modal-cc">
+  <div class="modal wide"><div class="modal-body">
+    <div class="page-topbar">
+      <div>
+        <div class="page-topbar-title">📑 Certified Copies</div>
+        <div class="page-topbar-sub">File certified copy requests and track them through to delivery</div>
+      </div>
+    </div>
+    <div id="cc-root"></div>
+  </div></div>
+</div>
+
+<!-- ═══════════════════ TODAY CASES ONLY ═══════════════════ -->
+<div class="overlay page-view" id="modal-today">
+  <div class="modal wide"><div class="modal-body">
+    <div class="page-topbar">
+      <div>
+        <div class="page-topbar-title">📅 Today Cases Only</div>
+        <div class="page-topbar-sub">Manual, cost-efficient workflow — only today's matters, no bulk fetch, no background sync</div>
+      </div>
+    </div>
+    <div id="today-root"></div>
+  </div></div>
+</div>
+
 
 
 
