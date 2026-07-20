@@ -770,7 +770,7 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
     <input type="text" id="search-input" placeholder="Search case no., title, client, court..." oninput="renderTable()"/>
     <div class="count-pill" id="count-lbl">0 cases</div>
     <button class="btn btn-ghost btn-sm" onclick="addAllHearingsToCalendar()" style="border-color:#1a73e8;color:#1a73e8;background:#f0f6ff" title="Add all upcoming hearings to Google Calendar">📅 Calendar</button>
-    <button class="btn btn-ghost btn-sm" onclick="openTodayCasesPage()" style="border-color:#16a34a;color:#16a34a;background:#f0fdf4" title="Review and update only today's listed matters — no bulk fetch">📅 Today Cases Only</button>
+    <button class="btn btn-ghost btn-sm" onclick="openTodayCasesPage()" style="border-color:#16a34a;color:#16a34a;background:#f0fdf4" title="Review today's listings and any overdue matters — no bulk fetch">📅 Today Cases Only</button>
   </div>
   <div class="tbl-wrap">
     <div class="tbl-head">
@@ -1134,7 +1134,7 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
 
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:14px 16px;margin-bottom:14px">
       <div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">eCourts API</div>
-      <div style="font-size:12px;color:#7b93ad;margin-bottom:12px">Paste your eCourtsIndia.com API key to enable manual, per-case eCourts checks and order downloads from the <strong>Today Cases Only</strong> page. Nothing runs automatically — a network call only happens when you click "Check eCourts" or "Download" on one specific case. Stored only in this browser, never in the app file itself.</div>
+      <div style="font-size:12px;color:#7b93ad;margin-bottom:12px">Paste your eCourtsIndia.com API key to enable manual, per-case next-date checks from the <strong>Today Cases Only</strong> page. Nothing runs automatically — a network call only happens when you click "Check Next Date" on one specific case. Stored only in this browser, never in the app file itself.</div>
       <div class="form-grid" style="margin-bottom:10px">
         <div class="span2"><label>eCourts API Key</label><input id="prof-ecourts-key" type="password" placeholder="eci_live_..."/></div>
       </div>
@@ -3006,10 +3006,19 @@ function autoFetchECourts(){
 // eCourts API automatically — this just filters your own local case data.
 function getTodaysECourtsCandidates(){
   var today=todayStr();
-  return officeCases().filter(function(c){ return c.nextDate===today; });
+  // Today's listings, plus anything still open whose date already passed
+  // without being updated — those are exactly the ones most likely to
+  // need a next-date fix.
+  return officeCases().filter(function(c){
+    if(!c.nextDate) return false;
+    if(c.nextDate===today) return true;
+    return c.nextDate<today && CLOSED_STATUSES.indexOf(c.status)<0;
+  }).sort(function(a,b){
+    var aOverdue=a.nextDate<today, bOverdue=b.nextDate<today;
+    if(aOverdue!==bOverdue) return aOverdue?-1:1; // overdue first
+    return a.nextDate.localeCompare(b.nextDate);
+  });
 }
-
-var _todayCaseOrders={}; // caseId -> [{filename,label}], populated only after an explicit per-case check
 
 function openTodayCasesPage(){
   closeAllPages(); openModal('modal-today'); setNavActive('nav-today'); renderTodayCasesPage();
@@ -3020,29 +3029,31 @@ function renderTodayCasesPage(){
   if(!root) return;
   var hasKey=!!userProfile.ecourtsApiKey;
   var list=getTodaysECourtsCandidates();
+  var today=todayStr();
+  var overdueCount=list.filter(function(c){return c.nextDate<today;}).length;
   var html='';
   if(!hasKey){
-    html+='<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:12px 16px;margin-bottom:16px;font-size:12.5px;color:#92400e">Add your eCourts API key in Account to enable "Check eCourts" and order downloads below. You can still update next dates and remarks manually without a key — no API usage at all in that case.</div>';
+    html+='<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:12px 16px;margin-bottom:16px;font-size:12.5px;color:#92400e">Add your eCourts API key in Account to enable "Check Next Date" below. You can still update dates and remarks manually without a key — no API usage at all in that case.</div>';
   }
   if(!list.length){
-    html+='<div style="text-align:center;padding:40px;color:#7b93ad;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:10px">No matters listed for today in '+esc(currentOffice().name)+'.</div>';
+    html+='<div style="text-align:center;padding:40px;color:#7b93ad;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:10px">No matters listed for today, and nothing overdue, in '+esc(currentOffice().name)+'.</div>';
     root.innerHTML=html;
     return;
   }
-  html+='<div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px">'+list.length+" matter"+(list.length!==1?'s':'')+' listed today</div>';
-  html+=list.map(function(c){ return renderTodayCaseCard(c,hasKey); }).join('');
+  if(overdueCount){
+    html+='<div style="background:#fef2f2;border:2px solid #fecaca;border-radius:9px;padding:11px 15px;margin-bottom:14px;font-size:12.5px;color:#dc2626;font-weight:700">🔴 '+overdueCount+' case'+(overdueCount!==1?'s':'')+' have a hearing date already in the past and still need updating.</div>';
+  }
+  html+='<div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px">'+list.length+" matter"+(list.length!==1?'s':'')+' — today\'s listings plus anything overdue</div>';
+  html+=list.map(function(c){ return renderTodayCaseCard(c,hasKey,today); }).join('');
   root.innerHTML=html;
 }
 
-function renderTodayCaseCard(c,hasKey){
-  var orders=_todayCaseOrders[c.id]||[];
-  var ordersHtml=orders.length?('<div style="margin-top:10px;border-top:1px solid #e2e8f0;padding-top:10px"><div style="font-size:11px;color:#7b93ad;margin-bottom:5px">Orders found on eCourts:</div>'
-    +orders.map(function(o){return '<button class="btn btn-sm" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1a56db;margin:0 6px 6px 0" onclick="downloadECourtsOrder(\''+esc(c.cnr)+'\',\''+esc(o.filename)+'\')">⬇ '+esc(o.label)+'</button>';}).join('')
-    +'</div>'):'';
-  return '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:12px">'
+function renderTodayCaseCard(c,hasKey,today){
+  var isOverdue=c.nextDate<today;
+  return '<div style="background:'+(isOverdue?'#fef2f2':'#fff')+';border:'+(isOverdue?'2px solid #fecaca':'1px solid #e2e8f0')+';border-radius:10px;padding:16px;margin-bottom:12px">'
     +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">'
-    +'<div style="cursor:pointer" onclick="closeModal(\'modal-today\');openDetail(\''+c.id+'\')"><div style="font-weight:700;font-size:14px;color:#1e3a5f">'+esc(c.title||'—')+'</div><div style="font-size:11.5px;color:#7b93ad">'+esc(c.court||'')+(c.cnr?' · CNR: '+esc(c.cnr):' · No CNR on file')+'</div></div>'
-    +(c.cnr?('<button class="btn btn-sm" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a" onclick="checkOneCaseOnECourts(\''+c.id+'\')" '+(hasKey?'':'disabled title="Add an eCourts API key in Account first"')+'>🔍 Check eCourts (1 call)</button>'):'')
+    +'<div style="cursor:pointer" onclick="closeModal(\'modal-today\');openDetail(\''+c.id+'\')"><div style="font-weight:700;font-size:14px;color:#1e3a5f">'+esc(c.title||'—')+(isOverdue?' <span style="font-size:10px;background:#dc2626;color:#fff;border-radius:10px;padding:2px 8px;font-weight:800;vertical-align:middle">OVERDUE — was '+fmtDate(c.nextDate)+'</span>':'')+'</div><div style="font-size:11.5px;color:#7b93ad">'+esc(c.court||'')+(c.cnr?' · CNR: '+esc(c.cnr):' · No CNR on file')+'</div></div>'
+    +(c.cnr?('<button class="btn btn-sm" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a" onclick="checkOneCaseOnECourts(\''+c.id+'\')" '+(hasKey?'':'disabled title="Add an eCourts API key in Account first"')+'>🔍 Check Next Date (1 call)</button>'):'')
     +'</div>'
     +'<div class="form-grid" style="margin-bottom:8px">'
     +'<div><label style="font-size:11px">Next Hearing Date</label><input type="date" id="today-date-'+c.id+'" value="'+(c.nextDate||'')+'"/></div>'
@@ -3053,7 +3064,6 @@ function renderTodayCaseCard(c,hasKey){
     +'<button class="btn btn-blue btn-sm" onclick="saveTodayCaseUpdate(\''+c.id+'\')">Save Update</button>'
     +'<span id="today-status-'+c.id+'" style="font-size:11.5px;color:#7b93ad"></span>'
     +'</div>'
-    +ordersHtml
     +'</div>';
 }
 
@@ -3074,65 +3084,39 @@ function saveTodayCaseUpdate(caseId){
 }
 
 // The ONLY place a network call happens — and only because you clicked
-// "Check eCourts" on this one specific case. One case, one API call.
+// "Check Next Date" on this one specific case. One case, one cheap call
+// (Cause List check, not the pricier full Case Detail fetch).
 function checkOneCaseOnECourts(caseId){
   var c=cases.find(function(x){return x.id===caseId;});
   if(!c||!c.cnr) return;
   var key=userProfile.ecourtsApiKey;
   if(!key){ toast('Add your eCourts API key in Account first.','warn'); return; }
   var st=document.getElementById('today-status-'+caseId);
-  if(st) st.textContent='Checking eCourts for this case...';
-  fetch('https://webapi.ecourtsindia.com/api/partner/case/'+encodeURIComponent(c.cnr),{
-    headers:{'Authorization':'Bearer '+key}
+  if(st) st.textContent='Checking next date on eCourts...';
+  fetch('https://webapi.ecourtsindia.com/api/partner/causelist/cnr/batch',{
+    method:'POST',
+    headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
+    body:JSON.stringify({cnrs:[c.cnr]})
   }).then(function(r){
     if(r.status===401) throw new Error('AUTH');
     if(r.status===402) throw new Error('CREDITS');
-    if(r.status===404) throw new Error('NOTFOUND');
     return r.json();
   }).then(function(resp){
-    var d=resp&&resp.data&&resp.data.courtCaseData;
-    if(!d){ if(st) st.textContent='No data returned for this CNR.'; return; }
-    if(d.nextHearingDate){ var de=document.getElementById('today-date-'+caseId); if(de) de.value=d.nextHearingDate; }
-    if(d.purpose||d.stage){ var se=document.getElementById('today-stage-'+caseId); if(se) se.value=d.purpose||d.stage; }
-    var orders=[];
-    (d.interimOrders||[]).forEach(function(o,i){ orders.push({filename:o.filename||('order-'+(i+1)+'.pdf'),label:'Interim Order'+(o.orderDate?' — '+o.orderDate:' '+(i+1))}); });
-    (d.judgmentOrders||[]).forEach(function(o,i){ orders.push({filename:o.filename||('judgment-'+(i+1)+'.pdf'),label:'Judgment'+(o.orderDate?' — '+o.orderDate:' '+(i+1))}); });
-    _todayCaseOrders[caseId]=orders;
-    if(st) st.textContent='Checked just now — review the fields, then click Save Update to apply.';
-    renderTodayCasesPage();
+    var item=((resp&&resp.data)||[])[0];
+    if(!item || !item.hasCauselist || !item.nextListing || !item.nextListing.date){
+      if(st) st.textContent='No upcoming listing found for this CNR yet.';
+      return;
+    }
+    var de=document.getElementById('today-date-'+caseId); if(de) de.value=item.nextListing.date;
+    if(item.nextListing.listingFor){ var se=document.getElementById('today-stage-'+caseId); if(se) se.value=item.nextListing.listingFor; }
+    if(st) st.textContent='Checked just now — review the date, then click Save Update to apply.';
   }).catch(function(e){
     var msg = e.message==='AUTH' ? 'API key rejected — check it in Account.'
       : e.message==='CREDITS' ? 'eCourts credits exhausted — top up your deposit.'
-      : e.message==='NOTFOUND' ? 'Case not found on eCourts for this CNR.'
       : 'Check failed — try again.';
     if(st) st.textContent=msg;
     toast(msg,'warn');
   });
-}
-
-// Download one specific order PDF — again, only fires on an explicit click.
-function downloadECourtsOrder(cnr, filename){
-  var key=userProfile.ecourtsApiKey;
-  if(!key){ toast('Add your eCourts API key in Account first.','warn'); return; }
-  toast('Downloading '+filename+'...');
-  fetch('https://webapi.ecourtsindia.com/api/partner/case/'+encodeURIComponent(cnr)+'/order/'+encodeURIComponent(filename),{
-    headers:{'Authorization':'Bearer '+key}
-  }).then(function(r){
-    var ct=r.headers.get('Content-Type')||'';
-    if(ct.indexOf('pdf')>=0) return r.blob().then(function(b){ return {blob:b}; });
-    return r.json().then(function(j){ return {json:j}; });
-  }).then(function(result){
-    if(result.blob){
-      var a=document.createElement('a');
-      a.href=URL.createObjectURL(result.blob);
-      a.download=filename;
-      a.click();
-      toast('Downloaded '+filename+'.');
-    } else {
-      var name=(result.json&&result.json.data&&result.json.data.downloadFilename)||filename;
-      toast('Order ready as "'+name+'" — check your eCourtsIndia dashboard if it did not download directly.','warn');
-    }
-  }).catch(function(){ toast('Download failed.','warn'); });
 }
 
 function applySync(){
@@ -4294,7 +4278,7 @@ scheduleAllAlerts = function(){
     <div class="page-topbar">
       <div>
         <div class="page-topbar-title">📅 Today Cases Only</div>
-        <div class="page-topbar-sub">Manual, cost-efficient workflow — only today's matters, no bulk fetch, no background sync</div>
+        <div class="page-topbar-sub">Manual, cost-efficient workflow — today's matters plus anything overdue, no bulk fetch, no background sync</div>
       </div>
     </div>
     <div id="today-root"></div>
