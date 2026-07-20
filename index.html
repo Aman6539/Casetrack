@@ -931,7 +931,7 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
     <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
       <button class="btn btn-ghost" onclick="closeModal('modal-detail')">Close</button>
       <button class="btn btn-ghost" style="border-color:#16a34a;color:#16a34a" onclick="closeModal('modal-detail');openReminderModal(detailId)">🔔 Reminder</button>
-      <button class="btn btn-outline" onclick="openSyncFromDetail()">⟳ Sync eCourts</button>
+      <button class="btn btn-outline" onclick="openSyncFromDetail()">📅 Update / Check Date</button>
       <button class="btn btn-ghost" id="d-gcal-btn" style="display:none;border-color:#1a73e8;color:#1a73e8;background:#f0f6ff" onclick="addToGoogleCalendar()">
         <svg width="14" height="14" viewBox="0 0 24 24" style="margin-right:4px"><path fill="#4285F4" d="M19 4h-1V2h-2v2H8V2H6v2H5C3.9 4 3 4.9 3 6v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg>
         Add to Calendar
@@ -946,13 +946,13 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
   <div class="modal"><div class="modal-body">
     <div class="page-topbar"><div>
       <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-sync')" style="margin-bottom:8px">← Back</button>
-      <div class="page-topbar-title">⟳ eCourts Case Sync</div>
+      <div class="page-topbar-title">📅 Update / Check Hearing Date</div>
     </div></div>
     <div id="sync-info" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 13px;margin-bottom:14px;font-size:13px"></div>
 
-    <!-- Auto-fetch button (only shown if CNR exists) -->
+    <!-- Check Date button (only shown if CNR exists) — one real eCourts API call for this case only -->
     <button id="auto-fetch-btn" onclick="autoFetchECourts()" style="display:none;width:100%;padding:12px;background:linear-gradient(135deg,#1a56db,#7c3aed);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;align-items:center;justify-content:center;gap:8px">
-      🔄 Auto-Fetch Next Date from eCourts
+      🔍 Check Date (1 call)
     </button>
 
     <!-- Result box -->
@@ -2928,91 +2928,76 @@ function openECourts(){
   window.open(cnr?'https://services.ecourts.gov.in/ecourtindia_v6/?p=casestatus/index&searchby=2&cino='+encodeURIComponent(cnr):'https://services.ecourts.gov.in/ecourtindia_v6/','_blank');
 }
 
-// ── AUTO-FETCH next date from eCourts using Claude AI ──
+// ── Check Date — a single, real eCourts API call for THIS case only ──
 function autoFetchECourts(){
   var c=cases.find(function(x){return x.id===syncingId;});
   if(!c||!c.cnr){toast('Add CNR number to case first.','warn');return;}
-  var cnr=c.cnr.trim();
+  var key=userProfile.ecourtsApiKey;
   var btn=document.getElementById('auto-fetch-btn');
   var res=document.getElementById('sync-result');
-  btn.innerHTML='⏳ Fetching...';
+  if(!key){
+    res.style.display='block';
+    res.style.background='#fef9c3';res.style.border='1px solid #fde68a';res.style.color='#92400e';
+    res.innerHTML='⚠ Add your eCourts API key in Account first to use this. <a href="#" onclick="closeModal(\'modal-sync\');closeModal(\'modal-detail\');openModal(\'modal-account\');return false" style="color:#1a56db">Open Account</a>';
+    return;
+  }
+  var cnr=c.cnr.trim();
+  btn.innerHTML='⏳ Checking eCourts...';
   btn.disabled=true;
   res.style.display='none';
 
-  // Build eCourts URL for this CNR
-  var url='https://services.ecourts.gov.in/ecourtindia_v6/?p=casestatus/index&searchby=2&cino='+encodeURIComponent(cnr);
-
-  // Use Claude API to fetch and parse eCourts page
-  fetch('https://api.anthropic.com/v1/messages',{
+  fetch('https://webapi.ecourtsindia.com/api/partner/causelist/cnr/batch',{
     method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      model:'claude-sonnet-4-20250514',
-      max_tokens:500,
-      tools:[{type:'web_search_20250305',name:'web_search'}],
-      messages:[{
-        role:'user',
-        content:'Search for eCourts case status for CNR number: '+cnr+'\n\nSearch query: "'+cnr+' site:services.ecourts.gov.in OR ecourts.gov.in case status next date"\n\nAlso try searching: eCourts India case '+cnr+' next hearing date\n\nFrom the search results, extract ONLY:\n1. Next hearing date (in DD/MM/YYYY or YYYY-MM-DD format)\n2. Case stage/purpose of hearing\n3. Case status (pending/decided)\n\nRespond in this exact JSON format only:\n{"nextDate":"YYYY-MM-DD","stage":"string","status":"pending or decided","found":true}\n\nIf not found: {"found":false}\n\nDo not include any other text.'
-      }]
-    })
-  })
-  .then(function(r){return r.json();})
-  .then(function(data){
-    btn.innerHTML='🔄 Auto-Fetch Next Date';
+    headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
+    body:JSON.stringify({cnrs:[cnr]})
+  }).then(function(r){
+    if(r.status===401) throw new Error('AUTH');
+    if(r.status===402) throw new Error('CREDITS');
+    return r.json();
+  }).then(function(resp){
+    btn.innerHTML='🔍 Check Date (1 call)';
     btn.disabled=false;
-    var text='';
-    if(data.content){
-      data.content.forEach(function(block){
-        if(block.type==='text') text+=block.text;
-      });
-    }
-    // Parse JSON response
-    try{
-      var clean=text.replace(/```json|```/g,'').trim();
-      var result=JSON.parse(clean);
-      if(result.found && result.nextDate){
-        // Auto-fill the date and stage fields
-        document.getElementById('sync-date').value=result.nextDate;
-        if(result.stage) document.getElementById('sync-stage').value=result.stage;
-        res.style.display='block';
-        res.style.background='#f0fdf4';res.style.border='1px solid #bbf7d0';res.style.color='#166534';
-        res.innerHTML='✅ <strong>Next date found: '+fmtDate(result.nextDate)+'</strong>'
-          +(result.stage?'<br>Stage: '+esc(result.stage):'')
-          +'<br><span style="font-size:11px;color:#7b93ad">Review and tap Update to save</span>';
-        toast('Next date fetched: '+fmtDate(result.nextDate));
-      } else {
-        res.style.display='block';
-        res.style.background='#fef9c3';res.style.border='1px solid #fde68a';res.style.color='#92400e';
-        res.innerHTML='⚠ Could not auto-fetch this case. <a href="#" onclick="openECourts();return false" style="color:#1a56db">Open eCourts manually</a> and enter date below.';
-      }
-    }catch(ex){
+    var item=((resp&&resp.data)||[])[0];
+    if(item && item.hasCauselist && item.nextListing && item.nextListing.date){
+      document.getElementById('sync-date').value=item.nextListing.date;
+      if(item.nextListing.listingFor) document.getElementById('sync-stage').value=item.nextListing.listingFor;
       res.style.display='block';
-      res.style.background='#fef2f2';res.style.border='1px solid #fecaca';res.style.color='#dc2626';
-      res.innerHTML='Error parsing response. <a href="#" onclick="openECourts();return false" style="color:#1a56db">Open eCourts manually</a>.';
+      res.style.background='#f0fdf4';res.style.border='1px solid #bbf7d0';res.style.color='#166534';
+      res.innerHTML='✅ <strong>Next date found: '+fmtDate(item.nextListing.date)+'</strong>'
+        +(item.nextListing.listingFor?'<br>Stage: '+esc(item.nextListing.listingFor):'')
+        +'<br><span style="font-size:11px;color:#7b93ad">Review and tap Update to save</span>';
+      toast('Next date fetched: '+fmtDate(item.nextListing.date));
+    } else {
+      res.style.display='block';
+      res.style.background='#fef9c3';res.style.border='1px solid #fde68a';res.style.color='#92400e';
+      res.innerHTML='⚠ No upcoming listing found for this CNR yet. <a href="#" onclick="openECourts();return false" style="color:#1a56db">Open eCourts manually</a> or enter the date below.';
     }
-  })
-  .catch(function(e){
-    btn.innerHTML='🔄 Auto-Fetch Next Date';
+  }).catch(function(e){
+    btn.innerHTML='🔍 Check Date (1 call)';
     btn.disabled=false;
     res.style.display='block';
     res.style.background='#fef2f2';res.style.border='1px solid #fecaca';res.style.color='#dc2626';
-    res.innerHTML='Network error. <a href="#" onclick="openECourts();return false" style="color:#1a56db">Open eCourts manually</a>.';
+    var msg = e.message==='AUTH' ? 'API key rejected — check it in Account.'
+      : e.message==='CREDITS' ? 'eCourts credits exhausted — top up your deposit.'
+      : 'Check failed.';
+    res.innerHTML=msg+' <a href="#" onclick="openECourts();return false" style="color:#1a56db">Open eCourts manually</a>.';
   });
 }
 
-// ── eCourts API sync — TODAY'S hearings only, no full-portfolio bulk sync ──
-// Runs automatically every day at 7 PM, or on demand via the Account page.
-// Only shows cases whose hearing date is today. Nothing here calls the
-// eCourts API automatically — this just filters your own local case data.
+// Only shows cases whose hearing date is today or overdue. Nothing here
+// calls the eCourts API automatically — this just filters your own local
+// case data. This page is a helper list; the per-case actions above
+// (Check Date / manual update) are also available directly from any
+// case's own Case Detail page via "⟳ Sync eCourts".
 function getTodaysECourtsCandidates(){
   var today=todayStr();
-  // Today's listings, plus anything still open whose date already passed
-  // without being updated — those are exactly the ones most likely to
-  // need a next-date fix.
+  // Only actionable, still-open matters — never dead imported cases whose
+  // status is already Decided/Withdrawn/Closed, even if an old date is
+  // still sitting on the record.
   return officeCases().filter(function(c){
     if(!c.nextDate) return false;
-    if(c.nextDate===today) return true;
-    return c.nextDate<today && CLOSED_STATUSES.indexOf(c.status)<0;
+    if(CLOSED_STATUSES.indexOf(c.status)>=0) return false;
+    return c.nextDate===today || c.nextDate<today;
   }).sort(function(a,b){
     var aOverdue=a.nextDate<today, bOverdue=b.nextDate<today;
     if(aOverdue!==bOverdue) return aOverdue?-1:1; // overdue first
