@@ -1182,7 +1182,7 @@ var OFFICE_DEFAULT_ID = 'office-default';
 var PROFILE_KEY = 'lx_profile_v1';
 
 var fbConfig = HARDCODED_FB_CONFIG;
-var db = null, auth = null;
+var db = null, auth = null, fbFunctions = null;
 var currentUser = null;
 var isCloud = false;
 var unsub = null;
@@ -1680,7 +1680,8 @@ function loadFirebaseSDK(cb){
   var scripts = [
     'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js',
-    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js'
+    'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js',
+    'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js'
   ];
   var loaded = 0;
   var failed = false;
@@ -1715,6 +1716,7 @@ function initFB(cfg){
     if(!firebase.apps.length) firebase.initializeApp(cfg);
     db = firebase.firestore();
     auth = firebase.auth();
+    try{ fbFunctions = firebase.functions(); }catch(e){ console.error('Functions SDK init:',e); }
     try{ db.enablePersistence({synchronizeTabs:true}); }catch(e){}
     auth.getRedirectResult().then(function(result){
       // onAuthStateChanged handles showApp — just log here
@@ -2928,14 +2930,38 @@ function openECourts(){
   window.open(cnr?'https://services.ecourts.gov.in/ecourtindia_v6/?p=casestatus/index&searchby=2&cino='+encodeURIComponent(cnr):'https://services.ecourts.gov.in/ecourtindia_v6/','_blank');
 }
 
+// Single shared entry point for checking a case's next date — routes
+// through the Cloud Function proxy (functions/index.js: checkECourtsDate)
+// so the browser never calls eCourtsIndia directly (that call is blocked
+// by CORS from a browser). Returns a Promise resolving to the eCourtsIndia
+// response shape, or rejecting with an Error whose .code matches
+// 'AUTH' | 'CREDITS' | 'OTHER'.
+function callECourtsCheck(cnr){
+  if(!fbFunctions){
+    return Promise.reject(Object.assign(new Error('Cloud Function not available — check Firebase setup.'),{code:'OTHER'}));
+  }
+  var key=userProfile.ecourtsApiKey;
+  if(!key){
+    return Promise.reject(Object.assign(new Error('No eCourts API key saved.'),{code:'NOKEY'}));
+  }
+  var fn=fbFunctions.httpsCallable('checkECourtsDate');
+  return fn({cnr:cnr, apiKey:key}).then(function(result){
+    return result.data;
+  }).catch(function(e){
+    var code = e.code==='functions/unauthenticated' ? 'AUTH'
+      : e.code==='functions/resource-exhausted' ? 'CREDITS'
+      : 'OTHER';
+    throw Object.assign(new Error(e.message||'eCourts check failed'),{code:code});
+  });
+}
+
 // ── Check Date — a single, real eCourts API call for THIS case only ──
 function autoFetchECourts(){
   var c=cases.find(function(x){return x.id===syncingId;});
   if(!c||!c.cnr){toast('Add CNR number to case first.','warn');return;}
-  var key=userProfile.ecourtsApiKey;
   var btn=document.getElementById('auto-fetch-btn');
   var res=document.getElementById('sync-result');
-  if(!key){
+  if(!userProfile.ecourtsApiKey){
     res.style.display='block';
     res.style.background='#fef9c3';res.style.border='1px solid #fde68a';res.style.color='#92400e';
     res.innerHTML='⚠ Add your eCourts API key in Account first to use this. <a href="#" onclick="closeModal(\'modal-sync\');closeModal(\'modal-detail\');openModal(\'modal-account\');return false" style="color:#1a56db">Open Account</a>';
@@ -2946,15 +2972,7 @@ function autoFetchECourts(){
   btn.disabled=true;
   res.style.display='none';
 
-  fetch('https://webapi.ecourtsindia.com/api/partner/causelist/cnr/batch',{
-    method:'POST',
-    headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
-    body:JSON.stringify({cnrs:[cnr]})
-  }).then(function(r){
-    if(r.status===401) throw new Error('AUTH');
-    if(r.status===402) throw new Error('CREDITS');
-    return r.json();
-  }).then(function(resp){
+  callECourtsCheck(cnr).then(function(resp){
     btn.innerHTML='🔍 Check Date (1 call)';
     btn.disabled=false;
     var item=((resp&&resp.data)||[])[0];
@@ -2977,9 +2995,9 @@ function autoFetchECourts(){
     btn.disabled=false;
     res.style.display='block';
     res.style.background='#fef2f2';res.style.border='1px solid #fecaca';res.style.color='#dc2626';
-    var msg = e.message==='AUTH' ? 'API key rejected — check it in Account.'
-      : e.message==='CREDITS' ? 'eCourts credits exhausted — top up your deposit.'
-      : 'Check failed.';
+    var msg = e.code==='AUTH' ? 'API key rejected — check it in Account.'
+      : e.code==='CREDITS' ? 'eCourts credits exhausted — top up your deposit.'
+      : 'Check failed: '+e.message;
     res.innerHTML=msg+' <a href="#" onclick="openECourts();return false" style="color:#1a56db">Open eCourts manually</a>.';
   });
 }
@@ -3074,19 +3092,10 @@ function saveTodayCaseUpdate(caseId){
 function checkOneCaseOnECourts(caseId){
   var c=cases.find(function(x){return x.id===caseId;});
   if(!c||!c.cnr) return;
-  var key=userProfile.ecourtsApiKey;
-  if(!key){ toast('Add your eCourts API key in Account first.','warn'); return; }
+  if(!userProfile.ecourtsApiKey){ toast('Add your eCourts API key in Account first.','warn'); return; }
   var st=document.getElementById('today-status-'+caseId);
   if(st) st.textContent='Checking next date on eCourts...';
-  fetch('https://webapi.ecourtsindia.com/api/partner/causelist/cnr/batch',{
-    method:'POST',
-    headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
-    body:JSON.stringify({cnrs:[c.cnr]})
-  }).then(function(r){
-    if(r.status===401) throw new Error('AUTH');
-    if(r.status===402) throw new Error('CREDITS');
-    return r.json();
-  }).then(function(resp){
+  callECourtsCheck(c.cnr).then(function(resp){
     var item=((resp&&resp.data)||[])[0];
     if(!item || !item.hasCauselist || !item.nextListing || !item.nextListing.date){
       if(st) st.textContent='No upcoming listing found for this CNR yet.';
@@ -3096,9 +3105,9 @@ function checkOneCaseOnECourts(caseId){
     if(item.nextListing.listingFor){ var se=document.getElementById('today-stage-'+caseId); if(se) se.value=item.nextListing.listingFor; }
     if(st) st.textContent='Checked just now — review the date, then click Save Update to apply.';
   }).catch(function(e){
-    var msg = e.message==='AUTH' ? 'API key rejected — check it in Account.'
-      : e.message==='CREDITS' ? 'eCourts credits exhausted — top up your deposit.'
-      : 'Check failed — try again.';
+    var msg = e.code==='AUTH' ? 'API key rejected — check it in Account.'
+      : e.code==='CREDITS' ? 'eCourts credits exhausted — top up your deposit.'
+      : 'Check failed: '+e.message;
     if(st) st.textContent=msg;
     toast(msg,'warn');
   });
