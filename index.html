@@ -807,7 +807,7 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
     <input type="text" id="search-input" placeholder="Search case no., title, client, court..." oninput="renderTable()"/>
     <div class="count-pill" id="count-lbl">0 cases</div>
     <button class="btn btn-ghost btn-sm" onclick="addAllHearingsToCalendar()" style="border-color:#1a73e8;color:#1a73e8;background:#f0f6ff" title="Add all upcoming hearings to Google Calendar">📅 Calendar</button>
-    <button class="btn btn-ghost btn-sm" onclick="openTodayCasesPage()" style="border-color:#16a34a;color:#16a34a;background:#f0fdf4" title="Review today's listings and any overdue matters — no bulk fetch">📅 Today Cases Only</button>
+    <button class="btn btn-ghost btn-sm" onclick="openTodayCasesPage()" style="border-color:#16a34a;color:#16a34a;background:#f0fdf4" title="Review today's listed matters only — manual per-case update, or bulk sync with confirmation">📅 Today Cases Only</button>
   </div>
   <div class="tbl-wrap">
     <div class="tbl-head">
@@ -3063,18 +3063,22 @@ function autoFetchECourts(){
 // case's own Case Detail page via "⟳ Sync eCourts".
 function getTodaysECourtsCandidates(){
   var today=todayStr();
-  // Only actionable, still-open matters — never dead imported cases whose
-  // status is already Decided/Withdrawn/Closed, even if an old date is
-  // still sitting on the record.
+  // Strictly today's listings only — overdue cases are handled per-case
+  // from Case Detail's "Update / Check Date", not from this page.
   return officeCases().filter(function(c){
     if(!c.nextDate) return false;
     if(CLOSED_STATUSES.indexOf(c.status)>=0) return false;
-    return c.nextDate===today || c.nextDate<today;
+    return c.nextDate===today;
   }).sort(function(a,b){
-    var aOverdue=a.nextDate<today, bOverdue=b.nextDate<today;
-    if(aOverdue!==bOverdue) return aOverdue?-1:1; // overdue first
-    return a.nextDate.localeCompare(b.nextDate);
+    return (a.title||'').localeCompare(b.title||'');
   });
+}
+
+// A case counts as "already synced today" if we've checked/updated it via
+// eCourts (bulk or individual) at any point today — bulk sync uses this to
+// skip it instead of calling the API again for the same case/date.
+function alreadySyncedToday(c){
+  return c.lastSynced && c.lastSynced.slice(0,10)===todayStr();
 }
 
 function openTodayCasesPage(){
@@ -3086,30 +3090,30 @@ function renderTodayCasesPage(){
   if(!root) return;
   var hasKey=!!userProfile.ecourtsApiKey;
   var list=getTodaysECourtsCandidates();
-  var today=todayStr();
-  var overdueCount=list.filter(function(c){return c.nextDate<today;}).length;
+  var withCnr=list.filter(function(c){return c.cnr;});
   var html='';
   if(!hasKey){
-    html+='<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:12px 16px;margin-bottom:16px;font-size:12.5px;color:#92400e">Add your eCourts API key in Account to enable "Check Next Date" below. You can still update dates and remarks manually without a key — no API usage at all in that case.</div>';
+    html+='<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:12px 16px;margin-bottom:16px;font-size:12.5px;color:#92400e">Add your eCourts API key in Account to enable "Check Next Date" and Bulk Sync below. You can still update dates and remarks manually without a key — no API usage at all in that case.</div>';
   }
+  html+='<div id="bulk-sync-summary"></div>';
   if(!list.length){
-    html+='<div style="text-align:center;padding:40px;color:#7b93ad;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:10px">No matters listed for today, and nothing overdue, in '+esc(currentOffice().name)+'.</div>';
+    html+='<div style="text-align:center;padding:40px;color:#7b93ad;background:#f8fafc;border:1px dashed #e2e8f0;border-radius:10px">No matters listed for today in '+esc(currentOffice().name)+'.</div>';
     root.innerHTML=html;
     return;
   }
-  if(overdueCount){
-    html+='<div style="background:#fef2f2;border:2px solid #fecaca;border-radius:9px;padding:11px 15px;margin-bottom:14px;font-size:12.5px;color:#dc2626;font-weight:700">🔴 '+overdueCount+' case'+(overdueCount!==1?'s':'')+' have a hearing date already in the past and still need updating.</div>';
-  }
-  html+='<div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px">'+list.length+" matter"+(list.length!==1?'s':'')+' — today\'s listings plus anything overdue</div>';
-  html+=list.map(function(c){ return renderTodayCaseCard(c,hasKey,today); }).join('');
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">'
+    +'<div style="font-size:11px;font-weight:700;color:#4b6280;text-transform:uppercase;letter-spacing:.6px">'+list.length+" matter"+(list.length!==1?'s':'')+' listed today</div>'
+    +(withCnr.length?'<button class="btn btn-gold btn-sm" onclick="bulkSyncTodayCases()" '+(hasKey?'':'disabled title="Add an eCourts API key in Account first"')+'>⟳ Today Bulk Case Sync ('+withCnr.length+')</button>':'')
+    +'</div>';
+  html+=list.map(function(c){ return renderTodayCaseCard(c,hasKey); }).join('');
   root.innerHTML=html;
 }
 
-function renderTodayCaseCard(c,hasKey,today){
-  var isOverdue=c.nextDate<today;
-  return '<div style="background:'+(isOverdue?'#fef2f2':'#fff')+';border:'+(isOverdue?'2px solid #fecaca':'1px solid #e2e8f0')+';border-radius:10px;padding:16px;margin-bottom:12px">'
+function renderTodayCaseCard(c,hasKey){
+  var synced=alreadySyncedToday(c);
+  return '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:12px">'
     +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">'
-    +'<div style="cursor:pointer" onclick="closeModal(\'modal-today\');openDetail(\''+c.id+'\')"><div style="font-weight:700;font-size:14px;color:#1e3a5f">'+esc(c.title||'—')+(isOverdue?' <span style="font-size:10px;background:#dc2626;color:#fff;border-radius:10px;padding:2px 8px;font-weight:800;vertical-align:middle">OVERDUE — was '+fmtDate(c.nextDate)+'</span>':'')+'</div><div style="font-size:11.5px;color:#7b93ad">'+esc(c.court||'')+(c.cnr?' · CNR: '+esc(c.cnr):' · No CNR on file')+'</div></div>'
+    +'<div style="cursor:pointer" onclick="closeModal(\'modal-today\');openDetail(\''+c.id+'\')"><div style="font-weight:700;font-size:14px;color:#1e3a5f">'+esc(c.title||'—')+(synced?' <span style="font-size:10px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:10px;padding:2px 8px;font-weight:800;vertical-align:middle">✓ SYNCED TODAY</span>':'')+'</div><div style="font-size:11.5px;color:#7b93ad">'+esc(c.court||'')+(c.cnr?' · CNR: '+esc(c.cnr):' · No CNR on file')+'</div></div>'
     +(c.cnr?('<button class="btn btn-sm" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a" onclick="checkOneCaseOnECourts(\''+c.id+'\')" '+(hasKey?'':'disabled title="Add an eCourts API key in Account first"')+'>🔍 Check Next Date (1 call)</button>'):'')
     +'</div>'
     +'<div class="form-grid" style="margin-bottom:8px">'
@@ -3125,6 +3129,7 @@ function renderTodayCaseCard(c,hasKey,today){
 }
 
 // Manual save — reads whatever you typed into the fields. No API call.
+// Also marks this case as "synced today" so bulk sync skips it later.
 function saveTodayCaseUpdate(caseId){
   var idx=cases.findIndex(function(x){return x.id===caseId;});
   if(idx<0) return;
@@ -3132,6 +3137,7 @@ function saveTodayCaseUpdate(caseId){
   var s=document.getElementById('today-stage-'+caseId).value.trim();
   var r=document.getElementById('today-remarks-'+caseId).value.trim();
   cases[idx].nextDate=d; cases[idx].stage=s; cases[idx].remarks=r;
+  cases[idx].lastSynced=new Date().toISOString();
   cases[idx].updatedAt=new Date().toISOString();
   if(isCloud){ cloudSave(cases[idx]); } else { saveLocal(); renderAll(); }
   var st=document.getElementById('today-status-'+caseId);
@@ -3140,9 +3146,9 @@ function saveTodayCaseUpdate(caseId){
   renderTodayCasesPage(); // date may have moved off "today", refresh the list
 }
 
-// The ONLY place a network call happens — and only because you clicked
-// "Check Next Date" on this one specific case. One case, one cheap call
-// (Cause List check, not the pricier full Case Detail fetch).
+// Manual per-case check — always available independently of bulk sync.
+// The ONLY place a network call happens for a single case — and only
+// because you clicked "Check Next Date" on that one case.
 function checkOneCaseOnECourts(caseId){
   var c=cases.find(function(x){return x.id===caseId;});
   if(!c||!c.cnr) return;
@@ -3165,6 +3171,89 @@ function checkOneCaseOnECourts(caseId){
     if(st) st.textContent=msg;
     toast(msg,'warn');
   });
+}
+
+// ── Today Bulk Case Sync ─────────────────────────────────────────────
+// Sends one eCourts check per today's case (that has a CNR), skips any
+// case already synced today (duplicate-check), auto-applies results that
+// come back, and shows a synced/skipped/failed summary at the end.
+function bulkSyncTodayCases(){
+  if(!userProfile.ecourtsApiKey){ toast('Add your eCourts API key in Account first.','warn'); return; }
+  var today=getTodaysECourtsCandidates().filter(function(c){return c.cnr;});
+  if(!today.length){ toast("No CNR cases listed today to sync.",'warn'); return; }
+
+  var toSync=today.filter(function(c){ return !alreadySyncedToday(c); });
+  var alreadyDone=today.length-toSync.length;
+
+  var now=new Date(), hour=now.getHours();
+  var timeNote = hour<17
+    ? "It's currently before 5 PM — eCourts often hasn't reflected today's hearing outcomes yet. Recommended: run this after 5 PM once today's listings have concluded."
+    : "It's after 5 PM, so today's hearings have likely concluded and eCourts should be up to date.";
+  var msg = '⚠️ Today Bulk Case Sync\n\n'+timeNote+'\n\n'
+    + toSync.length+' case(s) will be checked (1 API call each).'
+    + (alreadyDone?'\n'+alreadyDone+' case(s) already synced today will be skipped automatically.':'')
+    + '\n\nProceed now?';
+  if(!confirm(msg)) return;
+
+  if(!toSync.length){
+    toast('All of today\'s cases were already synced today — nothing to do.');
+    return;
+  }
+
+  var summaryEl=document.getElementById('bulk-sync-summary');
+  var synced=0, skipped=alreadyDone, failed=0, failedNames=[];
+  var btn=document.querySelector('#today-root .btn-gold');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Syncing 0/'+toSync.length+'...'; }
+
+  function renderProgress(done){
+    if(btn) btn.textContent='⏳ Syncing '+done+'/'+toSync.length+'...';
+  }
+  function renderSummary(){
+    if(!summaryEl) return;
+    summaryEl.innerHTML='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:13px 16px;margin-bottom:16px">'
+      +'<div style="font-weight:700;color:#1e3a5f;font-size:13px;margin-bottom:8px">Today Bulk Case Sync — Result</div>'
+      +'<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px">'
+      +'<span style="color:#16a34a;font-weight:700">✓ '+synced+' synced</span>'
+      +'<span style="color:#b45309;font-weight:700">⏭ '+skipped+' skipped (already synced today)</span>'
+      +'<span style="color:'+(failed?'#dc2626':'#94a3b8')+';font-weight:700">✕ '+failed+' failed</span>'
+      +'</div>'
+      +(failedNames.length?'<div style="font-size:11.5px;color:#7b93ad;margin-top:6px">Failed: '+failedNames.map(esc).join(', ')+'</div>':'')
+      +'</div>';
+  }
+
+  var i=0;
+  function processNext(){
+    if(i>=toSync.length){
+      if(btn){ btn.disabled=false; btn.textContent='⟳ Today Bulk Case Sync'; }
+      renderSummary();
+      toast('Bulk sync done: '+synced+' synced, '+skipped+' skipped, '+failed+' failed.');
+      renderTodayCasesPage();
+      // re-render summary after the page redraw wipes it
+      renderSummary();
+      return;
+    }
+    var c=toSync[i];
+    callECourtsCheck(c.cnr).then(function(resp){
+      var item=((resp&&resp.data)||[])[0];
+      var idx=cases.findIndex(function(x){return x.id===c.id;});
+      if(idx>=0){
+        cases[idx].lastSynced=new Date().toISOString(); // mark checked regardless, so we never re-call it today
+        if(item && item.hasCauselist && item.nextListing && item.nextListing.date){
+          cases[idx].nextDate=item.nextListing.date;
+          if(item.nextListing.listingFor) cases[idx].stage=item.nextListing.listingFor;
+          cases[idx].updatedAt=new Date().toISOString();
+          synced++;
+        }
+        if(isCloud) cloudSave(cases[idx]);
+      }
+    }).catch(function(){
+      failed++; failedNames.push(c.title||c.caseNo||'case');
+    }).then(function(){
+      i++; renderProgress(i);
+      setTimeout(processNext, 400); // small stagger between calls
+    });
+  }
+  processNext();
 }
 
 function applySync(){
@@ -4326,7 +4415,7 @@ scheduleAllAlerts = function(){
     <div class="page-topbar">
       <div>
         <div class="page-topbar-title">📅 Today Cases Only</div>
-        <div class="page-topbar-sub">Manual, cost-efficient workflow — today's matters plus anything overdue, no bulk fetch, no background sync</div>
+        <div class="page-topbar-sub">Today's listed matters only — manual per-case update, or Today Bulk Case Sync with duplicate-check</div>
       </div>
     </div>
     <div id="today-root"></div>
