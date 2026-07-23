@@ -130,11 +130,10 @@ body {
 ══════════════════════════════════════════════════════════ */
 body.app-active { padding-left: 216px; }
 .mobile-menu-btn {
-  display: none; position: fixed; top: 14px; left: 14px; z-index: 510;
-  width: 40px; height: 40px; border-radius: 10px; border: none;
-  background: var(--navy); color: #fff; font-size: 20px; font-weight: 800;
+  display: none; flex-shrink: 0;
+  width: 36px; height: 36px; border-radius: 9px; border: none;
+  background: var(--gold); color: var(--navy); font-size: 19px; font-weight: 800;
   align-items: center; justify-content: center; cursor: pointer;
-  box-shadow: 0 2px 10px rgba(15,31,61,.3);
 }
 .sidebar {
   display: none; flex-direction: column;
@@ -562,7 +561,6 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
     padding: 11px 10px 10px !important;
     border-top: 1px solid #e8f0fe !important;
     position: relative !important;
-    min-height: 70px;
   }
 
   /* Col 1 title — visible, wrap text */
@@ -588,21 +586,26 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
   .tbl-row > div:nth-child(6) { margin-top: 5px; display: inline-block; }
   .badge { font-size: 10px; padding: 2px 7px; }
 
-  /* Col 7 actions — top right */
+  /* Col 7 actions — top right, 2x2 grid so it stays short and can never
+     spill into the next row (a 4-tall stack was taller than most rows'
+     actual content, which is what caused the overlap) */
   .tbl-row > div:nth-child(7) {
     position: absolute !important;
     top: 8px !important;
     right: 6px !important;
-    display: flex !important;
-    flex-direction: column !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, auto) !important;
     gap: 3px !important;
   }
   .tbl-row > div:nth-child(7) .btn {
-    padding: 6px 8px !important;
-    font-size: 14px !important;
-    min-width: 34px;
+    padding: 5px 7px !important;
+    font-size: 13px !important;
+    min-width: 30px;
     justify-content: center;
   }
+  /* Guarantee the row is always at least as tall as the action grid
+     (2 rows of ~30px + gap), so it can never be shorter than the actions */
+  .tbl-row { min-height: 96px !important; }
 
   /* Modals — bottom sheet */
   .overlay { padding: 0 !important; align-items: flex-end !important; }
@@ -690,7 +693,6 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
 </div>
 
 <!-- ═══════════════════ SIDEBAR ═══════════════════ -->
-<button class="mobile-menu-btn" id="mobile-menu-btn" onclick="toggleMobileSidebar()" aria-label="Open menu">⋮</button>
 <div id="sidebar-backdrop" onclick="toggleMobileSidebar()"></div>
 <div class="sidebar" id="sidebar">
   <div class="sidebar-brand">
@@ -751,6 +753,7 @@ code { background: #f0f4fc; color: var(--navy2); padding: 2px 7px; border-radius
 
 <!-- ═══════════════════ HEADER ═══════════════════ -->
 <div class="header" id="main-header" style="display:none">
+  <button class="mobile-menu-btn" id="mobile-menu-btn" onclick="toggleMobileSidebar()" aria-label="Open menu">⋮</button>
   <div style="margin-right:auto">
     <div style="font-size:14px;font-weight:700;color:#1e3a5f;line-height:1.2">Cases</div>
     <div id="hdr-sub" style="font-size:10.5px;color:#7b93ad;font-weight:500">Loading...</div>
