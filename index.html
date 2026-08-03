@@ -3111,7 +3111,7 @@ function autoFetchECourts(){
     return;
   }
   var cnr=c.cnr.trim();
-  btn.innerHTML='⏳ Checking eCourts...';
+  btn.innerHTML='⏳ Checking (up to ~1 min if refreshing)...';
   btn.disabled=true;
   res.style.display='none';
 
@@ -3243,7 +3243,7 @@ function checkOneCaseOnECourts(caseId){
   if(!c||!c.cnr) return;
   if(!userProfile.ecourtsApiKey){ toast('Add your eCourts API key in Account first.','warn'); return; }
   var st=document.getElementById('today-status-'+caseId);
-  if(st) st.textContent='Checking next date on eCourts...';
+  if(st) st.textContent='Checking next date (up to ~1 min if a refresh is needed)...';
   callECourtsCheck(c.cnr).then(function(resp){
     if(!resp || !resp.found || !resp.nextHearingDate){
       if(st) st.textContent=(resp&&resp.found?'No next hearing date on record yet.':'Case not found on eCourts for this CNR.')+(resp&&resp.refreshed?' (checked again after a refresh)':'');
