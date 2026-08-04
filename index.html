@@ -3087,14 +3087,16 @@ function callECourtsCheck(cnr){
   if(!key){
     return Promise.reject(Object.assign(new Error('No eCourts API key saved.'),{code:'NOKEY'}));
   }
-  var fn=fbFunctions.httpsCallable('checkECourtsDate');
+  var fn=fbFunctions.httpsCallable('checkECourtsDate',{timeout:110000}); // match the server's longer polling window
   return fn({cnr:cnr, apiKey:key}).then(function(result){
     return result.data;
   }).catch(function(e){
     var code = e.code==='functions/unauthenticated' ? 'AUTH'
       : e.code==='functions/resource-exhausted' ? 'CREDITS'
+      : e.code==='functions/deadline-exceeded' ? 'TIMEOUT'
       : 'OTHER';
-    throw Object.assign(new Error(e.message||'eCourts check failed'),{code:code});
+    var msg = code==='TIMEOUT' ? 'eCourts is taking unusually long to respond — try again in a minute.' : (e.message||'eCourts check failed');
+    throw Object.assign(new Error(msg),{code:code});
   });
 }
 
